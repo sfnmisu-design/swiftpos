@@ -8,5 +8,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "mongodb": "^6.3.0"
   }
 }

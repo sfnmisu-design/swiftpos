@@ -1,22 +1,82 @@
 /**
- * SwiftPOS — Production Server
- * Works locally AND on Railway/Render cloud hosting
+ * SwiftPOS — Production Server with MongoDB Atlas
+ * Data is saved permanently in the cloud database.
+ * No data loss on server restart.
  */
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
 
-const PORT     = process.env.PORT || 3000;
-const PASSWORD = process.env.POS_PASSWORD || 'swiftpos2024';
+const http    = require('http');
+const fs      = require('fs');
+const path    = require('path');
+const { MongoClient } = require('mongodb');
+
+// ── Config ────────────────────────────────────────────────
+const PORT        = process.env.PORT || 3000;
+const PASSWORD    = process.env.POS_PASSWORD || 'swiftpos2024';
+const MONGO_URI   = process.env.MONGODB_URI || '';
+const IS_LOCAL    = !process.env.PORT;
+const POS_HTML    = path.join(__dirname, 'pos.html');
+
+// ── MongoDB connection ────────────────────────────────────
+let db = null;
+
+async function connectDB() {
+  if (!MONGO_URI) {
+    console.log('No MONGODB_URI set — running without database (data will reset on restart)');
+    return false;
+  }
+  try {
+    const client = new MongoClient(MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 10000,
+    });
+    await client.connect();
+    db = client.db('swiftpos');
+    console.log('Connected to MongoDB Atlas');
+    return true;
+  } catch (e) {
+    console.error('MongoDB connection failed:', e.message);
+    return false;
+  }
+}
+
+// ── MongoDB helpers ───────────────────────────────────────
+// All data stored in one document per key in the "store" collection
+async function dbGet(key) {
+  if (!db) return null;
+  try {
+    const doc = await db.collection('store').findOne({ _id: key });
+    return doc ? doc.value : null;
+  } catch(e) { return null; }
+}
+
+async function dbSet(key, value) {
+  if (!db) return false;
+  try {
+    await db.collection('store').replaceOne(
+      { _id: key },
+      { _id: key, value, updatedAt: new Date() },
+      { upsert: true }
+    );
+    return true;
+  } catch(e) { console.error('dbSet error:', e.message); return false; }
+}
+
+async function dbPushTx(tx) {
+  if (!db) return false;
+  try {
+    await db.collection('transactions').insertOne({ ...tx, savedAt: new Date() });
+    return true;
+  } catch(e) { return false; }
+}
+
+// ── Fallback: local file storage (used when no MongoDB) ───
 const DATA_DIR = path.join(__dirname, 'data');
-const POS_HTML = path.join(__dirname, 'pos.html');
-const IS_LOCAL = !process.env.PORT;
-
-['', 'backups', 'receipts'].forEach(sub => {
+['', 'backups'].forEach(sub => {
   const dir = path.join(DATA_DIR, sub);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
-
+function readJ(p)    { try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p,'utf8')) : null; } catch(e){ return null; } }
+function writeJ(p,d) { try { fs.writeFileSync(p, JSON.stringify(d,null,2),'utf8'); return true; } catch(e){ return false; } }
 const F = {
   products:     path.join(DATA_DIR, 'products.json'),
   transactions: path.join(DATA_DIR, 'transactions.json'),
@@ -29,10 +89,18 @@ const F = {
   meta:         path.join(DATA_DIR, 'meta.json'),
 };
 
-function readJ(p)    { try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p,'utf8')) : null; } catch(e){ return null; } }
-function writeJ(p,d) { try { fs.writeFileSync(p, JSON.stringify(d,null,2),'utf8'); return true; } catch(e){ return false; } }
-function ts()        { return new Date().toISOString().replace(/[:.]/g,'-').slice(0,19); }
+// ── Unified get/set (MongoDB first, fallback to files) ────
+async function storeGet(key) {
+  if (db) return await dbGet(key);
+  return readJ(F[key] || path.join(DATA_DIR, key+'.json'));
+}
+async function storeSet(key, value) {
+  if (db) return await dbSet(key, value);
+  return writeJ(F[key] || path.join(DATA_DIR, key+'.json'), value);
+}
 
+// ── HTTP helpers ──────────────────────────────────────────
+function ts() { return new Date().toISOString().replace(/[:.]/g,'-').slice(0,19); }
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin',  '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -40,14 +108,14 @@ function cors(res) {
 }
 function sendJ(res, code, obj) {
   cors(res);
-  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.writeHead(code, {'Content-Type':'application/json'});
   res.end(JSON.stringify(obj));
 }
 function getBody(req) {
   return new Promise((resolve, reject) => {
     let b = '';
     req.on('data', c => b += c);
-    req.on('end',  () => { try { resolve(b ? JSON.parse(b) : {}); } catch(e){ reject(e); } });
+    req.on('end', () => { try { resolve(b ? JSON.parse(b) : {}); } catch(e){ reject(e); }});
     req.on('error', reject);
   });
 }
@@ -66,98 +134,127 @@ function checkAuth(req, res) {
   return true;
 }
 
-http.createServer(async (req, res) => {
-  const url    = req.url.split('?')[0];
-  const method = req.method.toUpperCase();
+// ── Start server ──────────────────────────────────────────
+async function start() {
+  await connectDB();
 
-  if (method === 'OPTIONS') { cors(res); res.writeHead(204); return res.end(); }
-  if (url === '/favicon.ico') { res.writeHead(204); return res.end(); }
+  http.createServer(async (req, res) => {
+    const url    = req.url.split('?')[0];
+    const method = req.method.toUpperCase();
 
-  // Ping — no auth needed (lets pos.html detect connectivity)
-  if (url === '/ping') return sendJ(res, 200, { ok: true });
+    if (method === 'OPTIONS') { cors(res); res.writeHead(204); return res.end(); }
+    if (url === '/favicon.ico') { res.writeHead(204); return res.end(); }
 
-  // Serve the POS app
-  if (method === 'GET' && (url === '/' || url === '/pos.html')) {
+    // Ping — no auth (pos.html uses this to detect connectivity)
+    if (url === '/ping') return sendJ(res, 200, { ok: true, db: !!db });
+
+    // Serve the POS app
+    if (method === 'GET' && (url === '/' || url === '/pos.html')) {
+      if (!checkAuth(req, res)) return;
+      if (!fs.existsSync(POS_HTML)) { res.writeHead(404); return res.end('pos.html not found'); }
+      cors(res);
+      res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
+      return res.end(fs.readFileSync(POS_HTML));
+    }
+
     if (!checkAuth(req, res)) return;
-    if (!fs.existsSync(POS_HTML)) { res.writeHead(404); return res.end('pos.html not found'); }
-    cors(res);
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    return res.end(fs.readFileSync(POS_HTML));
-  }
 
-  if (!checkAuth(req, res)) return;
+    // ── Load all data ─────────────────────────────────────
+    if (url === '/data/all' && method === 'GET') {
+      const keys = ['products','transactions','customers','branding','vat','storeInfo','categories','quotations','meta'];
+      const result = {};
+      await Promise.all(keys.map(async k => { result[k] = await storeGet(k); }));
+      return sendJ(res, 200, result);
+    }
 
-  if (url === '/data/all' && method === 'GET')
-    return sendJ(res, 200, {
-      products: readJ(F.products), transactions: readJ(F.transactions),
-      customers: readJ(F.customers), branding: readJ(F.branding),
-      vat: readJ(F.vat), storeInfo: readJ(F.storeInfo),
-      categories: readJ(F.categories), quotations: readJ(F.quotations), meta: readJ(F.meta),
-    });
+    // ── Save all data ─────────────────────────────────────
+    if (url === '/data/save' && method === 'POST') {
+      try {
+        const d = await getBody(req);
+        const keys = ['products','transactions','customers','branding','vat','storeInfo','categories','quotations','meta'];
+        await Promise.all(keys.map(async k => { if (d[k] != null) await storeSet(k, d[k]); }));
+        return sendJ(res, 200, { ok: true });
+      } catch(e) { return sendJ(res, 400, { ok:false, error:e.message }); }
+    }
 
-  if (url === '/data/save' && method === 'POST') {
-    try {
-      const d = await getBody(req);
-      Object.entries({ products:F.products, transactions:F.transactions, customers:F.customers,
-        branding:F.branding, vat:F.vat, storeInfo:F.storeInfo,
-        categories:F.categories, quotations:F.quotations, meta:F.meta })
-        .forEach(([k,p]) => { if (d[k] != null) writeJ(p, d[k]); });
-      return sendJ(res, 200, { ok: true });
-    } catch(e) { return sendJ(res, 400, { ok:false, error: e.message }); }
-  }
+    // ── Save single transaction ───────────────────────────
+    if (url === '/data/transaction' && method === 'POST') {
+      try {
+        const tx = await getBody(req);
+        // Save to transactions array
+        const all = (await storeGet('transactions')) || [];
+        all.unshift(tx);
+        await storeSet('transactions', all);
+        // Also save individually to transactions collection if using MongoDB
+        if (db) await dbPushTx(tx);
+        return sendJ(res, 200, { ok:true, txId:tx.id });
+      } catch(e) { return sendJ(res, 400, { ok:false, error:e.message }); }
+    }
 
-  if (url === '/data/transaction' && method === 'POST') {
-    try {
-      const tx = await getBody(req);
-      const all = readJ(F.transactions) || [];
-      all.unshift(tx); writeJ(F.transactions, all);
-      writeJ(path.join(DATA_DIR,'receipts',`receipt-${tx.id}-${ts()}.json`), tx);
-      return sendJ(res, 200, { ok:true, txId:tx.id });
-    } catch(e) { return sendJ(res, 400, { ok:false, error:e.message }); }
-  }
+    // ── Full backup ───────────────────────────────────────
+    if (url === '/backup/full' && method === 'POST') {
+      try {
+        const d = await getBody(req);
+        const backup = { ...d, exported: new Date().toISOString(), version:'1.0' };
+        // Save backup to MongoDB
+        if (db) {
+          await db.collection('backups').insertOne({ ...backup, savedAt: new Date() });
+        }
+        // Also offer as file download via response
+        const filename = `swiftpos-backup-${ts()}.json`;
+        if (!db) {
+          const file = path.join(DATA_DIR,'backups',filename);
+          writeJ(file, backup);
+        }
+        return sendJ(res, 200, { ok:true, file: filename });
+      } catch(e) { return sendJ(res, 400, { ok:false, error:e.message }); }
+    }
 
-  if (url === '/backup/full' && method === 'POST') {
-    try {
-      const d = await getBody(req);
-      const file = path.join(DATA_DIR,'backups',`full-backup-${ts()}.json`);
-      writeJ(file, { ...d, exported: new Date().toISOString(), version:'1.0' });
-      return sendJ(res, 200, { ok:true, file:path.basename(file) });
-    } catch(e) { return sendJ(res, 400, { ok:false, error:e.message }); }
-  }
+    // ── List backups ──────────────────────────────────────
+    if (url === '/backup/list' && method === 'GET') {
+      try {
+        if (db) {
+          const backups = await db.collection('backups')
+            .find({}, { projection:{ savedAt:1, version:1 } })
+            .sort({ savedAt:-1 }).limit(20).toArray();
+          return sendJ(res, 200, { ok:true, backups: backups.map(b=>({
+            name: `backup-${new Date(b.savedAt).toISOString().slice(0,19).replace(/[:.]/g,'-')}.json`,
+            size: 0, modified: b.savedAt
+          }))});
+        }
+        const dir = path.join(DATA_DIR,'backups');
+        const files = fs.readdirSync(dir).filter(f=>f.endsWith('.json'))
+          .map(f=>{ const s=fs.statSync(path.join(dir,f)); return {name:f,size:s.size,modified:s.mtime}; })
+          .sort((a,b)=>new Date(b.modified)-new Date(a.modified));
+        return sendJ(res, 200, { ok:true, backups:files });
+      } catch(e) { return sendJ(res, 200, { ok:true, backups:[] }); }
+    }
 
-  if (url === '/backup/list' && method === 'GET') {
-    try {
-      const dir = path.join(DATA_DIR,'backups');
-      const files = fs.readdirSync(dir).filter(f=>f.endsWith('.json'))
-        .map(f=>{ const s=fs.statSync(path.join(dir,f)); return {name:f,size:s.size,modified:s.mtime}; })
-        .sort((a,b)=>new Date(b.modified)-new Date(a.modified));
-      return sendJ(res, 200, { ok:true, backups:files });
-    } catch(e) { return sendJ(res, 200, { ok:true, backups:[] }); }
-  }
+    if (url === '/status') return sendJ(res, 200, { ok:true, db:!!db, env:IS_LOCAL?'local':'cloud' });
 
-  if (url === '/status') return sendJ(res, 200, { ok:true, env: IS_LOCAL?'local':'cloud' });
+    sendJ(res, 404, { ok:false, error:`Unknown: ${method} ${url}` });
 
-  sendJ(res, 404, { ok:false, error:`Unknown: ${method} ${url}` });
+  }).listen(PORT, '0.0.0.0', () => {
+    console.log('\n╔══════════════════════════════════════════════╗');
+    if (IS_LOCAL) {
+      console.log('║   SwiftPOS — Running Locally                 ║');
+      console.log(`║   Open: http://localhost:${PORT}                  ║`);
+    } else {
+      console.log('║   SwiftPOS — Running in Cloud                ║');
+      console.log(`║   Port: ${String(PORT).padEnd(37)}║`);
+      console.log(`║   Database: ${db ? 'MongoDB Atlas ✓' : 'No DB (data will reset)'.padEnd(33)}║`);
+    }
+    console.log('╚══════════════════════════════════════════════╝\n');
 
-}).listen(PORT, '0.0.0.0', () => {
-  console.log('\n╔══════════════════════════════════════════════╗');
-  if (IS_LOCAL) {
-    console.log('║      SwiftPOS — Running Locally              ║');
-    console.log(`║   Open: http://localhost:${PORT}                  ║`);
-    console.log('║   No password needed (local mode)            ║');
-  } else {
-    console.log('║      SwiftPOS — Running in Cloud             ║');
-    console.log(`║   Port: ${String(PORT).padEnd(37)}║`);
-    console.log('║   Password protection: ON                    ║');
-  }
-  console.log('╚══════════════════════════════════════════════╝\n');
+    if (IS_LOCAL) {
+      const u = `http://localhost:${PORT}`;
+      const c = process.platform==='win32'?`start ${u}`:process.platform==='darwin'?`open ${u}`:`xdg-open ${u}`;
+      require('child_process').exec(c, ()=>{});
+    }
+  });
+}
 
-  if (IS_LOCAL) {
-    const u = `http://localhost:${PORT}`;
-    const c = process.platform==='win32'?`start ${u}`:process.platform==='darwin'?`open ${u}`:`xdg-open ${u}`;
-    require('child_process').exec(c, ()=>{});
-  }
-});
+start();
 
 process.on('uncaughtException', e => {
   if (e.code==='EADDRINUSE') console.error(`\nPort ${PORT} already in use.\n`);
