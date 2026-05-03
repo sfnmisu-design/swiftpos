@@ -607,12 +607,33 @@ let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}
 let TOPI=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
 
 /* PERSIST */
-async function saveAll(){
+async function saveAll(retries=2){
   const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
-  if(srvOk){try{await api('/data/save','POST',d);}catch(e){srvOk=false;setSrv('err','● Offline');}}
+  if(srvOk){
+    for(let i=0;i<=retries;i++){
+      try{
+        const r=await Promise.race([
+          api('/data/save','POST',d),
+          new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
+        ]);
+        if(r&&r.ok) break;
+      }catch(e){
+        if(i===retries){srvOk=false;setSrv('err','Offline');}
+        else await new Promise(r=>setTimeout(r,1000*(i+1))); // wait 1s, 2s before retry
+      }
+    }
+  }
   try{
-    const s=k=>localStorage.setItem(k[0],JSON.stringify(k[1]));
-    [['sp_p',PRODS],['sp_t',TXS],['sp_c',CUSTS],['sp_b',BRAND],['sp_v',VAT],['sp_si',STORE],['sp_cats',CATS],['sp_q',QUOTES],['sp_m',{nid,txn,qn}],['sp_ti',TOPI]].forEach(s);
+    localStorage.setItem('sp_p',JSON.stringify(PRODS));
+    localStorage.setItem('sp_t',JSON.stringify(TXS));
+    localStorage.setItem('sp_c',JSON.stringify(CUSTS));
+    localStorage.setItem('sp_b',JSON.stringify(BRAND));
+    localStorage.setItem('sp_v',JSON.stringify(VAT));
+    localStorage.setItem('sp_si',JSON.stringify(STORE));
+    localStorage.setItem('sp_cats',JSON.stringify(CATS));
+    localStorage.setItem('sp_q',JSON.stringify(QUOTES));
+    localStorage.setItem('sp_m',JSON.stringify({nid,txn,qn}));
+    localStorage.setItem('sp_ti',JSON.stringify(TOPI));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
 }
@@ -944,11 +965,25 @@ function renderCusts(){
   refreshCusts();
 }
 async function addCust(){
-  const n=document.getElementById('cu-n').value.trim();if(!n){toast('Name is required');return;}
-  const id='C'+(Date.now().toString().slice(-7));
-  CUSTS.unshift({id,name:n,company:document.getElementById('cu-co').value.trim(),phone:document.getElementById('cu-p').value.trim(),email:document.getElementById('cu-e').value.trim(),address:document.getElementById('cu-a').value.trim(),spent:0,visits:0});
-  ['cu-n','cu-co','cu-p','cu-e','cu-a'].forEach(i=>document.getElementById(i).value='');
-  renderCusts();await saveAll();toast('Customer added \u2713');
+  const n=document.getElementById('cu-n').value.trim();
+  if(!n){toast('Name is required');return;}
+  if(CUSTS.find(c=>c.name.toLowerCase()===n.toLowerCase())){toast('Customer already exists');return;}
+  const btn=document.querySelector('#panel-customers .btn');
+  if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  try{
+    const id='C'+(Date.now().toString().slice(-7));
+    const newCust={id,name:n,company:document.getElementById('cu-co').value.trim(),phone:document.getElementById('cu-p').value.trim(),email:document.getElementById('cu-e').value.trim(),address:document.getElementById('cu-a').value.trim(),spent:0,visits:0};
+    CUSTS.unshift(newCust);
+    await saveAll();
+    ['cu-n','cu-co','cu-p','cu-e','cu-a'].forEach(i=>document.getElementById(i).value='');
+    renderCusts();
+    toast(n+' added \u2713');
+  } catch(e){
+    CUSTS.shift();
+    toast('Save failed — please try again');
+  } finally{
+    if(btn){btn.disabled=false;btn.textContent='Add customer';}
+  }
 }
 function openEditCust(id){
   var c=CUSTS.find(function(x){return x.id===id;});if(!c)return;
@@ -971,16 +1006,65 @@ async function delCust(id){if(!confirm('Remove this customer?'))return;CUSTS=CUS
 function renderEP(){document.getElementById('eg').innerHTML=EMJS.map(e=>`<div class="eo ${e===ESEL?'on':''}" onclick="selE('${e}')">${e}</div>`).join('');}
 function selE(e){ESEL=e;document.getElementById('ep').textContent=e;document.querySelectorAll('.eo').forEach(el=>el.classList.toggle('on',el.textContent===e));}
 async function addProd(){
-  const n=document.getElementById('np-n').value.trim();const pr=parseFloat(document.getElementById('np-p').value);
-  const nc=document.getElementById('np-nc').value.trim();const cat=nc||document.getElementById('np-c').value;
-  const st=parseInt(document.getElementById('np-s').value)||0;const sk=document.getElementById('np-sk').value.trim();
+  // Prevent double-tap / double-click
+  const btn=document.querySelector('#panel-addprod .btn');
+  if(btn && btn.disabled) return;
+
+  // Read form values FIRST before any async work
+  const n=document.getElementById('np-n').value.trim();
+  const pr=parseFloat(document.getElementById('np-p').value);
+  const nc=document.getElementById('np-nc').value.trim();
+  const cat=nc||document.getElementById('np-c').value;
+  const st=parseInt(document.getElementById('np-s').value)||0;
+  const sk=document.getElementById('np-sk').value.trim();
   const vatExempt=document.getElementById('np-vat').value!=='yes';
-  if(!n){toast('Name required');return;}if(!pr||pr<=0){toast('Valid price required');return;}if(!cat){toast('Select or type a category');return;}
-  if(nc&&!CATS.find(c=>c.name===nc)){CATS.push({name:nc,emoji:'\uD83D\uDCE6',color:'#888780'});popCatSel();renderCatMgmt();renderCatBar();}
-  PRODS.push({id:nid++,name:n,price:pr,cat,emoji:ESEL,stock:st,sku:sk,vatExempt});TOPI.push({name:n,emoji:ESEL,sold:0});
-  ['np-n','np-p','np-nc','np-s','np-sk'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('np-c').value='';SEL_EMOJI='🛒';renderEP();document.getElementById('ep').textContent='🛒';resetVATTog();
-  renderPtbl();renderCatBar();renderGrid();await saveAll();toast('Product added \u2713');
+
+  // Validate
+  if(!n){toast('Name is required');return;}
+  if(!pr||pr<=0){toast('Enter a valid price');return;}
+  if(!cat){toast('Select or create a category');return;}
+  // Prevent duplicate product names
+  if(PRODS.find(p=>p.name.toLowerCase()===n.toLowerCase())){
+    toast('A product with this name already exists');return;
+  }
+
+  // Disable button and show saving state
+  if(btn){btn.disabled=true;btn.textContent='Saving...';}
+
+  try{
+    // Add new category if typed
+    if(nc&&!CATS.find(c=>c.name===nc)){
+      CATS.push({name:nc,emoji:'\uD83D\uDCE6',color:'#888780'});
+      popCatSel();renderCatMgmt();renderCatBar();
+    }
+
+    // Add product to local array
+    const newProd={id:nid++,name:n,price:pr,cat,emoji:ESEL,stock:st,sku:sk,vatExempt};
+    PRODS.push(newProd);
+    TOPI.push({name:n,emoji:ESEL,sold:0});
+
+    // Save to server/DB FIRST — before clearing form
+    await saveAll();
+
+    // Only clear the form AFTER successful save
+    ['np-n','np-p','np-nc','np-s','np-sk'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('np-c').value='';
+    ESEL='\uD83D\uDED2';renderEP();
+    document.getElementById('ep').textContent='\uD83D\uDED2';
+    resetVATTog();
+
+    // Refresh UI
+    renderPtbl();renderCatBar();renderGrid();
+    toast(n+' added to catalog \u2713');
+  } catch(e){
+    // If save failed remove the product we just added
+    PRODS.pop();nid--;
+    toast('Save failed — please try again');
+    console.error('addProd save error:',e);
+  } finally{
+    // Always re-enable button
+    if(btn){btn.disabled=false;btn.textContent='Add to catalog';}
+  }
 }
 async function delProd(id){if(!confirm('Remove this product?'))return;PRODS=PRODS.filter(p=>p.id!==id);delete CART[id];renderPtbl();renderCatBar();renderGrid();renderCart();await saveAll();toast('Product removed');}
 function renderPtbl(){
@@ -1057,7 +1141,22 @@ function openTab(name){
 }
 
 async function init(){
-  await pingSrv();await loadAll();applyBrand();
+  // Show loading indicator in case server is slow to wake (Render free tier)
+  setSrv('chk','Waking up...');
+  const connected = await pingSrv();
+
+  if(connected){
+    setSrv('chk','Loading data...');
+    await loadAll();
+  } else {
+    // Server might be cold-starting — wait and retry once
+    setSrv('chk','Starting server...');
+    await new Promise(r=>setTimeout(r,5000));
+    const retry = await pingSrv();
+    if(retry) await loadAll();
+  }
+
+  applyBrand();
   popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
   tick();setInterval(tick,60000);setInterval(saveAll,30000);setInterval(pingSrv,60000);
 }
