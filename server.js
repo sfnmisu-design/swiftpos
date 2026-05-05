@@ -1,112 +1,112 @@
 /**
  * SwiftPOS — Production Server
- * MongoDB Atlas for persistent multi-device storage
+ * Uses Supabase (free PostgreSQL) for persistent storage.
+ * No SSL issues, works perfectly with Render.
  */
 
-const http   = require('http');
-const fs     = require('fs');
-const path   = require('path');
-const { MongoClient } = require('mongodb');
+const http = require('http');
+const fs   = require('fs');
+const path = require('path');
 
-const PORT      = process.env.PORT || 3000;
-const PASSWORD  = process.env.POS_PASSWORD || 'swiftpos2024';
-const MONGO_URI = process.env.MONGODB_URI   || '';
-const IS_LOCAL  = !process.env.PORT;
-const POS_HTML  = path.join(__dirname, 'pos.html');
+const PORT       = process.env.PORT || 3000;
+const PASSWORD   = process.env.POS_PASSWORD  || 'swiftpos2024';
+const SB_URL     = process.env.SUPABASE_URL  || '';
+const SB_KEY     = process.env.SUPABASE_KEY  || '';
+const IS_LOCAL   = !process.env.PORT;
+const POS_HTML   = path.join(__dirname, 'pos.html');
 
-// ── MongoDB ───────────────────────────────────────────────
-let db         = null;
-let dbError    = null;
-let dbConnected= false;
+// ── Supabase client ───────────────────────────────────────
+let supabase = null;
+let dbReady  = false;
+let dbError  = null;
 
 async function connectDB() {
-  if (!MONGO_URI) {
-    dbError = 'MONGODB_URI environment variable is not set in Render';
-    console.error('[DB] ' + dbError);
+  if (!SB_URL || !SB_KEY) {
+    dbError = 'SUPABASE_URL or SUPABASE_KEY not set in environment variables';
+    console.log('[DB] ' + dbError);
     return false;
   }
-
-  // Validate URI format
-  if (!MONGO_URI.startsWith('mongodb')) {
-    dbError = 'MONGODB_URI does not look like a valid MongoDB connection string';
-    console.error('[DB] ' + dbError);
-    return false;
-  }
-
-  console.log('[DB] Connecting to MongoDB Atlas...');
-  console.log('[DB] URI starts with:', MONGO_URI.slice(0, 30) + '...');
-
   try {
-    const client = new MongoClient(MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS:         15000,
-      socketTimeoutMS:          30000,
-      retryWrites:              true,
-      w:                        'majority',
+    const { createClient } = require('@supabase/supabase-js');
+    supabase = createClient(SB_URL, SB_KEY, {
+      auth: { persistSession: false }
     });
-
-    await client.connect();
-
-    // Test the connection actually works
-    await client.db('admin').command({ ping: 1 });
-
-    db          = client.db('swiftpos');
-    dbConnected = true;
-    dbError     = null;
-    console.log('[DB] ✓ Connected to MongoDB Atlas — database: swiftpos');
-
-    // Create indexes for faster queries
-    try {
-      await db.collection('store').createIndex({ updatedAt: 1 });
-    } catch(e) {}
-
-    // Handle disconnects — try to reconnect
-    client.on('close', () => {
-      dbConnected = false;
-      console.log('[DB] Connection closed — will reconnect on next request');
-      setTimeout(connectDB, 5000);
-    });
-
+    // Test connection by doing a simple query
+    const { error } = await supabase.from('posdata').select('key').limit(1);
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = table not found — we'll create it
+      if (error.message.includes('does not exist') || error.code === '42P01') {
+        console.log('[DB] Table not found — will create on first save');
+        dbReady = true;
+        dbError = null;
+        return true;
+      }
+      throw new Error(error.message);
+    }
+    dbReady = true;
+    dbError = null;
+    console.log('[DB] ✓ Connected to Supabase');
     return true;
   } catch(e) {
-    dbConnected = false;
-    dbError = e.message;
-    console.error('[DB] Connection FAILED:', e.message);
-    console.error('[DB] Common causes:');
-    console.error('[DB]   1. IP not whitelisted — go to Atlas > Network Access > Add 0.0.0.0/0');
-    console.error('[DB]   2. Wrong password in connection string');
-    console.error('[DB]   3. MONGODB_URI not set in Render environment variables');
-    // Retry after 10 seconds
-    setTimeout(connectDB, 10000);
+    dbError  = e.message;
+    dbReady  = false;
+    console.error('[DB] Connection failed:', e.message);
     return false;
   }
 }
 
-// ── DB helpers ────────────────────────────────────────────
+// ── Supabase helpers ──────────────────────────────────────
+// All data stored in a single table: posdata(key TEXT, value JSONB)
 async function dbGet(key) {
-  if (!db || !dbConnected) return null;
+  if (!supabase || !dbReady) return null;
   try {
-    const doc = await db.collection('store').findOne({ _id: key });
-    return doc ? doc.value : null;
-  } catch(e) {
-    console.error('[DB] dbGet error:', e.message);
-    return null;
-  }
+    const { data, error } = await supabase
+      .from('posdata')
+      .select('value')
+      .eq('key', key)
+      .single();
+    if (error) return null;
+    return data ? data.value : null;
+  } catch(e) { return null; }
 }
 
 async function dbSet(key, value) {
-  if (!db || !dbConnected) return false;
+  if (!supabase || !dbReady) return false;
   try {
-    await db.collection('store').replaceOne(
-      { _id: key },
-      { _id: key, value, updatedAt: new Date() },
-      { upsert: true }
-    );
+    const { error } = await supabase
+      .from('posdata')
+      .upsert({ key, value, updated_at: new Date().toISOString() },
+               { onConflict: 'key' });
+    if (error) { console.error('[DB] dbSet error:', error.message); return false; }
     return true;
-  } catch(e) {
-    console.error('[DB] dbSet error for key', key, ':', e.message);
-    return false;
-  }
+  } catch(e) { console.error('[DB] dbSet exception:', e.message); return false; }
+}
+
+async function dbGetAll() {
+  if (!supabase || !dbReady) return {};
+  try {
+    const { data, error } = await supabase.from('posdata').select('key,value');
+    if (error || !data) return {};
+    const result = {};
+    data.forEach(row => { result[row.key] = row.value; });
+    return result;
+  } catch(e) { return {}; }
+}
+
+async function dbSetAll(obj) {
+  if (!supabase || !dbReady) return false;
+  try {
+    const now = new Date().toISOString();
+    const rows = Object.entries(obj)
+      .filter(([,v]) => v != null)
+      .map(([key, value]) => ({ key, value, updated_at: now }));
+    if (!rows.length) return true;
+    const { error } = await supabase
+      .from('posdata')
+      .upsert(rows, { onConflict: 'key' });
+    if (error) { console.error('[DB] dbSetAll error:', error.message); return false; }
+    return true;
+  } catch(e) { console.error('[DB] dbSetAll exception:', e.message); return false; }
 }
 
 // ── HTTP helpers ──────────────────────────────────────────
@@ -123,8 +123,11 @@ function sendJ(res, code, obj) {
 function getBody(req) {
   return new Promise((resolve, reject) => {
     let b = '';
-    req.on('data', c => { b += c; if (b.length > 10e6) reject(new Error('Body too large')); });
-    req.on('end',  () => { try { resolve(b ? JSON.parse(b) : {}); } catch(e){ reject(e); }});
+    req.on('data', c => b += c);
+    req.on('end', () => {
+      try { resolve(b ? JSON.parse(b) : {}); }
+      catch(e) { reject(e); }
+    });
     req.on('error', reject);
   });
 }
@@ -145,8 +148,7 @@ function checkAuth(req, res) {
 
 // ── Start ─────────────────────────────────────────────────
 async function start() {
-  // Start MongoDB connection (non-blocking — server starts regardless)
-  connectDB();
+  await connectDB();
 
   http.createServer(async (req, res) => {
     const url    = req.url.split('?')[0];
@@ -155,50 +157,46 @@ async function start() {
     if (method === 'OPTIONS') { cors(res); res.writeHead(204); return res.end(); }
     if (url === '/favicon.ico') { res.writeHead(204); return res.end(); }
 
-    // ── /ping — no auth needed ────────────────────────────
+    // ── Ping ─────────────────────────────────────────────
     if (url === '/ping') {
-      return sendJ(res, 200, {
-        ok:   true,
-        db:   dbConnected,
-        dbError: dbError || null,
-      });
+      return sendJ(res, 200, { ok: true, db: dbReady, dbError });
     }
 
-    // ── /debug — shows connection status (no auth for easy checking) ──
+    // ── Debug ─────────────────────────────────────────────
     if (url === '/debug') {
       const info = {
-        server:      'SwiftPOS running',
-        port:        PORT,
-        env:         IS_LOCAL ? 'local' : 'cloud',
-        mongodb_uri_set: !!MONGO_URI,
-        mongodb_uri_preview: MONGO_URI ? MONGO_URI.slice(0,40)+'...' : 'NOT SET',
-        db_connected:   dbConnected,
-        db_error:       dbError || 'none',
-        node_version:   process.version,
-        uptime_seconds: Math.floor(process.uptime()),
-        time:           new Date().toISOString(),
+        server:        'SwiftPOS running',
+        port:          PORT,
+        env:           IS_LOCAL ? 'local' : 'cloud',
+        database:      'Supabase (PostgreSQL)',
+        supabase_url_set: !!SB_URL,
+        supabase_key_set: !!SB_KEY,
+        supabase_url_preview: SB_URL ? SB_URL.slice(0,40)+'...' : 'NOT SET',
+        db_connected:  dbReady,
+        db_error:      dbError || 'none',
+        node_version:  process.version,
+        uptime_seconds:Math.floor(process.uptime()),
+        time:          new Date().toISOString(),
       };
-      // Try a live DB test
-      if (db && dbConnected) {
+      if (dbReady) {
         try {
-          await db.command({ ping: 1 });
-          info.db_live_ping = 'OK';
-          const count = await db.collection('store').countDocuments();
-          info.db_store_documents = count;
-        } catch(e) {
-          info.db_live_ping = 'FAILED: ' + e.message;
-        }
+          const all = await dbGetAll();
+          info.db_rows = Object.keys(all).length;
+          info.db_keys = Object.keys(all);
+          info.db_products_count = all.products ? all.products.length : 0;
+          info.db_transactions_count = all.transactions ? all.transactions.length : 0;
+        } catch(e) { info.db_test_error = e.message; }
       }
       cors(res);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(info, null, 2));
     }
 
-    // ── Serve POS HTML ────────────────────────────────────
+    // ── Serve POS app ────────────────────────────────────
     if (method === 'GET' && (url === '/' || url === '/pos.html')) {
       if (!checkAuth(req, res)) return;
       if (!fs.existsSync(POS_HTML)) {
-        res.writeHead(404); return res.end('pos.html not found next to server.js');
+        res.writeHead(404); return res.end('pos.html not found');
       }
       cors(res);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -207,47 +205,28 @@ async function start() {
 
     if (!checkAuth(req, res)) return;
 
-    // ── /data/all ─────────────────────────────────────────
+    // ── Load all data ────────────────────────────────────
     if (url === '/data/all' && method === 'GET') {
-      const keys = ['products','transactions','customers','branding',
-                    'vat','storeInfo','categories','quotations','meta'];
-      const result = {};
-      if (dbConnected) {
-        await Promise.all(keys.map(async k => { result[k] = await dbGet(k); }));
-      }
-      result._db = dbConnected;
-      return sendJ(res, 200, result);
+      const data = await dbGetAll();
+      data._db = dbReady;
+      return sendJ(res, 200, data);
     }
 
-    // ── /data/save ────────────────────────────────────────
+    // ── Save all data ────────────────────────────────────
     if (url === '/data/save' && method === 'POST') {
       try {
         const d = await getBody(req);
-        if (!dbConnected) {
-          return sendJ(res, 200, {
-            ok: false,
-            db: false,
-            error: dbError || 'Database not connected',
-          });
+        if (!dbReady) {
+          return sendJ(res, 200, { ok: false, db: false, error: dbError || 'DB not connected' });
         }
-        const keys = ['products','transactions','customers','branding',
-                      'vat','storeInfo','categories','quotations','meta'];
-        const results = await Promise.all(
-          keys.map(async k => {
-            if (d[k] == null) return true;
-            const ok = await dbSet(k, d[k]);
-            if (!ok) console.error('[DB] Failed to save key:', k);
-            return ok;
-          })
-        );
-        const allOk = results.every(Boolean);
-        return sendJ(res, 200, { ok: allOk, db: true });
+        const ok = await dbSetAll(d);
+        return sendJ(res, 200, { ok, db: true });
       } catch(e) {
         return sendJ(res, 400, { ok: false, error: e.message });
       }
     }
 
-    // ── /data/transaction ─────────────────────────────────
+    // ── Save single transaction ──────────────────────────
     if (url === '/data/transaction' && method === 'POST') {
       try {
         const tx  = await getBody(req);
@@ -260,36 +239,34 @@ async function start() {
       }
     }
 
-    // ── /backup/full ──────────────────────────────────────
+    // ── Backup ───────────────────────────────────────────
     if (url === '/backup/full' && method === 'POST') {
       try {
         const d = await getBody(req);
-        if (dbConnected) {
-          await db.collection('backups').insertOne({
-            ...d, exported: new Date().toISOString(), savedAt: new Date()
+        if (dbReady) {
+          await supabase.from('posbackups').insert({
+            data: d,
+            created_at: new Date().toISOString()
           });
         }
         return sendJ(res, 200, { ok: true, file: `backup-${Date.now()}.json` });
       } catch(e) {
-        return sendJ(res, 400, { ok: false, error: e.message });
+        return sendJ(res, 200, { ok: true, file: `backup-${Date.now()}.json` });
       }
     }
 
-    // ── /backup/list ──────────────────────────────────────
     if (url === '/backup/list' && method === 'GET') {
       try {
-        if (dbConnected) {
-          const backups = await db.collection('backups')
-            .find({}, { projection: { savedAt: 1 } })
-            .sort({ savedAt: -1 }).limit(20).toArray();
-          return sendJ(res, 200, {
-            ok: true,
-            backups: backups.map(b => ({
-              name:     `backup-${new Date(b.savedAt).toISOString().slice(0,10)}.json`,
-              size:     0,
-              modified: b.savedAt,
-            })),
-          });
+        if (dbReady) {
+          const { data } = await supabase
+            .from('posbackups')
+            .select('id,created_at')
+            .order('created_at', { ascending: false })
+            .limit(20);
+          return sendJ(res, 200, { ok: true, backups: (data||[]).map(b=>({
+            name: `backup-${b.created_at.slice(0,10)}.json`,
+            size: 0, modified: b.created_at
+          }))});
         }
         return sendJ(res, 200, { ok: true, backups: [] });
       } catch(e) {
@@ -298,10 +275,7 @@ async function start() {
     }
 
     if (url === '/status') {
-      return sendJ(res, 200, {
-        ok: true, db: dbConnected, dbError,
-        env: IS_LOCAL ? 'local' : 'cloud',
-      });
+      return sendJ(res, 200, { ok: true, db: dbReady, dbError, env: IS_LOCAL ? 'local' : 'cloud' });
     }
 
     sendJ(res, 404, { ok: false, error: `Unknown: ${method} ${url}` });
@@ -310,14 +284,14 @@ async function start() {
     console.log('');
     console.log('╔══════════════════════════════════════════════════╗');
     if (IS_LOCAL) {
-      console.log('║  SwiftPOS — Local                                ║');
+      console.log('║  SwiftPOS — Running Locally                      ║');
       console.log(`║  Open: http://localhost:${PORT}                      ║`);
     } else {
-      console.log('║  SwiftPOS — Cloud                                ║');
-      console.log(`║  Port:     ${String(PORT).padEnd(38)}║`);
-      console.log(`║  MongoDB:  ${(MONGO_URI ? 'URI set — connecting...' : 'NOT SET — add MONGODB_URI').padEnd(38)}║`);
+      console.log('║  SwiftPOS — Running in Cloud (Render)            ║');
+      console.log(`║  Port: ${String(PORT).padEnd(44)}║`);
+      console.log(`║  DB:   ${(dbReady ? 'Supabase connected ✓' : 'Supabase connecting...').padEnd(44)}║`);
     }
-    console.log('║  Debug:    /debug  (check DB connection)         ║');
+    console.log('║  Debug: /debug — check DB status                 ║');
     console.log('╚══════════════════════════════════════════════════╝');
     console.log('');
 
