@@ -606,57 +606,169 @@ let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAY='cash';
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPI=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
 
-/* PERSIST */
-async function saveAll(retries=2){
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
-  if(srvOk){
-    for(let i=0;i<=retries;i++){
-      try{
-        const r=await Promise.race([
-          api('/data/save','POST',d),
-          new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
-        ]);
-        if(r&&r.ok) break;
-      }catch(e){
-        if(i===retries){srvOk=false;setSrv('err','Offline');}
-        else await new Promise(r=>setTimeout(r,1000*(i+1))); // wait 1s, 2s before retry
-      }
-    }
-  }
+/* ══════════════════════════════════════════════════════
+   MULTI-DEVICE STORAGE SYSTEM
+   
+   HOW IT WORKS:
+   - MongoDB (via server) = SOURCE OF TRUTH for all devices
+   - localStorage = offline cache so app works without internet
+   - Every save goes to MongoDB first, then localStorage
+   - Every device polls MongoDB every 10 seconds to stay in sync
+   - If offline: localStorage keeps app working, syncs when back online
+══════════════════════════════════════════════════════ */
+
+let _lastSyncTime = 0;  // timestamp of last successful server sync
+let _pendingSync  = false; // prevents overlapping sync calls
+let _saveTimer    = null;  // debounce timer for rapid saves
+
+// ── Local cache (offline fallback) ──────────────────────
+function saveLocal(){
   try{
-    localStorage.setItem('sp_p',JSON.stringify(PRODS));
-    localStorage.setItem('sp_t',JSON.stringify(TXS));
-    localStorage.setItem('sp_c',JSON.stringify(CUSTS));
-    localStorage.setItem('sp_b',JSON.stringify(BRAND));
-    localStorage.setItem('sp_v',JSON.stringify(VAT));
-    localStorage.setItem('sp_si',JSON.stringify(STORE));
+    localStorage.setItem('sp_p',   JSON.stringify(PRODS));
+    localStorage.setItem('sp_t',   JSON.stringify(TXS));
+    localStorage.setItem('sp_c',   JSON.stringify(CUSTS));
+    localStorage.setItem('sp_b',   JSON.stringify(BRAND));
+    localStorage.setItem('sp_v',   JSON.stringify(VAT));
+    localStorage.setItem('sp_si',  JSON.stringify(STORE));
     localStorage.setItem('sp_cats',JSON.stringify(CATS));
-    localStorage.setItem('sp_q',JSON.stringify(QUOTES));
-    localStorage.setItem('sp_m',JSON.stringify({nid,txn,qn}));
-    localStorage.setItem('sp_ti',JSON.stringify(TOPI));
-    localStorage.setItem('sp_sv',new Date().toISOString());
+    localStorage.setItem('sp_q',   JSON.stringify(QUOTES));
+    localStorage.setItem('sp_m',   JSON.stringify({nid,txn,qn}));
+    localStorage.setItem('sp_ti',  JSON.stringify(TOPI));
+    localStorage.setItem('sp_sv',  new Date().toISOString());
   }catch(e){}
 }
-async function loadAll(){
-  if(srvOk){
-    try{
-      const r=await api('/data/all');
-      if(r.products)PRODS=[...r.products];if(r.transactions)TXS=[...r.transactions];if(r.customers)CUSTS=[...r.customers];
-      if(r.branding)BRAND=Object.assign({},BRAND,r.branding);if(r.vat)VAT=Object.assign({},VAT,r.vat);
-      if(r.storeInfo)STORE=Object.assign({},STORE,r.storeInfo);if(r.categories)CATS=[...r.categories];
-      if(r.quotations)QUOTES=[...r.quotations];if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
-      return;
-    }catch(e){}
-  }
+function loadLocal(){
   try{
     const g=k=>{const v=localStorage.getItem(k);return v?JSON.parse(v):null;};
-    const p=g('sp_p');if(p)PRODS=p;const t=g('sp_t');if(t)TXS=t;const c=g('sp_c');if(c)CUSTS=c;
-    const b=g('sp_b');if(b)BRAND=Object.assign({},BRAND,b);const v=g('sp_v');if(v)VAT=Object.assign({},VAT,v);
-    const si=g('sp_si');if(si)STORE=Object.assign({},STORE,si);const cats=g('sp_cats');if(cats)CATS=cats;
-    const q=g('sp_q');if(q)QUOTES=q;const m=g('sp_m');if(m){nid=m.nid||nid;txn=m.txn||txn;qn=m.qn||qn;}
-    const ti=g('sp_ti');if(ti)TOPI=ti;
+    const p=g('sp_p');   if(p&&p.length)    PRODS=[...p];
+    const t=g('sp_t');   if(t&&t.length)    TXS=[...t];
+    const c=g('sp_c');   if(c&&c.length)    CUSTS=[...c];
+    const b=g('sp_b');   if(b)              BRAND=Object.assign({},BRAND,b);
+    const v=g('sp_v');   if(v)              VAT=Object.assign({},VAT,v);
+    const si=g('sp_si'); if(si)             STORE=Object.assign({},STORE,si);
+    const cats=g('sp_cats'); if(cats&&cats.length) CATS=[...cats];
+    const q=g('sp_q');   if(q&&q.length)    QUOTES=[...q];
+    const ti=g('sp_ti'); if(ti&&ti.length)  TOPI=[...ti];
+    const m=g('sp_m');   if(m){nid=m.nid||nid;txn=m.txn||txn;qn=m.qn||qn;}
   }catch(e){}
 }
+
+// ── Apply server data to local state ────────────────────
+function applyServerData(r){
+  if(!r) return false;
+  let changed = false;
+  if(r.products   && r.products.length)    { PRODS=[...r.products];   changed=true; }
+  if(r.transactions&&r.transactions.length){ TXS=[...r.transactions]; changed=true; }
+  if(r.customers  && r.customers.length)   { CUSTS=[...r.customers];  changed=true; }
+  if(r.categories && r.categories.length)  { CATS=[...r.categories];  changed=true; }
+  if(r.quotations && r.quotations.length)  { QUOTES=[...r.quotations];changed=true; }
+  if(r.branding)  { BRAND=Object.assign({},BRAND,r.branding);         changed=true; }
+  if(r.vat)       { VAT=Object.assign({},VAT,r.vat);                  changed=true; }
+  if(r.storeInfo) { STORE=Object.assign({},STORE,r.storeInfo);        changed=true; }
+  if(r.meta)      { nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn; }
+  if(changed) saveLocal();
+  return changed;
+}
+
+// ── Save: write to server first, local as backup ────────
+async function saveAll(){
+  // Always save locally first (instant, works offline)
+  saveLocal();
+
+  if(!srvOk) return;
+
+  // Debounce rapid saves — wait 300ms after last call before sending
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async ()=>{
+    const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
+             vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
+    try{
+      const r=await Promise.race([
+        api('/data/save','POST',d),
+        new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
+      ]);
+      if(r&&r.ok){
+        _lastSyncTime=Date.now();
+        setSrv('ok','\u25CF Saved');
+      }
+    }catch(e){
+      srvOk=false;
+      setSrv('err','\u25CF Offline');
+      // Queue a retry when connection comes back
+      setTimeout(()=>pingSrv().then(ok=>{if(ok)saveAll();}), 5000);
+    }
+  }, 300);
+}
+
+// ── Load: get from server, fallback to local ─────────────
+async function loadAll(){
+  // Load local first so UI appears instantly
+  loadLocal();
+
+  if(!srvOk) return;
+  try{
+    const r=await Promise.race([
+      api('/data/all'),
+      new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
+    ]);
+    const serverEmpty = !r || !r.products || r.products.length===0;
+    if(serverEmpty && PRODS.length>0){
+      // Server is empty but we have local data — push local UP to server
+      // (happens after first deploy or server wipe)
+      await saveAll();
+    } else {
+      applyServerData(r);
+      _lastSyncTime=Date.now();
+    }
+  }catch(e){
+    console.log('Server load failed, using local cache');
+  }
+}
+
+// ── Live sync: poll server every 10s ─────────────────────
+// This keeps all devices (phone, tablet, computer) in sync
+let _syncPollTimer = null;
+async function pollSync(){
+  if(_pendingSync||!srvOk) return;
+  _pendingSync=true;
+  try{
+    const r=await Promise.race([
+      api('/data/all'),
+      new Promise((_,j)=>setTimeout(()=>j(new Error('t')),5000))
+    ]);
+    if(r&&r.products){
+      // Check if server has newer data by comparing record counts
+      const serverTotal=(r.products||[]).length+(r.transactions||[]).length+(r.customers||[]).length;
+      const localTotal=PRODS.length+TXS.length+CUSTS.length;
+      if(serverTotal>localTotal||(r.transactions&&r.transactions.length>TXS.length)){
+        const changed=applyServerData(r);
+        if(changed){
+          // Another device made changes — refresh UI silently
+          refreshAllUI();
+          setSrv('ok','\u25CF Synced');
+        }
+      }
+      _lastSyncTime=Date.now();
+    }
+  }catch(e){ srvOk=false; setSrv('err','\u25CF Offline'); }
+  finally{ _pendingSync=false; }
+}
+
+function refreshAllUI(){
+  // Refresh all visible panels without disrupting what user is doing
+  renderGrid();renderPtbl();popCatSel();renderCatBar();
+  updTots();updBadge();refreshCusts();
+  const cur=document.querySelector('.tab.on');
+  if(cur){
+    const idx=[...document.querySelectorAll('.tab')].indexOf(cur);
+    const panels=['catalog','addprod','customers','quotes','sales','reports','settings','backup','branding'];
+    if(panels[idx]==='sales')renderSales();
+    if(panels[idx]==='quotes')renderQuotes();
+    if(panels[idx]==='reports')renderReports();
+    if(panels[idx]==='customers')renderCusts();
+  }
+}
+
 
 /* MOBILE */
 function isMob(){return window.innerWidth<=768;}
@@ -1141,24 +1253,44 @@ function openTab(name){
 }
 
 async function init(){
-  // Show loading indicator in case server is slow to wake (Render free tier)
-  setSrv('chk','Waking up...');
+  // STEP 1: Load from localStorage IMMEDIATELY — instant, no waiting
+  loadLocal();
+
+  // STEP 2: Render UI right away with local data
+  applyBrand();
+  popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
+  tick();setInterval(tick,60000);
+
+  // STEP 3: Connect to server in background
+  setSrv('chk','Connecting...');
   const connected = await pingSrv();
 
   if(connected){
-    setSrv('chk','Loading data...');
+    setSrv('chk','Loading...');
     await loadAll();
+    // Re-render with server data
+    applyBrand();
+    popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();
+    setSrv('ok','\u25CF Connected');
   } else {
-    // Server might be cold-starting — wait and retry once
-    setSrv('chk','Starting server...');
-    await new Promise(r=>setTimeout(r,5000));
-    const retry = await pingSrv();
-    if(retry) await loadAll();
+    // Render cold start can take 30s — retry in background
+    setTimeout(async ()=>{
+      const retry = await pingSrv();
+      if(retry){
+        await loadAll();
+        applyBrand();
+        popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();
+      }
+    }, 10000);
   }
 
-  applyBrand();
-  popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
-  tick();setInterval(tick,60000);setInterval(saveAll,30000);setInterval(pingSrv,60000);
+  // STEP 4: Start live sync — polls every 10 seconds
+  // This keeps multiple devices (phones, tablets, computers) in sync
+  setInterval(pollSync, 10000);
+
+  // STEP 5: Auto-save every 30 seconds and keep connection alive
+  setInterval(saveAll, 30000);
+  setInterval(pingSrv, 60000);
 }
 init();
 
