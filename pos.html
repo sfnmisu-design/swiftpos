@@ -941,7 +941,7 @@ function popCatSel(){const sel=document.getElementById('np-c');const cur=sel.val
 function renderCatMgmt(){
   const el=document.getElementById('cm');
   if(!CATS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:16px;font-size:13px;">No categories yet</div>';return;}
-  el.innerHTML=CATS.map((c,i)=>`<div class="ci"><div style="display:flex;align-items:center;gap:9px;"><span style="font-size:20px;">${c.emoji}</span><div><div style="font-size:13px;font-weight:500;">${c.name}</div><div style="font-size:11px;color:var(--t3);">${PRODS.filter(p=>p.cat===c.name).length} products</div></div></div><div style="display:flex;gap:4px;"><button class="ibtn" onclick="openEditCat(${i})">✏️</button><button class="ibtn" onclick="delCat(${i})">🗑</button></div></div>`).join('');
+  el.innerHTML=CATS.map((c,i)=>`<div class="ci"><div style="display:flex;align-items:center;gap:9px;"><span style="font-size:20px;">${c.emoji}</span><div><div style="font-size:13px;font-weight:500;">${c.name}</div><div style="font-size:11px;color:var(--t3);">${PRODS.filter(p=>p.cat===c.name).length} products</div></div></div><div style="display:flex;gap:4px;"><button class="ibtn" data-catidx="${i}" data-act="edit-cat">✏️</button><button class="ibtn" data-catidx="${i}" data-act="del-cat">🗑</button></div></div>`).join('');
 }
 function openAddCat(){
   openModal('<h3>Add category</h3>'+
@@ -968,7 +968,11 @@ function delCat(i){const c=CATS[i];const cnt=PRODS.filter(p=>p.cat===c.name).len
 
 /* CATALOG */
 function allCats(){return['All',...CATS.map(c=>c.name),...new Set(PRODS.map(p=>p.cat).filter(c=>!CATS.find(x=>x.name===c)))];}
-function renderCatBar(){document.getElementById('catbar').innerHTML=allCats().map(c=>`<div class="cat ${c===ACAT?'on':''}" onclick="setCat('${c.replace(/'/g,"\\'")}'">${c}</div>`).join('');}
+function renderCatBar(){
+  document.getElementById('catbar').innerHTML=allCats().map(function(c){
+    return '<div class="cat '+(c===ACAT?'on':'')+'" data-cat="'+c.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+c+'</div>';
+  }).join('');
+}
 function setCat(c){ACAT=c;renderCatBar();renderGrid();}
 function filterGrid(){
   SQ=document.getElementById('srch').value.toLowerCase().trim();
@@ -1171,7 +1175,7 @@ function renderGrid(){
   const g=document.getElementById('pgrid');
   const items=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)||(p.sku&&p.sku.toLowerCase().includes(SQ))));
   if(!items.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:40px;font-size:13px;">No products found</div>';return;}
-  g.innerHTML=items.map(p=>{const q=CART[p.id]||0,lo=p.stock<=LOW_STOCK_THRESHOLD;return`<div class="pcard" onclick="addToCart(${p.id})">${q?`<div class="pcnt">${q}</div>`:''}<span class="pem">${p.emoji}</span><div class="pnm">${p.name}${p.vatExempt?'<span class="etag">Exempt</span>':''}</div><div class="ppr">$${p.price.toFixed(2)}</div><div class="psk${lo?' lo':''}">${lo?'\u26A0 ':''}${p.stock} in stock</div></div>`;}).join('');
+  g.innerHTML=items.map(p=>{const q=CART[p.id]||0,lo=p.stock<=LOW_STOCK_THRESHOLD;return`<div class="pcard" data-pid="${p.id}" data-act="add">${q?`<div class="pcnt">${q}</div>`:''}<span class="pem">${p.emoji}</span><div class="pnm">${p.name}${p.vatExempt?'<span class="etag">Exempt</span>':''}</div><div class="ppr">$${p.price.toFixed(2)}</div><div class="psk${lo?' lo':''}">${lo?'\u26A0 ':''}${p.stock} in stock</div></div>`;}).join('');
 }
 
 /* CART */
@@ -1186,7 +1190,7 @@ function clearCart(){
 function renderCart(){
   const ids=Object.keys(CART);
   const empty='<div class="ec"><span class="ei">\uD83D\uDED2</span>No items yet<br><span style="font-size:11px;">Tap a product to add</span></div>';
-  const items=ids.length?ids.map(id=>{const p=PRODS.find(x=>x.id==id);if(!p)return'';return`<div class="cit"><span class="cie">${p.emoji}</span><div class="cin">${p.name}${p.vatExempt?'<span class="etag">Exempt</span>':''}</div><div class="ciq"><button class="qbt" onclick="chgQ(${id},-1)">\u2212</button><span class="qbn">${CART[id]}</span><button class="qbt" onclick="chgQ(${id},1)">+</button></div><div class="cip">$${(p.price*CART[id]).toFixed(2)}</div></div>`;}).join(''):null;
+  const items=ids.length?ids.map(id=>{const p=PRODS.find(x=>x.id==id);if(!p)return'';return`<div class="cit"><span class="cie">${p.emoji}</span><div class="cin">${p.name}${p.vatExempt?'<span class="etag">Exempt</span>':''}</div><div class="ciq"><button class="qbt" data-cid="${id}" data-act="chg-">\u2212</button><span class="qbn">${CART[id]}</span><button class="qbt" data-cid="${id}" data-act="chg+">+</button></div><div class="cip">$${(p.price*CART[id]).toFixed(2)}</div></div>`;}).join(''):null;
   const d=document.getElementById('dci');if(d)d.innerHTML=items||empty;
   const m=document.getElementById('mci');if(m)m.innerHTML=items||empty;
   updTots();
@@ -1308,7 +1312,7 @@ function renderSales(){
   const el=document.getElementById('txl');document.getElementById('tl').textContent=TXS.length+' sales';
   if(!TXS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:40px;font-size:13px;">No transactions yet</div>';return;}
   el.innerHTML=TXS.map(tx=>{const dt=new Date(tx.timestamp);const cust=tx.customerId?CUSTS.find(c=>c.id===tx.customerId):null;const its=tx.items.map(i=>i.emoji+' '+i.name+(i.qty>1?' \xD7'+i.qty:'')).slice(0,3).join(', ')+(tx.items.length>3?'\u2026':'');
-  return`<div class="txr" onclick="viewTx('${tx.id}')"><div class="txt"><span class="txid">${tx.id}</span><span class="txam">$${tx.total.toFixed(2)}</span></div><div style="font-size:11px;color:var(--t3);">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}<span class="ptag">${tx.payMethod}</span>${cust?`<span class="ptag" style="background:#EEF5FF;color:#2468B0;">\uD83D\uDC64 ${cust.name}</span>`:''}</div><div style="font-size:11px;color:var(--t2);margin-top:2px;">${its}</div></div>`;}).join('');
+  return`<div class="txr" data-txid="${tx.id}"><div class="txt"><span class="txid">${tx.id}</span><span class="txam">$${tx.total.toFixed(2)}</span></div><div style="font-size:11px;color:var(--t3);">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}<span class="ptag">${tx.payMethod}</span>${cust?`<span class="ptag" style="background:#EEF5FF;color:#2468B0;">\uD83D\uDC64 ${cust.name}</span>`:''}</div><div style="font-size:11px;color:var(--t2);margin-top:2px;">${its}</div></div>`;}).join('');
 }
 
 /* QUOTATIONS */
@@ -1329,7 +1333,7 @@ function renderQuotes(){
     return`<div class="qr"><div class="qrt"><span style="font-size:10px;font-weight:700;color:var(--t3);font-family:monospace;">${q.id}<span class="qst ${sc}">${sl}</span></span><span class="qam">$${q.total.toFixed(2)}</span></div>
       <div style="font-size:11px;color:var(--t3);margin-bottom:2px;">${dt.toLocaleDateString()} \u00B7 ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}${cust?` \u00B7 \uD83D\uDC64 ${cust.name}`:''}</div>
       <div style="font-size:11px;color:var(--t2);">${its}</div>
-      <div class="qa"><button class="qbtn vw" onclick="openQDoc(QUOTES.find(x=>x.id==='${q.id}'))">👁 View</button>${q.status==='open'?`<button class="qbtn cv" onclick="convQuote('${q.id}')">✓ Convert</button>`:''}<button class="qbtn dl" onclick="delQuote('${q.id}')">🗑 Delete</button></div>
+      <div class="qa"><button class="qbtn vw" data-qid="${q.id}" data-act="view-q">👁 View</button>${q.status==='open'?`<button class="qbtn cv" data-qid="${q.id}" data-act="conv-q">✓ Convert</button>`:''}<button class="qbtn dl" data-qid="${q.id}" data-act="del-q">🗑 Delete</button></div>
     </div>`;}).join('');
 }
 function openQDoc(q){
@@ -1364,7 +1368,7 @@ function renderCusts(){
   if(!CUSTS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:30px;font-size:13px;">No customers yet</div>';return;}
   el.innerHTML=CUSTS.map(c=>{const ini=c.name.split(' ').map(x=>x[0]).join('');
     return`<div class="ccard"><div class="av">${ini}</div><div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;">${c.name}${c.company?` <span style="font-size:11px;color:var(--t3)">\u00B7 ${c.company}</span>`:''}</div><div style="font-size:11px;color:var(--t3);">${[c.phone,c.email].filter(Boolean).join(' \u00B7 ')}</div><div style="font-size:11px;color:var(--t3);">${c.visits} visits \u00B7 $${c.spent.toFixed(2)}</div></div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><span style="font-size:13px;font-weight:700;color:var(--a);">$${c.spent.toFixed(2)}</span><div style="display:flex;gap:3px;"><button class="ibtn" onclick="openEditCust('${c.id}')">✏️</button><button class="ibtn" onclick="delCust('${c.id}')">🗑</button></div></div></div>`;}).join('');
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><span style="font-size:13px;font-weight:700;color:var(--a);">$${c.spent.toFixed(2)}</span><div style="display:flex;gap:3px;"><button class="ibtn" data-cid="${c.id}" data-act="edit-cust">✏️</button><button class="ibtn" data-cid="${c.id}" data-act="del-cust">🗑</button></div></div></div>`;}).join('');
   refreshCusts();
 }
 async function addCust(){
@@ -1406,7 +1410,12 @@ async function saveEditCust(id){const c=CUSTS.find(x=>x.id===id);if(!c)return;co
 async function delCust(id){if(!confirm('Remove this customer?'))return;CUSTS=CUSTS.filter(c=>c.id!==id);renderCusts();await saveAll();toast('Customer removed');}
 
 /* ADD PRODUCT */
-function renderEP(){document.getElementById('eg').innerHTML=EMJS.map(e=>`<div class="eo ${e===ESEL?'on':''}" onclick="selE('${e}')">${e}</div>`).join('');}
+function renderEP(){
+  var g=document.getElementById('eg'); if(!g)return;
+  g.innerHTML=EMJS.map(function(e){
+    return '<div class="eo '+(e===ESEL?'on':'')+'" data-em="'+e+'">'+e+'</div>';
+  }).join('');
+}
 function selE(e){ESEL=e;document.getElementById('ep').textContent=e;document.querySelectorAll('.eo').forEach(el=>el.classList.toggle('on',el.textContent===e));}
 async function addProd(){
   // Prevent double-tap / double-click
@@ -1506,56 +1515,95 @@ function initLSSettings(){
 
 /* ── EDIT PRODUCT ────────────────────────────────────── */
 function openEditProd(id){
-  const p=PRODS.find(x=>x.id===id);if(!p)return;
-  const catOpts=CATS.map(c=>`<option value="${c.name}"${p.cat===c.name?' selected':''}>${c.emoji} ${c.name}</option>`).join('');
-  const emojiGrid=EMJS.map(e=>`<div class="eo${e===p.emoji?' on':''}" id="ee-${e.codePointAt(0)}" onclick="selectEditEmoji('${e}')">${e}</div>`).join('');
-  openModal(`<h3>Edit product</h3>
-    <div class="g2">
-      <div class="f"><label>Name *</label><input type="text" id="ep-n" value="${p.name.replace(/"/g,'&quot;')}"></div>
-      <div class="f"><label>Price ($) *</label><input type="number" id="ep-p" value="${p.price}" min="0" step="0.01"></div>
-      <div class="f"><label>Category</label><select id="ep-c">${catOpts}</select></div>
-      <div class="f"><label>SKU / Barcode</label><input type="text" id="ep-sk" value="${p.sku||''}"></div>
-    </div>
-    <div class="f" style="margin-top:4px;">
-      <label>Stock quantity</label>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
-        <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--b);border-radius:var(--r);padding:6px 12px;">
-          <button class="stk-btn" style="width:28px;height:28px;font-size:18px;" onclick="adjustEditStock(-1)">−</button>
-          <span id="ep-s-disp" style="font-size:20px;font-weight:700;font-family:monospace;min-width:40px;text-align:center;">${p.stock}</span>
-          <button class="stk-btn" style="width:28px;height:28px;font-size:18px;" onclick="adjustEditStock(1)">+</button>
-          <button class="stk-btn" style="width:28px;height:28px;font-size:18px;" onclick="adjustEditStock(10)">+10</button>
-        </div>
-        <input type="number" id="ep-s" value="${p.stock}" min="0" style="width:80px;padding:8px;font-size:14px;font-weight:700;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);text-align:center;font-family:monospace;" oninput="document.getElementById('ep-s-disp').textContent=this.value||0">
-      </div>
-    </div>
-    <div class="f" style="margin-top:8px;">
-      <label>VAT</label>
-      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:var(--r);border:1.5px solid var(--b);">
-        <label onclick="toggleEditVAT()" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;">
-          <div id="ep-vat-sw" style="width:40px;height:22px;border-radius:11px;background:${p.vatExempt?'var(--d)':'var(--a)'};flex-shrink:0;position:relative;transition:background .2s;">
-            <div id="ep-vat-kn" style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:${p.vatExempt?'3px':'21px'};transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
-          </div>
-          <span id="ep-vat-lbl" style="font-size:13px;font-weight:600;color:${p.vatExempt?'var(--d)':'var(--t)'};">${p.vatExempt?'VAT Exempt':'VAT Applicable'}</span>
-        </label>
-        <span id="ep-vat-badge" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${p.vatExempt?'#FCEAEA':'var(--al)'};color:${p.vatExempt?'var(--d)':'var(--ad)'};">${p.vatExempt?'Exempt':'Taxed'}</span>
-      </div>
-    </div>
-    <input type="hidden" id="ep-vat-val" value="${p.vatExempt?'exempt':'taxed'}">
-    <div class="f" style="margin-top:8px;">
-      <label>Icon</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <div class="eprev" id="ep-prev" style="font-size:24px;width:42px;height:42px;border:1.5px solid var(--b);border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;">${p.emoji}</div>
-        <span style="font-size:11px;color:var(--t3)">Tap to change</span>
-      </div>
-      <div class="eg" id="ep-eg">${emojiGrid}</div>
-    </div>
-    <div class="mbs" style="margin-top:14px;">
-      <button id="ep-cancel">Cancel</button>
-      <button class="ok" id="ep-save">Save changes</button>
-    </div>`);
+  var p=PRODS.find(function(x){return x.id===id;});
+  if(!p)return;
   window._editProdId=id;
+  window._editEmoji=p.emoji;
+
+  // Build modal HTML using string concat — no template literals to avoid mobile parse errors
+  var catOpts='';
+  CATS.forEach(function(c){
+    catOpts+='<option value="'+c.name+'"'+(p.cat===c.name?' selected':'')+'>'+c.emoji+' '+c.name+'</option>';
+  });
+
+  var vatExempt=!!p.vatExempt;
+  var swBg=vatExempt?'var(--d)':'var(--a)';
+  var knLeft=vatExempt?'3px':'21px';
+  var vatLblTxt=vatExempt?'VAT Exempt':'VAT Applicable';
+  var vatLblCol=vatExempt?'var(--d)':'var(--t)';
+  var vatBadgeBg=vatExempt?'#FCEAEA':'var(--al)';
+  var vatBadgeCol=vatExempt?'var(--d)':'var(--ad)';
+  var vatBadgeTxt=vatExempt?'Exempt':'Taxed';
+  var vatVal=vatExempt?'exempt':'taxed';
+
+  openModal(
+    '<h3>Edit product</h3>'+
+    '<div class="g2">'+
+      '<div class="f"><label>Name *</label><input type="text" id="ep-n" value="'+p.name.replace(/"/g,'&quot;')+'"></div>'+
+      '<div class="f"><label>Price ($) *</label><input type="number" id="ep-p" value="'+p.price+'" min="0" step="0.01"></div>'+
+      '<div class="f"><label>Category</label><select id="ep-c">'+catOpts+'</select></div>'+
+      '<div class="f"><label>SKU / Barcode</label><input type="text" id="ep-sk" value="'+(p.sku||'').replace(/"/g,'&quot;')+'"></div>'+
+    '</div>'+
+    '<div class="f" style="margin-top:8px;">'+
+      '<label>Stock quantity</label>'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-top:6px;">'+
+        '<div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--b);border-radius:var(--r);padding:6px 12px;">'+
+          '<button class="stk-btn" style="width:28px;height:28px;font-size:18px;" id="ep-minus">&#8722;</button>'+
+          '<span id="ep-s-disp" style="font-size:20px;font-weight:700;font-family:monospace;min-width:40px;text-align:center;">'+p.stock+'</span>'+
+          '<button class="stk-btn" style="width:28px;height:28px;font-size:18px;" id="ep-plus">+</button>'+
+          '<button class="stk-btn" style="width:34px;height:28px;font-size:13px;" id="ep-plus10">+10</button>'+
+        '</div>'+
+        '<input type="number" id="ep-s" value="'+p.stock+'" min="0" style="width:80px;padding:8px;font-size:14px;font-weight:700;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);text-align:center;font-family:monospace;">'+
+      '</div>'+
+    '</div>'+
+    '<div class="f" style="margin-top:8px;">'+
+      '<label>VAT</label>'+
+      '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:var(--r);border:1.5px solid var(--b);">'+
+        '<div style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;" id="ep-vat-tog">'+
+          '<div id="ep-vat-sw" style="width:40px;height:22px;border-radius:11px;background:'+swBg+';flex-shrink:0;position:relative;transition:background .2s;">'+
+            '<div id="ep-vat-kn" style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:'+knLeft+';transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>'+
+          '</div>'+
+          '<span id="ep-vat-lbl" style="font-size:13px;font-weight:600;color:'+vatLblCol+';">'+vatLblTxt+'</span>'+
+        '</div>'+
+        '<span id="ep-vat-badge" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+vatBadgeBg+';color:'+vatBadgeCol+';">'+vatBadgeTxt+'</span>'+
+      '</div>'+
+    '</div>'+
+    '<input type="hidden" id="ep-vat-val" value="'+vatVal+'">'+
+    '<div class="f" style="margin-top:8px;">'+
+      '<label>Icon</label>'+
+      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">'+
+        '<div id="ep-prev" style="font-size:24px;width:42px;height:42px;border:1.5px solid var(--b);border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;">'+p.emoji+'</div>'+
+        '<span style="font-size:11px;color:var(--t3)">Tap to change</span>'+
+      '</div>'+
+      '<div class="eg" id="ep-eg"></div>'+
+    '</div>'+
+    '<div class="mbs" style="margin-top:14px;">'+
+      '<button id="ep-cancel">Cancel</button>'+
+      '<button class="ok" id="ep-save">Save changes</button>'+
+    '</div>'
+  );
+
+  // Attach all event listeners via JS — no inline onclick
   document.getElementById('ep-cancel').addEventListener('click',closeModal);
-  document.getElementById('ep-save').addEventListener('click',()=>saveEditProd(id));
+  document.getElementById('ep-save').addEventListener('click',function(){saveEditProd(id);});
+  document.getElementById('ep-minus').addEventListener('click',function(){adjustEditStock(-1);});
+  document.getElementById('ep-plus').addEventListener('click',function(){adjustEditStock(1);});
+  document.getElementById('ep-plus10').addEventListener('click',function(){adjustEditStock(10);});
+  document.getElementById('ep-vat-tog').addEventListener('click',toggleEditVAT);
+  document.getElementById('ep-s').addEventListener('input',function(){
+    var d=document.getElementById('ep-s-disp');
+    if(d)d.textContent=this.value||0;
+  });
+
+  // Build emoji grid with event listeners
+  var grid=document.getElementById('ep-eg');
+  EMJS.forEach(function(e){
+    var div=document.createElement('div');
+    div.className='eo'+(e===p.emoji?' on':'');
+    div.textContent=e;
+    div.addEventListener('click',function(){selectEditEmoji(e);});
+    grid.appendChild(div);
+  });
 }
 
 function adjustEditStock(delta){
@@ -1637,15 +1685,15 @@ function renderPtbl(){
       <td style="font-weight:700;color:var(--a);">$${p.price.toFixed(2)}</td>
       <td>
         <div class="stk-adj">
-          <button class="stk-btn" onclick="adjustStock(${p.id},-1)" title="Remove 1">−</button>
+          <button class="stk-btn" data-pid="${p.id}" data-act="stk-" title="Remove 1">−</button>
           <span class="stk-num" style="${lo?'color:var(--d);':''}">${p.stock}</span>
-          <button class="stk-btn" onclick="adjustStock(${p.id},1)" title="Add 1">+</button>
+          <button class="stk-btn" data-pid="${p.id}" data-act="stk+" title="Add 1">+</button>
         </div>
       </td>
-      <td><span class="bdg ${p.vatExempt?'bdg-r':'bdg-g'}" style="cursor:pointer;" onclick="toggleProdVAT(${p.id})" title="Click to toggle">${p.vatExempt?'Exempt':'VAT'}</span></td>
+      <td><span class="bdg ${p.vatExempt?'bdg-r':'bdg-g'}" style="cursor:pointer;" data-pid="${p.id}" data-act="vat" title="Click to toggle">${p.vatExempt?'Exempt':'VAT'}</span></td>
       <td style="white-space:nowrap;">
-        <button class="ibtn" onclick="openEditProd(${p.id})" title="Edit" style="color:#378ADD;">✏️</button>
-        <button class="ibtn" onclick="delProd(${p.id})" title="Remove" style="color:var(--d);">🗑</button>
+        <button class="ibtn" data-pid="${p.id}" data-act="edit-prod" title="Edit" style="color:#378ADD;">✏️</button>
+        <button class="ibtn" data-pid="${p.id}" data-act="del-prod" title="Remove" style="color:var(--d);">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -1679,7 +1727,11 @@ function doRestore(ev){const file=ev.target.files[0];if(!file)return;if(!confirm
 async function factoryReset(){if(!confirm('Delete ALL data permanently? This cannot be undone.'))return;if(!confirm('Final warning \u2014 are you sure?'))return;TXS=[];QUOTES=[];['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv'].forEach(k=>localStorage.removeItem(k));renderReports();renderBkInfo();toast('All data cleared');}
 
 /* BRANDING */
-function renderSwts(){document.getElementById('swts').innerHTML=COLS.map(c=>`<div class="sw2 ${c.h===BRAND.color?'on':''}" style="background:${c.h}" title="${c.n}" onclick="setCol('${c.h}')"><span class="swc">\u2713</span></div>`).join('');}
+function renderSwts(){
+  document.getElementById('swts').innerHTML=COLS.map(function(c){
+    return '<div class="sw2 '+(c.h===BRAND.color?'on':'')+'" style="background:'+c.h+'" title="'+c.n+'" data-col="'+c.h+'"><span class="swc">✓</span></div>';
+  }).join('');
+}
 function setCol(h){BRAND.color=h;document.getElementById('b-h').textContent=h;document.getElementById('b-c').value=h;renderSwts();prevBrand();}
 function prevBrand(){const n=document.getElementById('b-n').value||'SwiftPOS';const l=(document.getElementById('b-l').value||'S').toUpperCase();const s=document.getElementById('b-s').value||'Retail Edition';const r=document.getElementById('b-r').value;const sz=document.getElementById('b-sz').value;document.getElementById('b-rv').textContent=r+'px';document.getElementById('b-szv').textContent=sz+'px';const m=document.getElementById('bm');m.textContent=l;m.style.background=BRAND.color;m.style.borderRadius=r+'px';m.style.width=sz+'px';m.style.height=sz+'px';m.style.fontSize=Math.round(parseInt(sz)*.5)+'px';m.style.lineHeight=sz+'px';document.getElementById('bnp').textContent=n;document.getElementById('bsp').textContent=s;}
 async function saveBrand(){BRAND.name=document.getElementById('b-n').value||'SwiftPOS';BRAND.letter=(document.getElementById('b-l').value||'S').toUpperCase();BRAND.sub=document.getElementById('b-s').value||'Retail Edition';BRAND.radius=parseInt(document.getElementById('b-r').value);BRAND.size=parseInt(document.getElementById('b-sz').value);applyBrand();await saveAll();toast('Branding applied \u2713');}
@@ -1760,7 +1812,78 @@ async function init(){
 }
 init();
 
-// Click outside modal sheet to close
+// ═══════════════════════════════════════════════════════
+//  GLOBAL EVENT DELEGATION
+//  All dynamically injected HTML uses data-* attributes.
+//  No inline onclick anywhere — fixes mobile syntax errors.
+// ═══════════════════════════════════════════════════════
+document.addEventListener('click', function(e){
+  // Category bar pill
+  var catEl=e.target.closest('[data-cat]');
+  if(catEl){setCat(catEl.getAttribute('data-cat'));return;}
+
+  // Emoji pickers — add product (#eg) and edit product (#ep-eg)
+  var emEl=e.target.closest('#eg [data-em], #ep-eg [data-em]');
+  if(emEl){
+    var inEdit=!!e.target.closest('#ep-eg');
+    if(inEdit)selectEditEmoji(emEl.textContent.trim());
+    else selE(emEl.textContent.trim());
+    return;
+  }
+
+  // Color swatches (branding)
+  var colEl=e.target.closest('[data-col]');
+  if(colEl){setCol(colEl.getAttribute('data-col'));return;}
+
+  // Transaction row click
+  var txEl=e.target.closest('[data-txid]');
+  if(txEl){viewTx(txEl.getAttribute('data-txid'));return;}
+
+  // Generic data-act router
+  var btn=e.target.closest('[data-act]');
+  if(!btn)return;
+  var act=btn.getAttribute('data-act');
+
+  // Product grid / table
+  var pid=btn.getAttribute('data-pid');
+  if(pid!==null){var pidN=parseInt(pid,10);
+    if(act==='add')      {addToCart(pidN);return;}
+    if(act==='stk-')     {adjustStock(pidN,-1);return;}
+    if(act==='stk+')     {adjustStock(pidN,1);return;}
+    if(act==='vat')      {toggleProdVAT(pidN);return;}
+    if(act==='edit-prod'){openEditProd(pidN);return;}
+    if(act==='del-prod') {delProd(pidN);return;}
+  }
+
+  // Cart qty + customer actions
+  var cid=btn.getAttribute('data-cid');
+  if(cid!==null){
+    if(act==='chg-')    {chgQ(parseInt(cid,10),-1);return;}
+    if(act==='chg+')    {chgQ(parseInt(cid,10),1);return;}
+    if(act==='edit-cust'){openEditCust(cid);return;}
+    if(act==='del-cust') {deleteCust(cid);return;}
+  }
+
+  // Category management
+  var catidx=btn.getAttribute('data-catidx');
+  if(catidx!==null&&catidx!==''){var ci=parseInt(catidx,10);
+    if(act==='edit-cat'){openEditCat(ci);return;}
+    if(act==='del-cat') {delCat(ci);return;}
+  }
+
+  // Quotation actions
+  var qid=btn.getAttribute('data-qid');
+  if(qid!==null){
+    if(act==='view-q'){var q=QUOTES.find(function(x){return x.id===qid;});if(q)openQDoc(q);return;}
+    if(act==='conv-q'){convQuote(qid);return;}
+    if(act==='del-q') {delQuote(qid);return;}
+  }
+
+  // More menu tabs
+  if(act==='more-tab'){var tab=btn.getAttribute('data-tab');if(tab){openTab(tab);closeModal();return;}}
+});
+
+// Click outside modal to close
 (function(){
   var ov=document.getElementById('modal');
   if(ov)ov.addEventListener('click',function(e){if(e.target===ov)closeModal();});
