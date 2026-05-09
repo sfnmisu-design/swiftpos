@@ -64,6 +64,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .psk.lo{color:var(--d);}
 .pcnt{position:absolute;top:7px;right:7px;background:var(--a);color:#fff;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;}
 .etag{font-size:8px;font-weight:700;background:#FCEAEA;color:var(--d);padding:1px 4px;border-radius:6px;margin-left:3px;vertical-align:middle;}
+/* LOW STOCK ALERT BANNER */
+.ls-banner{background:#FFF3E0;border:1.5px solid #FF9800;border-radius:var(--rl);padding:11px 13px;margin-bottom:10px;cursor:pointer;}
+.ls-banner-hd{display:flex;align-items:center;justify-content:space-between;}
+.ls-banner-title{font-size:13px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;}
+.ls-banner-count{background:#FF9800;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;}
+.ls-banner-items{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px;}
+.ls-item{background:#fff;border:1px solid #FFB74D;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:500;color:#BF360C;display:flex;align-items:center;gap:4px;}
+.ls-item-stk{font-weight:700;color:#E65100;}
+/* STOCK ADJUST BUTTONS */
+.stk-adj{display:flex;align-items:center;gap:3px;}
+.stk-btn{width:20px;height:20px;border-radius:4px;border:1px solid var(--b2);background:var(--bg);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--t2);font-weight:700;line-height:1;}
+.stk-btn:active{background:var(--al);color:var(--a);}
+.stk-num{font-size:12px;font-weight:700;min-width:22px;text-align:center;font-family:monospace;}
 /* SEC */
 .sec{padding:14px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
 .sec-t{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:9px;}
@@ -354,8 +367,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <!-- CATALOG -->
     <div class="panel on" id="panel-catalog">
-      <div class="searchbar"><div class="sw"><input id="srch" type="text" placeholder="   Search products…" oninput="filterGrid()"></div></div>
+      <div class="searchbar">
+        <div class="sw" style="display:flex;gap:8px;align-items:center;">
+          <div style="flex:1;position:relative;">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;pointer-events:none;">🔍</span>
+            <input id="srch" type="text" placeholder="   Search by name or SKU/barcode…" oninput="filterGrid()" style="width:100%;padding:8px 10px 8px 30px;font-size:13px;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t);outline:none;font-family:inherit;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          </div>
+          <button id="scan-btn" onclick="openBarcodeScanner()" title="Scan barcode with camera" style="flex-shrink:0;padding:7px 12px;font-size:13px;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;font-weight:500;white-space:nowrap;">
+            📷 <span class="scan-label">Scan</span>
+          </button>
+        </div>
+      </div>
       <div class="catbar" id="catbar"></div>
+      <div id="ls-banner-wrap" style="padding:8px 14px 0;"></div>
       <div class="pgrid" id="pgrid"></div>
     </div>
     <!-- ADD PRODUCT -->
@@ -392,7 +416,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <button class="btn" onclick="addProd()">Add to catalog</button>
         </div>
         <div class="sec-t">Catalog <span id="pc" style="color:var(--t3);font-weight:400;text-transform:none;font-size:11px;margin-left:2px;"></span></div>
-        <div class="card flush"><table class="tbl"><thead><tr><th></th><th>Name</th><th>Cat</th><th>Price</th><th>Stk</th><th>VAT</th><th></th></tr></thead><tbody id="ptb"></tbody></table></div>
+        <div class="card flush"><table class="tbl"><thead><tr><th></th><th>Name</th><th>Cat</th><th>Price</th><th>Stock</th><th>VAT</th><th>Actions</th></tr></thead><tbody id="ptb"></tbody></table></div>
       </div>
     </div>
     <!-- CUSTOMERS -->
@@ -448,6 +472,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           </div>
           <div class="f"><label>Mode</label><select id="vmi"><option value="exclusive">Exclusive — VAT added on top</option><option value="inclusive">Inclusive — VAT in price</option></select></div>
           <button class="btn" onclick="saveVAT()">Save VAT settings</button>
+        </div>
+        <div class="sec-t" style="margin-top:4px;">Low Stock Alert</div>
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:500;margin-bottom:2px;">Alert threshold</div>
+              <div style="font-size:11px;color:var(--t3);">Show warning when stock falls at or below this number</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <button class="stk-btn" style="width:26px;height:26px;font-size:16px;" onclick="changeLSThreshold(-1)">−</button>
+              <span id="ls-threshold-val" style="font-size:18px;font-weight:700;font-family:monospace;min-width:30px;text-align:center;">10</span>
+              <button class="stk-btn" style="width:26px;height:26px;font-size:16px;" onclick="changeLSThreshold(1)">+</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:var(--r);font-size:12px;color:var(--t2);">
+            Currently <span id="ls-count-preview" style="font-weight:700;color:var(--d);">0</span> product(s) at or below this threshold
+          </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><div class="sec-t" style="margin:0">Categories</div><button class="tbtn" onclick="openAddCat()">+ Add</button></div>
         <div id="cm"></div>
@@ -538,6 +579,47 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="mni" onclick="moreMenu()"><span class="mnic">⋯</span>More</button>
   </div>
 </div>
+<!-- BARCODE SCANNER MODAL -->
+<div id="scan-modal" style="display:none;position:fixed;inset:0;z-index:110;background:rgba(0,0,0,.92);flex-direction:column;align-items:center;justify-content:center;">
+  <div style="width:100%;max-width:420px;padding:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="color:#fff;font-size:16px;font-weight:700;">📷 Scan Barcode</div>
+      <button onclick="closeBarcodeScanner()" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <!-- Camera viewfinder -->
+    <div style="position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;">
+      <video id="scan-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+      <!-- Targeting overlay -->
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+        <div style="width:220px;height:120px;border:3px solid var(--a);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);">
+          <div style="position:absolute;top:-2px;left:-2px;width:24px;height:24px;border-top:4px solid #fff;border-left:4px solid #fff;border-radius:4px 0 0 0;"></div>
+          <div style="position:absolute;top:-2px;right:-2px;width:24px;height:24px;border-top:4px solid #fff;border-right:4px solid #fff;border-radius:0 4px 0 0;"></div>
+          <div style="position:absolute;bottom:-2px;left:-2px;width:24px;height:24px;border-bottom:4px solid #fff;border-left:4px solid #fff;border-radius:0 0 0 4px;"></div>
+          <div style="position:absolute;bottom:-2px;right:-2px;width:24px;height:24px;border-bottom:4px solid #fff;border-right:4px solid #fff;border-radius:0 0 4px 0;"></div>
+          <!-- Scanning line animation -->
+          <div id="scan-line" style="position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--a),transparent);animation:scanline 1.5s ease-in-out infinite;"></div>
+        </div>
+      </div>
+      <!-- Canvas for frame capture (hidden) -->
+      <canvas id="scan-canvas" style="display:none;"></canvas>
+    </div>
+    <div style="margin-top:14px;text-align:center;color:rgba(255,255,255,.7);font-size:13px;" id="scan-status">Point camera at barcode</div>
+    <!-- Manual entry fallback -->
+    <div style="margin-top:14px;display:flex;gap:8px;">
+      <input id="scan-manual" type="text" placeholder="Or type barcode manually…" inputmode="numeric" autocomplete="off"
+        style="flex:1;padding:10px 12px;font-size:14px;border:1.5px solid rgba(255,255,255,.2);border-radius:var(--r);background:rgba(255,255,255,.1);color:#fff;outline:none;font-family:monospace;"
+        onkeydown="if(event.key==='Enter')manualBarcode()">
+      <button onclick="manualBarcode()" style="padding:10px 16px;background:var(--a);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">Search</button>
+    </div>
+    <div style="margin-top:10px;text-align:center;">
+      <button onclick="toggleTorch()" id="torch-btn" style="display:none;padding:7px 16px;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:18px;font-size:12px;cursor:pointer;font-family:inherit;">🔦 Flashlight</button>
+    </div>
+  </div>
+</div>
+<style>
+@keyframes scanline{0%{top:0;}50%{top:calc(100% - 2px);}100%{top:0;}}
+</style>
+
 <!-- MODAL -->
 <div class="ov" id="modal" style="display:none;">
   <div class="mod" id="mbox"><div class="mh"></div><div class="mi" id="min"></div></div>
@@ -603,6 +685,7 @@ let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAY='cash';
+let LOW_STOCK_THRESHOLD=10;
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPI=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
 
@@ -635,6 +718,7 @@ function saveLocal(){
     localStorage.setItem('sp_m',   JSON.stringify({nid,txn,qn}));
     localStorage.setItem('sp_ti',  JSON.stringify(TOPI));
     localStorage.setItem('sp_sv',  new Date().toISOString());
+    localStorage.setItem('sp_lst', JSON.stringify(LOW_STOCK_THRESHOLD));
   }catch(e){}
 }
 function loadLocal(){
@@ -650,6 +734,7 @@ function loadLocal(){
     const q=g('sp_q');   if(q&&q.length)    QUOTES=[...q];
     const ti=g('sp_ti'); if(ti&&ti.length)  TOPI=[...ti];
     const m=g('sp_m');   if(m){nid=m.nid||nid;txn=m.txn||txn;qn=m.qn||qn;}
+    const lst=g('sp_lst'); if(lst!=null) LOW_STOCK_THRESHOLD=lst;
   }catch(e){}
 }
 
@@ -713,9 +798,19 @@ async function loadAll(){
     ]);
     const serverEmpty = !r || !r.products || r.products.length===0;
     if(serverEmpty && PRODS.length>0){
-      // Server is empty but we have local data — push local UP to server
-      // (happens after first deploy or server wipe)
-      await saveAll();
+      // Server DB is empty but we have local data — push everything up NOW
+      // This happens on first connect after deploy, or after server wipe
+      setSrv('chk','Uploading data...');
+      const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
+               vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
+      try{
+        const r2=await api('/data/save','POST',d);
+        if(r2&&r2.ok){
+          _lastSyncTime=Date.now();
+          setSrv('ok','\u25CF Saved');
+          toast('Your data has been uploaded to the cloud \u2713');
+        }
+      }catch(e){ setSrv('err','\u25CF Offline'); }
     } else {
       applyServerData(r);
       _lastSyncTime=Date.now();
@@ -875,12 +970,208 @@ function delCat(i){const c=CATS[i];const cnt=PRODS.filter(p=>p.cat===c.name).len
 function allCats(){return['All',...CATS.map(c=>c.name),...new Set(PRODS.map(p=>p.cat).filter(c=>!CATS.find(x=>x.name===c)))];}
 function renderCatBar(){document.getElementById('catbar').innerHTML=allCats().map(c=>`<div class="cat ${c===ACAT?'on':''}" onclick="setCat('${c.replace(/'/g,"\\'")}'">${c}</div>`).join('');}
 function setCat(c){ACAT=c;renderCatBar();renderGrid();}
-function filterGrid(){SQ=document.getElementById('srch').value.toLowerCase();renderGrid();}
+function filterGrid(){
+  SQ=document.getElementById('srch').value.toLowerCase().trim();
+  renderGrid();
+  // If exact SKU match found, highlight it
+  if(SQ){
+    const exact=PRODS.find(p=>p.sku&&p.sku.toLowerCase()===SQ);
+    if(exact){
+      // Flash the matching card
+      setTimeout(()=>{
+        const cards=document.querySelectorAll('.pcard');
+        cards.forEach(c=>{if(c.querySelector('.pnm')&&c.querySelector('.pnm').textContent.includes(exact.name))c.style.boxShadow='0 0 0 3px var(--a)';setTimeout(()=>c.style.boxShadow='',800);});
+      },50);
+    }
+  }
+}
+
+/* ══════════════════════════════════════════
+   BARCODE SCANNER
+   Uses the Barcode Detection API (Chrome/Android)
+   with ZXing-js as fallback via canvas frame scanning
+══════════════════════════════════════════ */
+let _scanStream   = null;
+let _scanInterval = null;
+let _torchOn      = false;
+let _barcodeDetector = null;
+
+async function openBarcodeScanner(){
+  // Check if camera is available
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    toast('Camera not available on this device');
+    // Fall back to manual entry
+    document.getElementById('scan-modal').style.display='flex';
+    document.getElementById('scan-status').textContent='Camera unavailable — type barcode manually';
+    return;
+  }
+
+  document.getElementById('scan-modal').style.display='flex';
+  document.getElementById('scan-status').textContent='Starting camera…';
+  document.getElementById('scan-manual').value='';
+
+  try{
+    // Request camera — prefer back camera on mobile
+    _scanStream = await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:{ideal:'environment'},
+        width:{ideal:1280},
+        height:{ideal:720},
+      }
+    });
+    const video=document.getElementById('scan-video');
+    video.srcObject=_scanStream;
+    await video.play();
+
+    // Show torch button if supported
+    const track=_scanStream.getVideoTracks()[0];
+    const caps=track.getCapabilities&&track.getCapabilities();
+    if(caps&&caps.torch) document.getElementById('torch-btn').style.display='inline-block';
+
+    document.getElementById('scan-status').textContent='Point camera at barcode';
+
+    // Try native Barcode Detection API first (Chrome on Android, macOS)
+    if(window.BarcodeDetector){
+      _barcodeDetector=new BarcodeDetector({formats:[
+        'code_128','code_39','code_93','ean_13','ean_8',
+        'upc_a','upc_e','qr_code','data_matrix','itf'
+      ]});
+      _scanInterval=setInterval(()=>scanFrameNative(video),300);
+    } else {
+      // Fallback: load ZXing from CDN and scan manually
+      document.getElementById('scan-status').textContent='Loading scanner…';
+      loadZXing().then(()=>{
+        document.getElementById('scan-status').textContent='Point camera at barcode';
+        _scanInterval=setInterval(()=>scanFrameZXing(video),400);
+      }).catch(()=>{
+        document.getElementById('scan-status').textContent='Auto-scan unavailable — type barcode manually';
+      });
+    }
+  }catch(e){
+    const msg=e.name==='NotAllowedError'?'Camera permission denied — please allow camera access'
+             :e.name==='NotFoundError'?'No camera found on this device'
+             :'Camera error: '+e.message;
+    document.getElementById('scan-status').textContent=msg;
+    toast(msg);
+  }
+}
+
+// Native Barcode Detection API
+async function scanFrameNative(video){
+  if(!_barcodeDetector||video.readyState<2)return;
+  try{
+    const barcodes=await _barcodeDetector.detect(video);
+    if(barcodes.length>0){
+      handleBarcode(barcodes[0].rawValue);
+    }
+  }catch(e){}
+}
+
+// ZXing fallback
+let _zxReader=null;
+function loadZXing(){
+  return new Promise((resolve,reject)=>{
+    if(window.ZXing){resolve();return;}
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.19.1/zxing.min.js';
+    s.onload=()=>{
+      try{_zxReader=new ZXing.BrowserMultiFormatReader();resolve();}
+      catch(e){reject(e);}
+    };
+    s.onerror=reject;
+    document.head.appendChild(s);
+  });
+}
+function scanFrameZXing(video){
+  if(!_zxReader||video.readyState<2)return;
+  const canvas=document.getElementById('scan-canvas');
+  const ctx=canvas.getContext('2d');
+  canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+  ctx.drawImage(video,0,0);
+  try{
+    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    _zxReader.decodeFromImageData(imageData).then(result=>{
+      if(result)handleBarcode(result.getText());
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+function handleBarcode(code){
+  if(!code)return;
+  clearInterval(_scanInterval);_scanInterval=null;
+
+  // Flash success
+  document.getElementById('scan-status').textContent='✓ Found: '+code;
+  document.getElementById('scan-status').style.color='#4CAF50';
+
+  // Search for product by SKU
+  const prod=PRODS.find(p=>p.sku&&p.sku.trim().toLowerCase()===code.trim().toLowerCase());
+
+  setTimeout(()=>{
+    closeBarcodeScanner();
+    if(prod){
+      // Exact SKU match — add to cart directly
+      addToCart(prod.id);
+      toast(prod.emoji+' '+prod.name+' added to cart');
+      // Also show in search
+      document.getElementById('srch').value=code;
+      SQ=code.toLowerCase();renderGrid();
+    } else {
+      // No exact match — show in search field so user can see results
+      document.getElementById('srch').value=code;
+      SQ=code.toLowerCase();renderGrid();
+      const matches=PRODS.filter(p=>p.name.toLowerCase().includes(SQ)||(p.sku&&p.sku.toLowerCase().includes(SQ)));
+      if(matches.length===0){
+        toast('No product found for barcode: '+code);
+      } else {
+        toast(matches.length+' product(s) found');
+      }
+    }
+  },600);
+}
+
+function manualBarcode(){
+  const val=document.getElementById('scan-manual').value.trim();
+  if(!val){toast('Enter a barcode');return;}
+  handleBarcode(val);
+}
+
+async function toggleTorch(){
+  if(!_scanStream)return;
+  const track=_scanStream.getVideoTracks()[0];
+  _torchOn=!_torchOn;
+  try{
+    await track.applyConstraints({advanced:[{torch:_torchOn}]});
+    document.getElementById('torch-btn').textContent=_torchOn?'🔦 Flashlight ON':'🔦 Flashlight';
+    document.getElementById('torch-btn').style.background=_torchOn?'var(--a)':'rgba(255,255,255,.15)';
+  }catch(e){toast('Torch not supported');}
+}
+
+function closeBarcodeScanner(){
+  clearInterval(_scanInterval);_scanInterval=null;
+  if(_scanStream){_scanStream.getTracks().forEach(t=>t.stop());_scanStream=null;}
+  _torchOn=false;_barcodeDetector=null;
+  const video=document.getElementById('scan-video');
+  if(video)video.srcObject=null;
+  document.getElementById('scan-modal').style.display='none';
+  document.getElementById('scan-status').textContent='Point camera at barcode';
+  document.getElementById('scan-status').style.color='rgba(255,255,255,.7)';
+  document.getElementById('torch-btn').style.display='none';
+}
+async function delProd(id){
+  if(!confirm('Remove this product?'))return;
+  PRODS=PRODS.filter(p=>p.id!==id);
+  delete CART[id];
+  renderPtbl();renderCatBar();renderGrid();renderCart();renderLSBanner();
+  await saveAll();toast('Product removed');
+}
+
 function renderGrid(){
+  renderLSBanner();
   const g=document.getElementById('pgrid');
-  const items=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)));
+  const items=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)||(p.sku&&p.sku.toLowerCase().includes(SQ))));
   if(!items.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:40px;font-size:13px;">No products found</div>';return;}
-  g.innerHTML=items.map(p=>{const q=CART[p.id]||0,lo=p.stock<=10;return`<div class="pcard" onclick="addToCart(${p.id})">${q?`<div class="pcnt">${q}</div>`:''}<span class="pem">${p.emoji}</span><div class="pnm">${p.name}${p.vatExempt?'<span class="etag">Exempt</span>':''}</div><div class="ppr">$${p.price.toFixed(2)}</div><div class="psk${lo?' lo':''}">${lo?'\u26A0 ':''}${p.stock} in stock</div></div>`;}).join('');
+  g.innerHTML=items.map(p=>{const q=CART[p.id]||0,lo=p.stock<=LOW_STOCK_THRESHOLD;return`<div class="pcard" onclick="addToCart(${p.id})">${q?`<div class="pcnt">${q}</div>`:''}<span class="pem">${p.emoji}</span><div class="pnm">${p.name}${p.vatExempt?'<span class="etag">Exempt</span>':''}</div><div class="ppr">$${p.price.toFixed(2)}</div><div class="psk${lo?' lo':''}">${lo?'\u26A0 ':''}${p.stock} in stock</div></div>`;}).join('');
 }
 
 /* CART */
@@ -1178,10 +1469,186 @@ async function addProd(){
     if(btn){btn.disabled=false;btn.textContent='Add to catalog';}
   }
 }
-async function delProd(id){if(!confirm('Remove this product?'))return;PRODS=PRODS.filter(p=>p.id!==id);delete CART[id];renderPtbl();renderCatBar();renderGrid();renderCart();await saveAll();toast('Product removed');}
+/* ── LOW STOCK ALERT ─────────────────────────────────── */
+function getLowStockProds(){
+  return PRODS.filter(p=>p.stock<=LOW_STOCK_THRESHOLD).sort((a,b)=>a.stock-b.stock);
+}
+function renderLSBanner(){
+  const wrap=document.getElementById('ls-banner-wrap');
+  if(!wrap)return;
+  const low=getLowStockProds();
+  if(!low.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=`<div class="ls-banner" onclick="openTab('addprod')">
+    <div class="ls-banner-hd">
+      <div class="ls-banner-title">⚠️ Low stock alert <span class="ls-banner-count">${low.length} product${low.length>1?'s':''}</span></div>
+      <span style="font-size:11px;color:#E65100;font-weight:500;">Tap to manage →</span>
+    </div>
+    <div class="ls-banner-items">
+      ${low.map(p=>`<div class="ls-item">${p.emoji} ${p.name} <span class="ls-item-stk">${p.stock} left</span></div>`).join('')}
+    </div>
+  </div>`;
+}
+function changeLSThreshold(delta){
+  LOW_STOCK_THRESHOLD=Math.max(1,LOW_STOCK_THRESHOLD+delta);
+  const el=document.getElementById('ls-threshold-val');
+  if(el)el.textContent=LOW_STOCK_THRESHOLD;
+  const prev=document.getElementById('ls-count-preview');
+  if(prev)prev.textContent=getLowStockProds().length;
+  renderLSBanner();renderPtbl();renderGrid();
+  saveAll();
+}
+function initLSSettings(){
+  const el=document.getElementById('ls-threshold-val');
+  if(el)el.textContent=LOW_STOCK_THRESHOLD;
+  const prev=document.getElementById('ls-count-preview');
+  if(prev)prev.textContent=getLowStockProds().length;
+}
+
+/* ── EDIT PRODUCT ────────────────────────────────────── */
+function openEditProd(id){
+  const p=PRODS.find(x=>x.id===id);if(!p)return;
+  const catOpts=CATS.map(c=>`<option value="${c.name}"${p.cat===c.name?' selected':''}>${c.emoji} ${c.name}</option>`).join('');
+  const emojiGrid=EMJS.map(e=>`<div class="eo${e===p.emoji?' on':''}" id="ee-${e.codePointAt(0)}" onclick="selectEditEmoji('${e}')">${e}</div>`).join('');
+  openModal(`<h3>Edit product</h3>
+    <div class="g2">
+      <div class="f"><label>Name *</label><input type="text" id="ep-n" value="${p.name.replace(/"/g,'&quot;')}"></div>
+      <div class="f"><label>Price ($) *</label><input type="number" id="ep-p" value="${p.price}" min="0" step="0.01"></div>
+      <div class="f"><label>Category</label><select id="ep-c">${catOpts}</select></div>
+      <div class="f"><label>SKU / Barcode</label><input type="text" id="ep-sk" value="${p.sku||''}"></div>
+    </div>
+    <div class="f" style="margin-top:4px;">
+      <label>Stock quantity</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px solid var(--b);border-radius:var(--r);padding:6px 12px;">
+          <button class="stk-btn" style="width:28px;height:28px;font-size:18px;" onclick="adjustEditStock(-1)">−</button>
+          <span id="ep-s-disp" style="font-size:20px;font-weight:700;font-family:monospace;min-width:40px;text-align:center;">${p.stock}</span>
+          <button class="stk-btn" style="width:28px;height:28px;font-size:18px;" onclick="adjustEditStock(1)">+</button>
+          <button class="stk-btn" style="width:28px;height:28px;font-size:18px;" onclick="adjustEditStock(10)">+10</button>
+        </div>
+        <input type="number" id="ep-s" value="${p.stock}" min="0" style="width:80px;padding:8px;font-size:14px;font-weight:700;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);text-align:center;font-family:monospace;" oninput="document.getElementById('ep-s-disp').textContent=this.value||0">
+      </div>
+    </div>
+    <div class="f" style="margin-top:8px;">
+      <label>VAT</label>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:var(--r);border:1.5px solid var(--b);">
+        <label onclick="toggleEditVAT()" style="display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;">
+          <div id="ep-vat-sw" style="width:40px;height:22px;border-radius:11px;background:${p.vatExempt?'var(--d)':'var(--a)'};flex-shrink:0;position:relative;transition:background .2s;">
+            <div id="ep-vat-kn" style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;left:${p.vatExempt?'3px':'21px'};transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);"></div>
+          </div>
+          <span id="ep-vat-lbl" style="font-size:13px;font-weight:600;color:${p.vatExempt?'var(--d)':'var(--t)'};">${p.vatExempt?'VAT Exempt':'VAT Applicable'}</span>
+        </label>
+        <span id="ep-vat-badge" style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${p.vatExempt?'#FCEAEA':'var(--al)'};color:${p.vatExempt?'var(--d)':'var(--ad)'};">${p.vatExempt?'Exempt':'Taxed'}</span>
+      </div>
+    </div>
+    <input type="hidden" id="ep-vat-val" value="${p.vatExempt?'exempt':'taxed'}">
+    <div class="f" style="margin-top:8px;">
+      <label>Icon</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div class="eprev" id="ep-prev" style="font-size:24px;width:42px;height:42px;border:1.5px solid var(--b);border-radius:10px;background:var(--bg);display:flex;align-items:center;justify-content:center;">${p.emoji}</div>
+        <span style="font-size:11px;color:var(--t3)">Tap to change</span>
+      </div>
+      <div class="eg" id="ep-eg">${emojiGrid}</div>
+    </div>
+    <div class="mbs" style="margin-top:14px;">
+      <button id="ep-cancel">Cancel</button>
+      <button class="ok" id="ep-save">Save changes</button>
+    </div>`);
+  window._editProdId=id;
+  document.getElementById('ep-cancel').addEventListener('click',closeModal);
+  document.getElementById('ep-save').addEventListener('click',()=>saveEditProd(id));
+}
+
+function adjustEditStock(delta){
+  const input=document.getElementById('ep-s');
+  const disp=document.getElementById('ep-s-disp');
+  if(!input)return;
+  const newVal=Math.max(0,(parseInt(input.value)||0)+delta);
+  input.value=newVal;
+  if(disp)disp.textContent=newVal;
+}
+
+function selectEditEmoji(e){
+  document.getElementById('ep-prev').textContent=e;
+  window._editEmoji=e;
+  document.querySelectorAll('#ep-eg .eo').forEach(el=>el.classList.toggle('on',el.textContent===e));
+}
+
+function toggleEditVAT(){
+  const val=document.getElementById('ep-vat-val');
+  const isExempt=val.value==='exempt';
+  val.value=isExempt?'taxed':'exempt';
+  const sw=document.getElementById('ep-vat-sw'),kn=document.getElementById('ep-vat-kn');
+  const lbl=document.getElementById('ep-vat-lbl'),badge=document.getElementById('ep-vat-badge');
+  if(isExempt){
+    sw.style.background='var(--a)';kn.style.left='21px';
+    lbl.textContent='VAT Applicable';lbl.style.color='var(--t)';
+    badge.textContent='Taxed';badge.style.background='var(--al)';badge.style.color='var(--ad)';
+  }else{
+    sw.style.background='var(--d)';kn.style.left='3px';
+    lbl.textContent='VAT Exempt';lbl.style.color='var(--d)';
+    badge.textContent='Exempt';badge.style.background='#FCEAEA';badge.style.color='var(--d)';
+  }
+}
+
+async function saveEditProd(id){
+  const p=PRODS.find(x=>x.id===id);if(!p)return;
+  const n=document.getElementById('ep-n').value.trim();
+  const pr=parseFloat(document.getElementById('ep-p').value);
+  const cat=document.getElementById('ep-c').value;
+  const st=parseInt(document.getElementById('ep-s').value)||0;
+  const sk=document.getElementById('ep-sk').value.trim();
+  const vatExempt=document.getElementById('ep-vat-val').value==='exempt';
+  const emoji=window._editEmoji||p.emoji;
+  if(!n){toast('Name required');return;}
+  if(!pr||pr<=0){toast('Valid price required');return;}
+  const btn=document.getElementById('ep-save');
+  if(btn){btn.disabled=true;btn.textContent='Saving...';}
+  try{
+    p.name=n;p.price=pr;p.cat=cat;p.stock=st;p.sku=sk;p.vatExempt=vatExempt;p.emoji=emoji;
+    await saveAll();
+    renderPtbl();renderGrid();renderCatBar();renderCart();renderLSBanner();
+    closeModal();
+    toast(n+' updated \u2713');
+  }catch(e){
+    toast('Save failed — try again');
+    if(btn){btn.disabled=false;btn.textContent='Save changes';}
+  }
+}
+
+/* ── STOCK QUICK ADJUST (from product table) ──────────── */
+async function adjustStock(id,delta){
+  const p=PRODS.find(x=>x.id===id);if(!p)return;
+  p.stock=Math.max(0,p.stock+delta);
+  renderPtbl();renderGrid();renderLSBanner();
+  await saveAll();
+}
+
 function renderPtbl(){
   document.getElementById('pc').textContent='('+PRODS.length+' items)';
-  document.getElementById('ptb').innerHTML=PRODS.map(p=>`<tr><td style="font-size:18px;">${p.emoji}</td><td style="font-weight:500;">${p.name}${p.sku?`<div style="font-size:10px;color:var(--t3)">SKU:${p.sku}</div>`:''}</td><td style="color:var(--t2);">${p.cat}</td><td style="font-weight:700;color:var(--a);">$${p.price.toFixed(2)}</td><td><span class="bdg ${p.stock<=10?'bdg-r':'bdg-g'}">${p.stock}</span></td><td><span class="bdg ${p.vatExempt?'bdg-r':'bdg-g'}" style="cursor:pointer;" onclick="toggleProdVAT(${p.id})" title="Click to toggle">${p.vatExempt?'Exempt':'VAT'}</span></td><td><button class="ibtn" onclick="delProd(${p.id})">🗑</button></td></tr>`).join('');
+  document.getElementById('ptb').innerHTML=PRODS.map(p=>{
+    const lo=p.stock<=LOW_STOCK_THRESHOLD;
+    return`<tr>
+      <td style="font-size:18px;">${p.emoji}</td>
+      <td style="font-weight:500;max-width:120px;">
+        ${p.name}${p.sku?`<div style="font-size:10px;color:var(--t3)">SKU:${p.sku}</div>`:''}
+        ${lo?`<div style="font-size:9px;color:var(--d);font-weight:700;">\u26A0 Low stock</div>`:''}
+      </td>
+      <td style="color:var(--t2);font-size:11px;">${p.cat}</td>
+      <td style="font-weight:700;color:var(--a);">$${p.price.toFixed(2)}</td>
+      <td>
+        <div class="stk-adj">
+          <button class="stk-btn" onclick="adjustStock(${p.id},-1)" title="Remove 1">−</button>
+          <span class="stk-num" style="${lo?'color:var(--d);':''}">${p.stock}</span>
+          <button class="stk-btn" onclick="adjustStock(${p.id},1)" title="Add 1">+</button>
+        </div>
+      </td>
+      <td><span class="bdg ${p.vatExempt?'bdg-r':'bdg-g'}" style="cursor:pointer;" onclick="toggleProdVAT(${p.id})" title="Click to toggle">${p.vatExempt?'Exempt':'VAT'}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="ibtn" onclick="openEditProd(${p.id})" title="Edit" style="color:#378ADD;">✏️</button>
+        <button class="ibtn" onclick="delProd(${p.id})" title="Remove" style="color:var(--d);">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 /* REPORTS */
@@ -1249,7 +1716,7 @@ function openTab(name){
   if(name==='sales')renderSales();
   if(name==='backup')renderBkInfo();
   if(name==='quotes')renderQuotes();
-  if(name==='settings'){initVATForm();renderCatMgmt();initStore();}
+  if(name==='settings'){initVATForm();renderCatMgmt();initStore();initLSSettings();}
 }
 
 async function init(){
@@ -1261,7 +1728,7 @@ async function init(){
   popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
   tick();setInterval(tick,60000);
 
-  // STEP 3: Connect to server in background
+  // STEP 3: Connect to server
   setSrv('chk','Connecting...');
   const connected = await pingSrv();
 
@@ -1273,7 +1740,7 @@ async function init(){
     popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();
     setSrv('ok','\u25CF Connected');
   } else {
-    // Render cold start can take 30s — retry in background
+    // Render cold start — retry after 10 seconds
     setTimeout(async ()=>{
       const retry = await pingSrv();
       if(retry){
@@ -1284,11 +1751,10 @@ async function init(){
     }, 10000);
   }
 
-  // STEP 4: Start live sync — polls every 10 seconds
-  // This keeps multiple devices (phones, tablets, computers) in sync
+  // STEP 4: Start live sync — polls every 10 seconds for multi-device
   setInterval(pollSync, 10000);
 
-  // STEP 5: Auto-save every 30 seconds and keep connection alive
+  // STEP 5: Auto-save every 30 seconds
   setInterval(saveAll, 30000);
   setInterval(pingSrv, 60000);
 }
@@ -1298,6 +1764,52 @@ init();
 (function(){
   var ov=document.getElementById('modal');
   if(ov)ov.addEventListener('click',function(e){if(e.target===ov)closeModal();});
+
+  // Escape key closes barcode scanner
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape') closeBarcodeScanner();
+  });
+
+  // USB/Bluetooth barcode scanner support
+  // Hardware scanners type fast then send Enter — detect this pattern
+  let _barcodeBuffer='';
+  let _barcodeTimer=null;
+  document.addEventListener('keydown',function(e){
+    // Only fire when no input is focused (or srch is focused)
+    const active=document.activeElement;
+    const isSrch=active&&active.id==='srch';
+    const isInput=active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA'||active.tagName==='SELECT');
+
+    // If hardware scanner types Enter rapidly — treat as barcode scan
+    if(e.key==='Enter'&&isSrch){
+      const val=document.getElementById('srch').value.trim();
+      if(val.length>=3){
+        // Check if it's an exact SKU match
+        const prod=PRODS.find(p=>p.sku&&p.sku.trim().toLowerCase()===val.toLowerCase());
+        if(prod){
+          addToCart(prod.id);
+          toast(prod.emoji+' '+prod.name+' added to cart \u2713');
+          document.getElementById('srch').value='';
+          SQ='';renderGrid();
+        }
+      }
+      return;
+    }
+
+    // Capture rapid typing into search (USB scanner mode when nothing focused)
+    if(!isInput&&e.key.length===1){
+      _barcodeBuffer+=e.key;
+      clearTimeout(_barcodeTimer);
+      _barcodeTimer=setTimeout(()=>{
+        if(_barcodeBuffer.length>=3){
+          // Put barcode into search field
+          const srch=document.getElementById('srch');
+          if(srch){srch.value=_barcodeBuffer;SQ=_barcodeBuffer.toLowerCase();renderGrid();}
+        }
+        _barcodeBuffer='';
+      },80); // 80ms gap = end of barcode scan burst
+    }
+  });
 })();
 </script>
 </body>
