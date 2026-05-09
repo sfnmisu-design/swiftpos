@@ -957,37 +957,33 @@ async function saveAll(){
 
 // ── Load: get from server, fallback to local ─────────────
 async function loadAll(){
-  // Load local first so UI appears instantly
-  loadLocal();
-
+  // NOTE: loadLocal() called by bootApp before this — don't call again
   if(!srvOk) return;
   try{
     const r=await Promise.race([
       api('/data/all'),
       new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
     ]);
-    const serverEmpty = !r || !r.products || r.products.length===0;
-    if(serverEmpty && PRODS.length>0){
-      // Server DB is empty but we have local data — push everything up NOW
-      // This happens on first connect after deploy, or after server wipe
-      setSrv('chk','Uploading data...');
+    // 401/not logged in — ignore, keep local data intact
+    if(!r||r.error==='Not logged in'||r.error==='Admin access required') return;
+    // Server DB not connected — ignore
+    if(r._db===false) return;
+    const serverEmpty=!r.products||r.products.length===0;
+    const localHasData=PRODS.length>0;
+    if(serverEmpty&&localHasData){
+      // Push local data up to empty server
+      setSrv('chk','Uploading...');
       const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
                vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
       try{
         const r2=await api('/data/save','POST',d);
-        if(r2&&r2.ok){
-          _lastSyncTime=Date.now();
-          setSrv('ok','\u25CF Saved');
-          toast('Your data has been uploaded to the cloud \u2713');
-        }
-      }catch(e){ setSrv('err','\u25CF Offline'); }
-    } else {
+        if(r2&&r2.ok){_lastSyncTime=Date.now();setSrv('ok','● Saved');toast('Data uploaded to cloud ✓');}
+      }catch(e){setSrv('err','● Offline');}
+    }else if(!serverEmpty){
       applyServerData(r);
       _lastSyncTime=Date.now();
     }
-  }catch(e){
-    console.log('Server load failed, using local cache');
-  }
+  }catch(e){console.log('Server load failed, using local cache');}
 }
 
 // ── Live sync: poll server every 10s ─────────────────────
@@ -2091,65 +2087,71 @@ async function changeMyPassword(){
 }
 
 async function init(){
-  // Load local data immediately so login screen shows branding
+  // ALWAYS load local first — safe, instant, never loses data
   loadLocal();
   applyBrand();
 
-  // Update login screen with store branding
-  const lm=document.getElementById('login-logo');
+  // Brand the login screen with store info
+  var lm=document.getElementById('login-logo');
   if(lm){lm.textContent=BRAND.letter||'S';lm.style.background=BRAND.color||'var(--a)';}
-  const sn=document.getElementById('login-store-name');
+  var sn=document.getElementById('login-store-name');
   if(sn)sn.textContent=BRAND.name||'SwiftPOS';
 
-  // Check if we have a saved session
+  // Check saved session token
   if(SESSION_TOKEN){
     try{
-      const me=await Promise.race([
+      var me=await Promise.race([
         api('/auth/me'),
-        new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),4000))
+        new Promise(function(_,j){setTimeout(function(){j(new Error('timeout'));},4000);})
       ]);
       if(me&&me.ok){
         CURRENT_USER={username:me.username,role:me.role,displayName:me.displayName};
         localStorage.setItem('sp_user',JSON.stringify(CURRENT_USER));
-        // Session valid — go straight to app
         await bootApp();
         return;
       }
     }catch(e){}
-    // Session invalid — clear it and show login
-    SESSION_TOKEN='';CURRENT_USER=null;
-    localStorage.removeItem('sp_token');localStorage.removeItem('sp_user');
+    // Token expired — remove token ONLY, NEVER touch data keys
+    SESSION_TOKEN='';
+    localStorage.removeItem('sp_token');
+    // Data keys (sp_p, sp_t etc) are untouched — data preserved
   }
 
-  // No session — show login screen
-  // For local mode (file://) skip login
-  if(location.protocol==='file:' || !SRV){
+  // No valid session
+  if(location.protocol==='file:'||!SRV){
+    // Local mode — skip login
     CURRENT_USER={username:'local',role:'admin',displayName:'Local User'};
     await bootApp();
-  } else {
+  }else{
+    // Show login — data already in memory from loadLocal() above
     showLoginScreen();
   }
 }
 
 async function bootApp(){
   onLoggedIn();
-  // Connect and load data
+  // ALWAYS load local first — instant, never loses data
+  loadLocal();
+  applyBrand();
+  popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
+  tick();setInterval(tick,60000);
+
+  // Connect to server in background — won't block UI
   setSrv('chk','Connecting…');
-  const connected=await pingSrv();
+  var connected=await pingSrv();
   if(connected){
     setSrv('chk','Loading…');
-    await loadAll();
+    await loadAll(); // safe — never wipes local data
     applyBrand();
     popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();
-    setSrv('ok','\u25CF Connected');
-  } else {
-    setTimeout(async()=>{
-      const retry=await pingSrv();
+    setSrv('ok','● Connected');
+  }else{
+    // Render cold start — retry after 10s
+    setTimeout(async function(){
+      var retry=await pingSrv();
       if(retry){await loadAll();applyBrand();popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();}
     },10000);
   }
-  popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
-  tick();setInterval(tick,60000);
   setInterval(pollSync,10000);
   setInterval(saveAll,30000);
   setInterval(pingSrv,60000);
