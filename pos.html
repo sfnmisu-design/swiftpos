@@ -816,7 +816,9 @@ function setSrv(cls,txt){
 }
 /* DATA */
 let nid=21,txn=1000,qn=100;
-let PRODS=[
+let PRODS=[] // populated from server/localStorage on boot
+// Default sample products only used when database is genuinely empty the very first time
+const SAMPLE_PRODS=[
   {id:1,name:'Organic Apples',price:3.99,cat:'Produce',emoji:'🍎',stock:48,sku:'',vatExempt:false},
   {id:2,name:'Whole Milk',price:4.49,cat:'Dairy',emoji:'🥛',stock:32,sku:'',vatExempt:false},
   {id:3,name:'Sourdough Bread',price:5.99,cat:'Bakery',emoji:'🍞',stock:12,sku:'',vatExempt:false},
@@ -838,7 +840,8 @@ let PRODS=[
   {id:19,name:'Coconut Water',price:2.79,cat:'Drinks',emoji:'🥥',stock:19,sku:'',vatExempt:false},
   {id:20,name:'Dark Chocolate',price:3.49,cat:'Snacks',emoji:'🍫',stock:42,sku:'',vatExempt:false},
 ];
-let CATS=[
+let CATS=[] // populated from server/localStorage on boot
+const SAMPLE_CATS=[
   {name:'Produce',emoji:'🥦',color:'#639922'},{name:'Dairy',emoji:'🥛',color:'#378ADD'},
   {name:'Bakery',emoji:'🍞',color:'#BA7517'},{name:'Pantry',emoji:'🫙',color:'#7F77DD'},
   {name:'Snacks',emoji:'🍫',color:'#D4537E'},{name:'Drinks',emoji:'🥤',color:'#1D9E75'},{name:'Meat',emoji:'🍗',color:'#D85A30'},
@@ -846,10 +849,7 @@ let CATS=[
 const COUP={SAVE10:{type:'pct',val:10,label:'10% off'},SAVE5:{type:'fixed',val:5,label:'$5 off'},HALFOFF:{type:'pct',val:50,label:'50% off'},VIP20:{type:'pct',val:20,label:'20% off'}};
 const COLS=[{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
 const EMJS=['🛒','🍎','🥛','🍞','🥚','🍝','🫙','🍦','🥑','🧀','🍫','🍊','💧','🍗','🐟','🥜','🍅','🍌','🧈','🥥','🥩','🧁','☕','🍵','🥤','🌿','🧴','🧹','💊','📦','🎁','⭐','🔥','🫐','🍓','🥦','🥕'];
-let CUSTS=[
-  {id:'C001',name:'Maria Santos',company:'Santos Ltd',phone:'+1 555 012 3456',email:'maria@email.com',address:'123 Main St',spent:284.50,visits:12},
-  {id:'C002',name:'James Chen',company:'',phone:'+1 555 098 7654',email:'james@email.com',address:'',spent:179.20,visits:7},
-];
+let CUSTS=[] // populated from server/localStorage on boot
 let TXS=[],QUOTES=[];
 let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
@@ -870,7 +870,8 @@ let TOPI=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floo
    - If offline: localStorage keeps app working, syncs when back online
 ══════════════════════════════════════════════════════ */
 
-let _lastSyncTime = 0;  // timestamp of last successful server sync
+let _lastSyncTime = 0;
+let _dataLoaded   = false; // true only after first successful load — blocks premature saves  // timestamp of last successful server sync
 let _pendingSync  = false; // prevents overlapping sync calls
 let _saveTimer    = null;  // debounce timer for rapid saves
 
@@ -906,6 +907,8 @@ function loadLocal(){
     const m=g('sp_m');   if(m){nid=m.nid||nid;txn=m.txn||txn;qn=m.qn||qn;}
     const lst=g('sp_lst'); if(lst!=null) LOW_STOCK_THRESHOLD=lst;
   }catch(e){}
+  // Mark as loaded if we have real data (not just defaults)
+  if(PRODS.length>0) _dataLoaded=true;
 }
 
 // ── Apply server data to local state ────────────────────
@@ -927,6 +930,9 @@ function applyServerData(r){
 
 // ── Save: write to server first, local as backup ────────
 async function saveAll(){
+  // NEVER save until data has been loaded from server/localStorage
+  // This prevents wiping server data with empty defaults on first login
+  if(!_dataLoaded) return;
   // Always save locally first (instant, works offline)
   saveLocal();
 
@@ -982,8 +988,19 @@ async function loadAll(){
     }else if(!serverEmpty){
       applyServerData(r);
       _lastSyncTime=Date.now();
+    }else{
+      // Server AND local both empty — very first time, load sample data
+      PRODS=[...SAMPLE_PRODS];CATS=[...SAMPLE_CATS];
+      // Push samples to server so all devices get them
+      var sd={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
+              vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
+      api('/data/save','POST',sd).then(function(r2){
+        if(r2&&r2.ok){toast('Welcome to SwiftPOS! Sample products loaded.');}
+      }).catch(function(){});
     }
   }catch(e){console.log('Server load failed, using local cache');}
+  // Mark data as loaded — saveAll is now safe to write
+  _dataLoaded=true;
 }
 
 // ── Live sync: poll server every 10s ─────────────────────
