@@ -548,8 +548,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="panel" id="panel-backup">
       <div class="sec">
         <div class="sec-t">Data &amp; Backup</div>
-        <div class="bnr ok" id="bok" style="display:none">✓ Server connected — saving to disk</div>
-        <div class="bnr warn" id="bwarn">⚠ Run server.js to enable disk saving</div>
+        <div class="bnr ok" id="bok" style="display:none">✓ Connected to cloud — all data saving to Supabase</div>
+        <div class="bnr warn" id="bwarn" style="display:none">⚠ Not connected to server — data not saving</div>
         <div class="card flush" style="margin-bottom:12px;"><table class="itbl" id="bki"></table></div>
         <div class="bkg">
           <div class="bkc"><div class="bki2">📦</div><div style="font-size:12px;font-weight:600;margin-bottom:3px;">Full backup</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Save everything + download.</div><button class="bkb bk-g" onclick="fullBackup()">💾 Save</button></div>
@@ -720,9 +720,11 @@ async function pingSrv() {
 function setSrv(cls, txt) {
   var p = document.getElementById('sp'); if (p) p.className = 'pill ' + cls;
   var s = document.getElementById('st'); if (s) s.textContent = txt;
-  var ok = document.getElementById('bok'), warn = document.getElementById('bwarn');
-  if (ok)   ok.style.display   = cls === 'ok' ? 'flex' : 'none';
-  if (warn) warn.style.display = cls === 'ok' ? 'none' : 'flex';
+  var ok   = document.getElementById('bok');
+  var warn = document.getElementById('bwarn');
+  if (ok)   ok.style.display   = cls === 'ok'  ? 'flex' : 'none';
+  if (warn) warn.style.display = cls === 'err'  ? 'flex' : 'none';
+  /* 'chk' (connecting) = hide both banners — don't scare the user while loading */
 }
 
 /* ── Current user ── */
@@ -1908,7 +1910,7 @@ async function saveStore(){STORE.name=document.getElementById('sn').value.trim()
 function renderBkInfo(){
   const sv=localStorage.getItem('sp_sv');
   document.getElementById('bki').innerHTML=`<tr><td>Products</td><td>${PRODS.length}</td></tr><tr><td>Transactions</td><td>${TXS.length}</td></tr><tr><td>Customers</td><td>${CUSTS.length}</td></tr><tr><td>Quotations</td><td>${QUOTES.length}</td></tr><tr><td>Server</td><td>${srvOk?'\uD83D\uDFE2 Connected':'\uD83D\uDD34 Offline'}</td></tr><tr><td>Last saved</td><td>${sv?new Date(sv).toLocaleString('en-US',{dateStyle:'short',timeStyle:'short'}):'Never'}</td></tr>`;
-  document.getElementById('bok').style.display=srvOk?'flex':'none';document.getElementById('bwarn').style.display=srvOk?'none':'flex';loadBkList();
+  document.getElementById('bok').style.display=srvOk?'flex':'none';document.getElementById('bwarn').style.display=srvOk?'none':'none';loadBkList();
 }
 async function loadBkList(){const el=document.getElementById('bkl');if(!srvOk){el.innerHTML='<span style="color:var(--t3)">Start server.js to see disk backups.</span>';return;}try{const r=await api('/backup/list');el.innerHTML=(r.ok&&r.backups.length)?r.backups.map(b=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b);font-size:12px;"><span>\uD83D\uDCC4 ${b.name}</span><span style="color:var(--t3)">${(b.size/1024).toFixed(1)}KB</span></div>`).join(''):'<span style="color:var(--t3)">No backups yet.</span>';}catch(e){el.innerHTML='<span style="color:var(--d)">Could not load.</span>';}}
 async function fullBackup(){const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};if(srvOk){try{const r=await api('/backup/full','POST',d);if(r.ok){toast('Saved: '+r.file);loadBkList();return;}}catch(e){}}dlJSON('full');toast('Server offline \u2014 downloaded locally');}
