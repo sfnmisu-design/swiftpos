@@ -321,327 +321,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <body>
 <div id="pra"></div>
 
-<!-- LOGIN SCREEN -->
-<div id="login-screen" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px;">
-  <div style="width:100%;max-width:380px;">
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:32px;">
-      <div id="login-logo" style="width:64px;height:64px;border-radius:16px;background:var(--a);color:#fff;font-size:28px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-bottom:12px;">S</div>
-      <div style="font-size:22px;font-weight:700;letter-spacing:-.5px;" id="login-store-name">SwiftPOS</div>
-      <div style="font-size:13px;color:var(--t3);margin-top:3px;">Sign in to continue</div>
-    </div>
-    <!-- Login card -->
-    <div style="background:var(--s);border-radius:var(--rl);padding:24px;border:1px solid var(--b);box-shadow:0 4px 20px rgba(0,0,0,.08);">
-      <div id="login-error" style="display:none;background:#FCEAEA;border:1.5px solid var(--d);border-radius:var(--r);padding:10px 13px;font-size:13px;color:var(--d);font-weight:500;margin-bottom:16px;"></div>
-      <div style="margin-bottom:14px;">
-        <label style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Username</label>
-        <input id="login-user" type="text" placeholder="Enter your username" autocomplete="username" autocorrect="off" autocapitalize="off"
-          style="width:100%;padding:11px 13px;font-size:14px;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t);outline:none;font-family:inherit;"
-          onfocus="this.style.borderColor='var(--a)'" onblur="this.style.borderColor='var(--b)'">
-      </div>
-      <div style="margin-bottom:20px;">
-        <label style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px;">Password</label>
-        <div style="position:relative;">
-          <input id="login-pass" type="password" placeholder="Enter your password" autocomplete="current-password"
-            style="width:100%;padding:11px 44px 11px 13px;font-size:14px;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t);outline:none;font-family:inherit;"
-            onfocus="this.style.borderColor='var(--a)'" onblur="this.style.borderColor='var(--b)'"
-            onkeydown="if(event.key==='Enter')doLogin()">
-          <button onclick="toggleLoginPw()" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--t3);" id="pw-eye">👁</button>
-        </div>
-      </div>
-      <button id="login-btn" onclick="doLogin()" style="width:100%;padding:13px;background:var(--a);color:#fff;font-size:15px;font-weight:700;border:none;border-radius:var(--r);cursor:pointer;font-family:inherit;transition:background .15s;">
-        Sign in
-      </button>
-    </div>
-    <div style="text-align:center;margin-top:14px;font-size:12px;color:var(--t3);">SwiftPOS · Retail Edition</div>
-  </div>
-</div>
-<!-- DRAWER OVERLAY -->
-<div class="dov" id="dov" onclick="closeD()"></div>
-<div class="drw" id="drw">
-  <div class="dh"></div>
-  <div class="ch"><h2>Current Order</h2><div class="ca"><button class="cqb" onclick="saveQuote()">📋 Quote</button><button class="ccb" onclick="clearCart()">✕ Clear</button></div></div>
-  <div class="dsc"><div id="mci" style="min-height:50px;"></div>
-    <div class="dtot">
-      <div class="csr"><span>👤</span><select id="mcs" onchange="syncC('mob')"></select></div>
-      <div class="cr"><input type="text" id="mcpn" placeholder="Coupon code…"><button onclick="applyC('mob')">Apply</button></div>
-      <div class="trow"><span>Subtotal</span><span id="msub">$0.00</span></div>
-      <div class="trow" id="mdr" style="display:none;color:var(--w)"><span>Discount <span class="dtag" id="mdl"></span></span><span id="mda"></span></div>
-      <div class="trow"><span id="mvl">VAT (15%)</span><span id="mvat">$0.00</span></div>
-      <div class="trow grand"><span>Total</span><span id="mtot">$0.00</span></div>
-    </div>
-  </div>
-  <div class="dbtns">
-    <button class="paybtn" id="mpb" onclick="openPay()" disabled style="margin:0;width:100%;">Charge $0.00</button>
-    <button class="sqbtn" id="mqb" onclick="saveQuote()" disabled style="margin:0;width:100%;">📋 Save as Quotation</button>
-  </div>
-</div>
-<div class="app">
-  <div class="main">
-    <div class="topbar">
-      <div class="logo" onclick="openTab('branding')">
-        <div class="logo-mark" id="lm">S</div>
-        <div><div class="logo-name" id="ln">SwiftPOS</div><div class="logo-tag" id="lt">Retail Edition</div></div>
-      </div>
-      <div class="topbar-r">
-        <div class="pill chk" id="sp" onclick="pingSrv()"><div class="dot"></div><span id="st">Connecting…</span></div>
-        <div id="user-pill" style="display:none;align-items:center;gap:5px;padding:4px 10px;border-radius:18px;background:var(--al);border:1px solid var(--a);font-size:11px;font-weight:600;color:var(--ad);cursor:pointer;" onclick="openUserMenu()">
-          👤 <span id="user-disp">User</span> <span id="user-role-tag" style="background:var(--a);color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;"></span>
-        </div>
-        <button class="tbtn" onclick="openTab('settings')">⚙</button>
-        <button class="tbtn" onclick="openTab('backup')">💾</button>
-        <div class="clk" id="clk"></div>
-      </div>
-    </div>
-    <div class="tabs">
-      <div class="tab on" onclick="openTab('catalog')">🛍 Products</div>
-      <div class="tab" onclick="openTab('addprod')">➕ Add Product</div>
-      <div class="tab" onclick="openTab('customers')">👥 Customers</div>
-      <div class="tab" onclick="openTab('quotes')">📋 Quotations</div>
-      <div class="tab" onclick="openTab('sales')">🧾 Sales</div>
-      <div class="tab" onclick="openTab('reports')">📊 Reports</div>
-      <div class="tab" onclick="openTab('settings')">⚙ Settings</div>
-      <div class="tab" onclick="openTab('backup')">💾 Backup</div>
-      <div class="tab" onclick="openTab('branding')">🎨 Brand</div>
-      <div class="tab" id="tab-users" onclick="openTab('users')" style="display:none;">👤 Users</div>
-    </div>
-    <!-- CATALOG -->
-    <div class="panel on" id="panel-catalog">
-      <div class="searchbar">
-        <div class="sw" style="display:flex;gap:8px;align-items:center;">
-          <div style="flex:1;position:relative;">
-            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:11px;pointer-events:none;">🔍</span>
-            <input id="srch" type="text" placeholder="   Search by name or SKU/barcode…" oninput="filterGrid()" style="width:100%;padding:8px 10px 8px 30px;font-size:13px;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t);outline:none;font-family:inherit;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          </div>
-          <button id="scan-btn" onclick="openBarcodeScanner()" title="Scan barcode with camera" style="flex-shrink:0;padding:7px 12px;font-size:13px;border:1.5px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t2);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;font-weight:500;white-space:nowrap;">
-            📷 <span class="scan-label">Scan</span>
-          </button>
-        </div>
-      </div>
-      <div class="catbar" id="catbar"></div>
-      <div id="ls-banner-wrap" style="padding:8px 14px 0;"></div>
-      <div class="pgrid" id="pgrid"></div>
-    </div>
-    <!-- ADD PRODUCT -->
-    <div class="panel" id="panel-addprod">
-      <div class="sec">
-        <div class="sec-t">Add new product</div>
-        <div class="card">
-          <div class="g2">
-            <div class="f"><label>Name *</label><input id="np-n" type="text" placeholder="e.g. Organic Honey"></div>
-            <div class="f"><label>Price ($) *</label><input id="np-p" type="number" placeholder="0.00" min="0" step="0.01"></div>
-            <div class="f"><label>Category *</label><select id="np-c"><option value="">Select…</option></select></div>
-            <div class="f"><label>New category</label><input id="np-nc" type="text" placeholder="Or type new name"></div>
-            <div class="f"><label>Stock *</label><input id="np-s" type="number" placeholder="0" min="0"></div>
-            <div class="f"><label>SKU / Barcode</label><input id="np-sk" type="text" placeholder="Optional"></div>
-          </div>
-          <div class="vat-box">
-            <div class="vat-hd">VAT / Tax Setting</div>
-            <div class="vat-body">
-              <div class="vat-row">
-                <label class="tog-lbl" onclick="togglePVAT()">
-                  <div class="tog-sw" id="vsw"><div class="tog-kn" id="vkn"></div></div>
-                  <div><div class="tog-ml" id="vml">VAT applicable</div><div class="tog-sl" id="vsl">Taxed at <span id="vrp">15</span>%</div></div>
-                </label>
-                <div class="vat-badge" id="vbg">✓ VAT included</div>
-              </div>
-            </div>
-          </div>
-          <input type="hidden" id="np-vat" value="yes">
-          <div class="f" style="margin-top:12px;">
-            <label>Product Icon</label>
-            <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;"><div class="eprev" id="ep">🛒</div><span style="font-size:11px;color:var(--t3)">Tap to change</span></div>
-            <div class="eg" id="eg"></div>
-          </div>
-          <button class="btn" onclick="addProd()">Add to catalog</button>
-        </div>
-        <div class="sec-t">Catalog <span id="pc" style="color:var(--t3);font-weight:400;text-transform:none;font-size:11px;margin-left:2px;"></span></div>
-        <div class="card flush"><table class="tbl"><thead><tr><th></th><th>Name</th><th>Cat</th><th>Price</th><th>Stock</th><th>VAT</th><th>Actions</th></tr></thead><tbody id="ptb"></tbody></table></div>
-      </div>
-    </div>
-    <!-- CUSTOMERS -->
-    <div class="panel" id="panel-customers">
-      <div class="sec">
-        <div class="sec-t">Add customer</div>
-        <div class="card">
-          <div class="g2">
-            <div class="f"><label>Name *</label><input id="cu-n" type="text" placeholder="Full name"></div>
-            <div class="f"><label>Company</label><input id="cu-co" type="text" placeholder="Company name"></div>
-            <div class="f"><label>Phone</label><input id="cu-p" type="text" placeholder="+1 555 000 0000"></div>
-            <div class="f"><label>Email</label><input id="cu-e" type="text" placeholder="email@example.com"></div>
-          </div>
-          <div class="f" style="margin-top:8px;"><label>Address</label><input id="cu-a" type="text" placeholder="Street, City, Country"></div>
-          <button class="btn" onclick="addCust()">Add customer</button>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><div class="sec-t" style="margin:0">Customers</div><span id="cc" style="font-size:11px;color:var(--t3);"></span></div>
-        <div id="cl"></div>
-      </div>
-    </div>
-    <!-- QUOTES -->
-    <div class="panel" id="panel-quotes">
-      <div class="sec">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><div class="sec-t" style="margin:0">Quotations</div><span id="qc" style="font-size:11px;color:var(--t3);"></span></div>
-        <div id="ql"></div>
-      </div>
-    </div>
-    <!-- SALES -->
-    <div class="panel" id="panel-sales">
-      <div class="sec">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div class="sec-t" style="margin:0">Sales history</div><span id="tl" style="font-size:11px;color:var(--t3);"></span></div>
-        <div id="txl"></div>
-      </div>
-    </div>
-    <!-- REPORTS -->
-    <div class="panel" id="panel-reports">
-      <div class="sec">
-        <div class="sec-t">Overview</div>
-        <div class="sg" id="sgd"></div>
-        <div class="cw"><div class="ct">Sales by hour</div><div class="bars" id="bch"></div></div>
-        <div class="cw"><div class="ct">Top products</div><div id="tpl"></div></div>
-      </div>
-    </div>
-    <!-- SETTINGS -->
-    <div class="panel" id="panel-settings">
-      <div class="sec">
-        <div class="sec-t">VAT / Tax</div>
-        <div class="card">
-          <div class="vat-disp"><div style="font-size:11px;font-weight:700;color:var(--ad);text-transform:uppercase;letter-spacing:.5px;">Current VAT Rate</div><div class="vat-big" id="vd">15%</div><div style="font-size:11px;color:var(--ad);">Applied to all taxable products</div></div>
-          <div class="g2">
-            <div class="f"><label>New rate (%)</label><input id="vi" type="number" placeholder="e.g. 15" min="0" max="100" step="0.1"></div>
-            <div class="f"><label>Label</label><input id="vli" type="text" placeholder="VAT, GST, Tax…"></div>
-          </div>
-          <div class="f"><label>Mode</label><select id="vmi"><option value="exclusive">Exclusive — VAT added on top</option><option value="inclusive">Inclusive — VAT in price</option></select></div>
-          <button class="btn" onclick="saveVAT()">Save VAT settings</button>
-        </div>
-        <div class="sec-t" style="margin-top:4px;">Low Stock Alert</div>
-        <div class="card" style="margin-bottom:12px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:500;margin-bottom:2px;">Alert threshold</div>
-              <div style="font-size:11px;color:var(--t3);">Show warning when stock falls at or below this number</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <button class="stk-btn" style="width:26px;height:26px;font-size:16px;" onclick="changeLSThreshold(-1)">−</button>
-              <span id="ls-threshold-val" style="font-size:18px;font-weight:700;font-family:monospace;min-width:30px;text-align:center;">10</span>
-              <button class="stk-btn" style="width:26px;height:26px;font-size:16px;" onclick="changeLSThreshold(1)">+</button>
-            </div>
-          </div>
-          <div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:var(--r);font-size:12px;color:var(--t2);">
-            Currently <span id="ls-count-preview" style="font-weight:700;color:var(--d);">0</span> product(s) at or below this threshold
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><div class="sec-t" style="margin:0">Categories</div><button class="tbtn" onclick="openAddCat()">+ Add</button></div>
-        <div id="cm"></div>
-        <div class="sec-t" style="margin-top:6px;">Store information</div>
-        <div class="card">
-          <div class="f"><label>Store name</label><input id="sn" type="text" placeholder="Store name"></div>
-          <div class="f"><label>Address</label><input id="sa" type="text" placeholder="Address"></div>
-          <div class="f"><label>Phone</label><input id="sph" type="text" placeholder="Phone number"></div>
-          <div class="f"><label>Email</label><input id="sem" type="text" placeholder="Store email"></div>
-          <div class="f"><label>Tax reg. number</label><input id="sr" type="text" placeholder="e.g. VAT Reg: 123456789"></div>
-          <div class="f"><label>Quote footer</label><textarea id="sf" placeholder="Thank you for your business…"></textarea></div>
-          <button class="btn" onclick="saveStore()">Save store info</button>
-        </div>
-      </div>
-    </div>
-    <!-- BACKUP -->
-    <div class="panel" id="panel-backup">
-      <div class="sec">
-        <div class="sec-t">Data &amp; Backup</div>
-        <div class="bnr ok" id="bok" style="display:none">✓ Connected to cloud — data saving to Supabase</div>
-        <div class="bnr warn" id="bwarn" style="display:none">
-          <span id="bwarn-txt">⚠ Not connected to server</span>
-          <button onclick="document.getElementById('bwarn').style.display='none'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;color:inherit;padding:0 4px;">✕</button>
-        </div>
-        <div class="card flush" style="margin-bottom:12px;"><table class="itbl" id="bki"></table></div>
-        <div class="bkg">
-          <div class="bkc"><div class="bki2">📦</div><div style="font-size:12px;font-weight:600;margin-bottom:3px;">Full backup</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Save everything + download.</div><button class="bkb bk-g" onclick="fullBackup()">💾 Save</button></div>
-          <div class="bkc"><div class="bki2">🧾</div><div style="font-size:12px;font-weight:600;margin-bottom:3px;">Transactions</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Export sales JSON.</div><button class="bkb bk-b" onclick="dlJSON('tx')">⬇ Export</button></div>
-          <div class="bkc"><div class="bki2">🛍</div><div style="font-size:12px;font-weight:600;margin-bottom:3px;">Products</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Export catalog JSON.</div><button class="bkb bk-o" onclick="dlJSON('pr')">⬇ Export</button></div>
-          <div class="bkc"><div class="bki2">📥</div><div style="font-size:12px;font-weight:600;margin-bottom:3px;">Restore</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Import a backup file.</div><button class="bkb bk-r" onclick="document.getElementById('rf').click()">⬆ Import</button><input type="file" id="rf" accept=".json" style="display:none" onchange="doRestore(event)"></div>
-        </div>
-        <div class="sec-t">CSV export</div>
-        <div class="card" style="display:flex;gap:8px;padding:11px;flex-wrap:wrap;">
-          <button class="bkb bk-g" style="flex:1;min-width:120px;" onclick="exportCSV('tx')">📊 Transactions</button>
-          <button class="bkb bk-b" style="flex:1;min-width:120px;" onclick="exportCSV('pr')">📋 Products</button>
-          <button class="bkb bk-o" style="flex:1;min-width:120px;" onclick="exportCSV('qt')">📋 Quotes</button>
-        </div>
-        <div class="sec-t">Backups on disk</div>
-        <div id="bkl" class="card" style="font-size:12px;color:var(--t3);padding:11px;">Loading…</div>
-        <div class="sec-t" style="margin-top:11px;">Danger zone</div>
-        <div class="card"><button class="bkb bk-r" style="width:100%;padding:10px;" onclick="factoryReset()">🗑 Factory reset — delete all data</button></div>
-      </div>
-    </div>
-    <!-- BRANDING -->
-    <div class="panel" id="panel-branding">
-      <div class="sec">
-        <div class="sec-t">Store branding</div>
-        <div class="card"><div class="sec-t" style="margin-bottom:10px;">Live preview</div>
-          <div class="bprev"><div class="bbar"><div style="display:flex;align-items:center;gap:9px;"><div id="bm" style="width:30px;height:30px;border-radius:7px;font-size:14px;background:var(--a);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;">S</div><div><div style="font-size:13px;font-weight:700;" id="bnp">SwiftPOS</div><div style="font-size:10px;color:var(--t3);" id="bsp">Retail Edition</div></div></div><div style="font-family:monospace;font-size:10px;color:var(--t3)">12:34</div></div></div>
-        </div>
-        <div class="card"><div class="sec-t" style="margin-bottom:10px;">Identity</div>
-          <div class="f"><label>Store name</label><input id="b-n" type="text" placeholder="Store name" oninput="prevBrand()"></div>
-          <div class="f"><label>Logo letter</label><input id="b-l" type="text" placeholder="S" maxlength="2" oninput="prevBrand()"></div>
-          <div class="f"><label>Tagline</label><input id="b-s" type="text" placeholder="Retail Edition" oninput="prevBrand()"></div>
-        </div>
-        <div class="card"><div class="sec-t" style="margin-bottom:10px;">Color</div>
-          <div class="swts" id="swts"></div>
-          <div class="cc"><input type="color" id="b-c" value="#1D9E75" oninput="setCol(this.value)"><span style="font-size:12px;color:var(--t2)">Custom</span><span id="b-h" style="font-family:monospace;font-size:11px;color:var(--t3)">#1D9E75</span></div>
-        </div>
-        <div class="card"><div class="sec-t" style="margin-bottom:10px;">Shape</div>
-          <div class="rr"><label>Corner radius</label><input type="range" id="b-r" min="0" max="50" value="8" oninput="prevBrand()"><span class="rv" id="b-rv">8px</span></div>
-          <div class="rr"><label>Size</label><input type="range" id="b-sz" min="24" max="52" value="30" oninput="prevBrand()"><span class="rv" id="b-szv">30px</span></div>
-        </div>
-        <button class="btn" onclick="saveBrand()">Apply branding</button>
-      </div>
-    </div>
-  </div>
 
-    <!-- USERS (admin only) -->
-    <div class="panel" id="panel-users">
-      <div class="sec">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div class="sec-t" style="margin:0;">User Management</div>
-          <button class="tbtn" onclick="openAddUserModal()">+ Add user</button>
-        </div>
-        <div id="users-list"></div>
-        <div class="card" style="margin-top:14px;background:#FFF8E1;border:1.5px solid #FFD54F;">
-          <div style="font-size:12px;font-weight:700;color:#E65100;margin-bottom:8px;">🔐 Change your password</div>
-          <div class="g2">
-            <div class="f"><label>New password</label><input type="password" id="my-pw1" placeholder="New password"></div>
-            <div class="f"><label>Confirm</label><input type="password" id="my-pw2" placeholder="Confirm password"></div>
-          </div>
-          <button class="btn" onclick="changeMyPassword()">Update my password</button>
-        </div>
-      </div>
-    </div>
-
-  <!-- DESKTOP CART -->
-  <div class="sidebar">
-    <div class="ch"><h2>Current Order</h2><div class="ca"><button class="cqb" onclick="saveQuote()">📋 Quote</button><button class="ccb" onclick="clearCart()">✕ Clear</button></div></div>
-    <div class="ci2" id="dci"><div class="ec"><span class="ei">🛒</span>No items yet<br><span style="font-size:11px;">Tap a product to add</span></div></div>
-    <div class="cf">
-      <div class="csr"><span>👤</span><select id="dcs" onchange="syncC('desk')"></select></div>
-      <div class="cr"><input id="cpn" type="text" placeholder="Coupon code…"><button onclick="applyC('desk')">Apply</button></div>
-      <div class="trow"><span>Subtotal</span><span id="dsub">$0.00</span></div>
-      <div class="trow" id="ddr" style="display:none;color:var(--w)"><span>Discount <span class="dtag" id="ddl"></span></span><span id="dda"></span></div>
-      <div class="trow"><span id="dvl">VAT (15%)</span><span id="dvat">$0.00</span></div>
-      <div class="trow grand"><span>Total</span><span id="dtot">$0.00</span></div>
-    </div>
-    <button class="paybtn" id="dpb" onclick="openPay()" disabled>Charge $0.00</button>
-    <button class="sqbtn" id="dqb" onclick="saveQuote()" disabled>📋 Save as Quotation</button>
-  </div>
-</div>
-<!-- MOBILE NAV -->
-<div class="mnav">
-  <div class="mnr">
-    <button class="mni on" id="mn-catalog" onclick="openTab('catalog');closeD()"><span class="mnic">🛍</span>Products</button>
-    <button class="mni" id="mn-sales" onclick="openTab('sales');closeD()"><span class="mnic">🧾</span>Sales</button>
-    <button class="mni" id="mn-cart" onclick="openD()"><span class="mnic" style="display:inline-block;position:relative;">🛒<span class="cbage" id="cbg"></span></span>Cart</button>
-    <button class="mni" id="mn-customers" onclick="openTab('customers');closeD()"><span class="mnic">👥</span>Customers</button>
-    <button class="mni" onclick="moreMenu()"><span class="mnic">⋯</span>More</button>
-  </div>
-</div>
 <!-- BARCODE SCANNER MODAL -->
 <div id="scan-modal" style="display:none;position:fixed;inset:0;z-index:110;background:rgba(0,0,0,.92);flex-direction:column;align-items:center;justify-content:center;">
   <div style="width:100%;max-width:420px;padding:20px;">
@@ -688,76 +368,52 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="mod" id="mbox"><div class="mh"></div><div class="mi" id="min"></div></div>
 </div>
 <div class="toast" id="toast"></div>
-<script>/* ═══════════════════════════════════════════════════════
-   SwiftPOS — Storage & Auth
-   
-   Simple rules:
-   1. Supabase is the only real database
-   2. On page load: check session → load from Supabase → show app
-   3. On every change: save to Supabase (debounced 400ms)
-   4. localStorage stores: session token + branding only
-   5. PRODS/CATS/CUSTS/TXS start EMPTY — filled from Supabase
-═══════════════════════════════════════════════════════ */
-
-/* ── Server URL ── */
+<script>
+/* SERVER */
 const SRV = location.protocol === 'file:' ? 'http://localhost:3000' : '';
 let srvOk = false;
 
-/* ── API helper — always sends session token ── */
 function api(path, method, data) {
-  var token = localStorage.getItem('sp_token') || '';
-  var headers = { 'Content-Type': 'application/json' };
-  if (token) headers['X-Session-Token'] = token;
-  var opts = { method: method || 'GET', headers: headers };
+  var opts = {method:method||'GET', headers:{'Content-Type':'application/json'}};
   if (data) opts.body = JSON.stringify(data);
-  return fetch(SRV + path, opts).then(function(r) { return r.json(); });
+  return fetch(SRV+path, opts).then(function(r){ return r.json(); });
 }
 
 async function pingSrv() {
   try {
     var resp = await Promise.race([
-      fetch(SRV + '/ping'),
-      new Promise(function(_, j) { setTimeout(function(){j(new Error('timeout'));}, 55000); })
+      fetch(SRV+'/ping'),
+      new Promise(function(_,j){ setTimeout(function(){j(new Error('t'));},55000); })
     ]);
-    if (resp && resp.ok) {
-      var json = await resp.json().catch(function(){ return null; });
-      if (json && json.ok) { srvOk = true; setSrv('ok', '● Connected'); return true; }
+    if (resp&&resp.ok) {
+      var r=await resp.json().catch(function(){return null;});
+      if (r&&r.ok) { srvOk=true; setSrv('ok','\u25CF Connected'); return true; }
     }
-  } catch(e) { console.log('[ping]', e.message); }
-  srvOk = false;
-  return false;
+  } catch(e) {}
+  srvOk=false; return false;
 }
-function setSrv(cls, txt) {
-  var p = document.getElementById('sp'); if (p) p.className = 'pill ' + cls;
-  var s = document.getElementById('st'); if (s) s.textContent = txt;
-  var ok   = document.getElementById('bok');
-  var warn = document.getElementById('bwarn');
-  var wt   = document.getElementById('bwarn-txt');
-  if (ok)   ok.style.display   = cls === 'ok'  ? 'flex' : 'none';
-  if (warn) warn.style.display = cls === 'err'  ? 'flex' : 'none';
-  if (wt && cls === 'err') wt.textContent = '⚠ ' + txt.replace('● ','');
-  /* 'chk' (connecting/loading) = hide both banners */
+function setSrv(cls,txt) {
+  var p=document.getElementById('sp'); if(p) p.className='pill '+cls;
+  var s=document.getElementById('st'); if(s) s.textContent=txt;
+  var ok=document.getElementById('bok'),warn=document.getElementById('bwarn');
+  if(ok)   ok.style.display   = cls==='ok'  ? 'flex' : 'none';
+  if(warn) warn.style.display = cls==='err' ? 'flex' : 'none';
 }
 
-/* ── Current user ── */
-var CURRENT_USER = null;
-
-/* ── Data — ALL START EMPTY ── */
-var nid = 1, txn = 1000, qn = 100;
-var PRODS = [], CATS = [], CUSTS = [], TXS = [], QUOTES = [];
-var VAT   = { rate: 15, label: 'VAT', mode: 'exclusive' };
-var STORE = { name: 'SwiftPOS', address: '', phone: '', email: '', reg: '', footer: 'Thank you for your business.' };
-var BRAND = { name: 'SwiftPOS', letter: 'S', sub: 'Retail Edition', color: '#1D9E75', radius: 8, size: 30 };
-var CART = {}, ACAT = 'All', SQ = '', COUPON = null, ESEL = '\uD83D\uDED2', PAY = 'cash';
-var LOW_STOCK_THRESHOLD = 10;
-var HRS  = Array.from({ length: 9 }, function(_, i) { return { h: 8 + i, v: Math.floor(Math.random() * 160 + 40) }; });
-var TOPI = [];
-const COUPONS = { SAVE10:{type:'pct',val:10,label:'10% off'}, SAVE5:{type:'fixed',val:5,label:'$5 off'}, HALFOFF:{type:'pct',val:50,label:'50% off'}, VIP20:{type:'pct',val:20,label:'20% off'} };
-const COLS = [{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
-const EMJS = ['\uD83D\uDED2','\uD83C\uDF4E','\uD83E\uDD5B','\uD83C\uDF5E','\uD83E\uDD5A','\uD83C\uDF5D','\uD83E\uDEB4','\uD83C\uDF66','\uD83E\uDD51','\uD83E\uDDC0','\uD83C\uDF6B','\uD83C\uDF4A','\uD83D\uDCA7','\uD83C\uDF57','\uD83D\uDC1F','\uD83E\uDD5C','\uD83C\uDF45','\uD83C\uDF4C','\uD83E\uDDE8','\uD83E\uDD65','\uD83E\uDD69','\uD83E\uDDC1','\u2615','\uD83C\uDF75','\uD83E\uDD64','\uD83C\uDF3F','\uD83E\uDDF4','\uD83E\uDDF9','\uD83D\uDC8A','\uD83D\uDCE6','\uD83C\uDF81','\u2B50','\uD83D\uDD25','\uD83E\uDEB7','\uD83C\uDF53','\uD83E\uDD66','\uD83E\uDD55'];
-
-/* ── Sample data (only used when Supabase is completely empty) ── */
-const SAMPLE_PRODS = [
+/* DATA */
+var nid=1,txn=1000,qn=100;
+var PRODS=[],CATS=[],CUSTS=[],TXS=[],QUOTES=[];
+var VAT={rate:15,label:'VAT',mode:'exclusive'};
+var STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business.'};
+var BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
+var CART={},ACAT='All',SQ='',COUPON=null,ESEL='\uD83D\uDED2',PAY='cash';
+var LOW_STOCK_THRESHOLD=10;
+var HRS=Array.from({length:9},function(_,i){return{h:8+i,v:Math.floor(Math.random()*160+40)};});
+var TOPI=[];
+const COUPONS={SAVE10:{type:'pct',val:10,label:'10% off'},SAVE5:{type:'fixed',val:5,label:'$5 off'},HALFOFF:{type:'pct',val:50,label:'50% off'},VIP20:{type:'pct',val:20,label:'20% off'}};
+const COLS=[{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
+const EMJS=['\uD83D\uDED2','\uD83C\uDF4E','\uD83E\uDD5B','\uD83C\uDF5E','\uD83E\uDD5A','\uD83C\uDF5D','\uD83E\uDEB4','\uD83C\uDF66','\uD83E\uDD51','\uD83E\uDDC0','\uD83C\uDF6B','\uD83C\uDF4A','\uD83D\uDCA7','\uD83C\uDF57','\uD83D\uDC1F','\uD83E\uDD5C','\uD83C\uDF45','\uD83C\uDF4C','\uD83E\uDDE8','\uD83E\uDD65','\uD83E\uDD69','\uD83E\uDDC1','\u2615','\uD83C\uDF75','\uD83E\uDD64','\uD83C\uDF3F','\uD83E\uDDF4','\uD83E\uDDF9','\uD83D\uDC8A','\uD83D\uDCE6','\uD83C\uDF81','\u2B50','\uD83D\uDD25','\uD83E\uDEB7','\uD83C\uDF53','\uD83E\uDD66','\uD83E\uDD55'];
+const SAMPLE_PRODS=[
   {id:1,name:'Organic Apples',price:3.99,cat:'Produce',emoji:'\uD83C\uDF4E',stock:48,sku:'PRD001',vatExempt:false},
   {id:2,name:'Whole Milk 1L',price:4.49,cat:'Dairy',emoji:'\uD83E\uDD5B',stock:32,sku:'PRD002',vatExempt:false},
   {id:3,name:'Sourdough Bread',price:5.99,cat:'Bakery',emoji:'\uD83C\uDF5E',stock:12,sku:'PRD003',vatExempt:false},
@@ -767,391 +423,114 @@ const SAMPLE_PRODS = [
   {id:7,name:'Sparkling Water',price:1.99,cat:'Drinks',emoji:'\uD83D\uDCA7',stock:50,sku:'PRD007',vatExempt:false},
   {id:8,name:'Dark Chocolate',price:3.49,cat:'Snacks',emoji:'\uD83C\uDF6B',stock:42,sku:'PRD008',vatExempt:false},
 ];
-const SAMPLE_CATS = [
+const SAMPLE_CATS=[
   {name:'Produce',emoji:'\uD83E\uDD66',color:'#639922'},{name:'Dairy',emoji:'\uD83E\uDD5B',color:'#378ADD'},
   {name:'Bakery',emoji:'\uD83C\uDF5E',color:'#BA7517'},{name:'Pantry',emoji:'\uD83E\uDEB4',color:'#7F77DD'},
   {name:'Snacks',emoji:'\uD83C\uDF6B',color:'#D4537E'},{name:'Drinks',emoji:'\uD83E\uDD64',color:'#1D9E75'},
   {name:'Meat',emoji:'\uD83C\uDF57',color:'#D85A30'},
 ];
 
-/* ═══════════════════════════════════════════
-   DB_LOAD — read everything from Supabase
-   Returns: 'ok' | 'empty' | 'error'
-═══════════════════════════════════════════ */
+/* STORAGE */
+var _dbSaving=false, _dbSaveQueued=false;
+
 async function DB_LOAD() {
   if (!srvOk) return 'error';
   try {
-    var r = await Promise.race([
-      api('/data/all'),
-      new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 30000); })
-    ]);
-    if (!r) return 'error';
-    if (r.error === 'Not logged in' || r.error === 'Admin access required') return 'error';
-    if (r._db === false) { console.warn('[DB] Supabase not connected'); return 'error'; }
-
-    /* Check if server has EVER been initialized (any key present = initialized) */
-    var serverInitialized = r._db === true && (
-      r.products !== undefined || r.categories !== undefined || r.branding !== undefined
-    );
-
-    if (!serverInitialized) {
-      /* Server DB is truly empty — first time ever */
-      console.log('[DB] Server empty — first time setup');
-      return 'empty';
-    }
-
-    /* Server is initialized — load everything (even if arrays are empty) */
+    var r=await Promise.race([api('/data/all'),new Promise(function(_,j){setTimeout(function(){j(new Error('t'));},30000);})]);
+    if (!r||r.error) return 'error';
+    if (r._db===false) return 'error';
+    var initialized=r.products!==undefined||r.categories!==undefined;
+    if (!initialized) return 'empty';
     PRODS  = Array.isArray(r.products)    ? r.products    : [];
     TXS    = Array.isArray(r.transactions)? r.transactions : [];
     CUSTS  = Array.isArray(r.customers)   ? r.customers   : [];
     CATS   = Array.isArray(r.categories)  ? r.categories  : [];
     QUOTES = Array.isArray(r.quotations)  ? r.quotations  : [];
-    if (r.branding)  BRAND = Object.assign({}, BRAND, r.branding);
-    if (r.vat)       VAT   = Object.assign({}, VAT,   r.vat);
-    if (r.storeInfo) STORE = Object.assign({}, STORE, r.storeInfo);
-    if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
-    try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
-    console.log('[DB] Loaded: ' + PRODS.length + ' products, ' + TXS.length + ' txs, ' + CUSTS.length + ' customers');
+    if (r.branding)  BRAND=Object.assign({},BRAND,r.branding);
+    if (r.vat)       VAT=Object.assign({},VAT,r.vat);
+    if (r.storeInfo) STORE=Object.assign({},STORE,r.storeInfo);
+    if (r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
+    try{localStorage.setItem('sp_b',JSON.stringify(BRAND));}catch(e){}
+    console.log('[DB] Loaded:',PRODS.length,'products');
     return 'ok';
-  } catch(e) {
-    console.error('[DB] Load failed:', e.message);
-    return 'error';
-  }
+  } catch(e){console.error('[DB]',e.message);return 'error';}
 }
 
-/* ═══════════════════════════════════════════
-   DB_SAVE — write everything to Supabase
-   Debounced 400ms, fire-and-forget
-═══════════════════════════════════════════ */
-var _dbSaveTimer = null;
-var _dbSaving    = false;
-
-/* DB_SAVE: saves to Supabase immediately. Use saveAll() from UI code. */
 async function DB_SAVE() {
-  if (!srvOk) { console.log('[DB] offline — save skipped'); return; }
-  if (_dbSaving) { /* queue another save after current one */ _dbSaveTimer = 1; return; }
-  _dbSaving = true;
+  if (!srvOk) return;
+  if (_dbSaving){_dbSaveQueued=true;return;}
+  _dbSaving=true;
   try {
-    var d = {
-      products: PRODS, transactions: TXS, customers: CUSTS,
-      branding: BRAND, vat: VAT, storeInfo: STORE,
-      categories: CATS, quotations: QUOTES, meta: { nid: nid, txn: txn, qn: qn }
-    };
-    console.log('[DB] Saving: ' + PRODS.length + ' products...');
-    var r = await Promise.race([
-      api('/data/save', 'POST', d),
-      new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 20000); })
-    ]);
-    if (r && r.ok) {
-      setSrv('ok', '● Saved');
-      try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
-      console.log('[DB] Saved OK');
-    } else {
-      console.warn('[DB] Save failed:', r && r.error);
-      setSrv('err', '● Save failed');
+    var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid:nid,txn:txn,qn:qn}};
+    var r=await Promise.race([api('/data/save','POST',d),new Promise(function(_,j){setTimeout(function(){j(new Error('t'));},20000);})]);
+    if(r&&r.ok){setSrv('ok','\u25CF Saved');try{localStorage.setItem('sp_b',JSON.stringify(BRAND));}catch(e){}}
+    else{console.warn('[DB] save failed:',r&&r.error);}
+  }catch(e){srvOk=false;setSrv('err','\u25CF Offline');}
+  _dbSaving=false;
+  if(_dbSaveQueued){_dbSaveQueued=false;DB_SAVE();}
+}
+function saveAll(){return DB_SAVE();}
+
+var _syncBusy=false;
+async function pollSync(){
+  if(_syncBusy||!srvOk)return;_syncBusy=true;
+  try{
+    var r=await Promise.race([api('/data/all'),new Promise(function(_,j){setTimeout(j,10000);})]);
+    if(r&&!r.error&&r._db!==false&&r.products!==undefined){
+      var sp=(r.products||[]).length,st=(r.transactions||[]).length,sc=(r.customers||[]).length;
+      if(sp!==PRODS.length||st!==TXS.length||sc!==CUSTS.length){
+        PRODS=Array.isArray(r.products)?r.products:[];
+        TXS=Array.isArray(r.transactions)?r.transactions:[];
+        CUSTS=Array.isArray(r.customers)?r.customers:[];
+        CATS=Array.isArray(r.categories)?r.categories:[];
+        QUOTES=Array.isArray(r.quotations)?r.quotations:[];
+        if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
+        if(r.vat)VAT=Object.assign({},VAT,r.vat);
+        if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
+        refreshAllUI();setSrv('ok','\u25CF Synced');
+      }
     }
-  } catch(e) {
-    srvOk = false;
-    setSrv('err', '● Offline');
-    console.error('[DB] Save error:', e.message);
-  }
-  _dbSaving = false;
-  /* If another save was queued, run it now */
-  if (_dbSaveTimer) { _dbSaveTimer = null; DB_SAVE(); }
+  }catch(e){}
+  _syncBusy=false;
+}
+function refreshAllUI(){
+  renderGrid();renderPtbl();popCatSel();renderCatBar();updTots();updBadge();refreshCusts();
+  var cur=document.querySelector('.tab.on');
+  if(cur){var panels=['catalog','addprod','customers','quotes','sales','reports','settings','backup','branding'];var name=panels[[...document.querySelectorAll('.tab')].indexOf(cur)];if(name==='sales')renderSales();if(name==='quotes')renderQuotes();if(name==='customers')renderCusts();if(name==='reports')renderReports();}
 }
 
-/* saveAll — called from all UI actions. Returns promise. */
-function saveAll() { return DB_SAVE(); }
-
-/* ═══════════════════════════════════════════
-   Multi-device sync (poll every 15 seconds)
-═══════════════════════════════════════════ */
-function refreshAllUI() {
-  renderGrid(); renderPtbl(); popCatSel(); renderCatBar();
-  updTots(); updBadge(); refreshCusts();
-  var cur = document.querySelector('.tab.on');
-  if (cur) {
-    var panels = ['catalog','addprod','customers','quotes','sales','reports','settings','backup','branding','users'];
-    var name = panels[[...document.querySelectorAll('.tab')].indexOf(cur)];
-    if (name === 'sales')     renderSales();
-    if (name === 'quotes')    renderQuotes();
-    if (name === 'customers') renderCusts();
-    if (name === 'reports')   renderReports();
-  }
-}
-
-/* ═══════════════════════════════════════════
-   Login / Logout
-═══════════════════════════════════════════ */
-function showLoginScreen() {
-  var ls = document.getElementById('login-screen');
-  var app = document.querySelector('.app');
-  var mn  = document.querySelector('.mob-nav');
-  if (ls)  ls.style.display  = 'flex';
-  if (app) app.style.display = 'none';
-  if (mn)  mn.style.display  = 'none';
-  setTimeout(function() { var u = document.getElementById('login-user'); if (u) u.focus(); }, 100);
-}
-function hideLoginScreen() {
-  var ls = document.getElementById('login-screen');
-  var app = document.querySelector('.app');
-  if (ls)  ls.style.display  = 'none';
-  if (app) app.style.display = 'flex';
-}
-function toggleLoginPw() {
-  var i = document.getElementById('login-pass'), e = document.getElementById('pw-eye');
-  if (i.type === 'password') { i.type = 'text'; e.textContent = '\uD83D\uDE48'; }
-  else { i.type = 'password'; e.textContent = '\uD83D\uDC41'; }
-}
-async function doLogin() {
-  var btn    = document.getElementById('login-btn');
-  var errDiv = document.getElementById('login-error');
-  var username = document.getElementById('login-user').value.trim();
-  var password = document.getElementById('login-pass').value;
-  if (!username || !password) { showLoginErr('Please enter username and password'); return; }
-  if (btn) { btn.disabled = true; btn.textContent = 'Signing in\u2026'; }
-  errDiv.style.display = 'none';
-  try {
-    var r = await api('/auth/login', 'POST', { username: username, password: password });
-    if (r.ok) {
-      localStorage.setItem('sp_token', r.token);
-      CURRENT_USER = { username: r.username, role: r.role, displayName: r.displayName };
-      await bootApp();
-    } else {
-      showLoginErr(r.error || 'Login failed');
-    }
-  } catch(e) { showLoginErr('Cannot connect to server. Try again.'); }
-  if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
-}
-function showLoginErr(msg) {
-  var e = document.getElementById('login-error');
-  if (e) { e.textContent = msg; e.style.display = 'block'; }
-}
-async function doLogout() {
-  try { await api('/auth/logout', 'POST'); } catch(e) {}
-  localStorage.removeItem('sp_token');
-  CURRENT_USER = null;
-  closeModal();
-  showLoginScreen();
-  toast('Signed out');
-}
-function onLoggedIn() {
-  hideLoginScreen();
-  var pill = document.getElementById('user-pill');
-  var name = document.getElementById('user-disp');
-  var role = document.getElementById('user-role-tag');
-  if (pill) pill.style.display = 'flex';
-  if (name) name.textContent = CURRENT_USER ? (CURRENT_USER.displayName || CURRENT_USER.username) : '';
-  if (role) role.textContent = CURRENT_USER && CURRENT_USER.role === 'admin' ? 'Admin' : 'Cashier';
-  var ut = document.getElementById('tab-users');
-  if (ut) ut.style.display = CURRENT_USER && CURRENT_USER.role === 'admin' ? 'block' : 'none';
-}
-function openUserMenu() {
-  openModal(
-    '<h3 style="margin-bottom:4px;">Account</h3>' +
-    '<div style="font-size:13px;color:var(--t2);margin-bottom:16px;">Signed in as <strong>' +
-    (CURRENT_USER ? CURRENT_USER.displayName || CURRENT_USER.username : '') +
-    '</strong> <span style="background:var(--al);color:var(--ad);padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;">' +
-    (CURRENT_USER ? CURRENT_USER.role : '') + '</span></div>' +
-    (CURRENT_USER && CURRENT_USER.role === 'admin'
-      ? '<button style="width:100%;padding:11px;margin-bottom:9px;background:var(--bg);border:1.5px solid var(--b);border-radius:var(--r);cursor:pointer;font-family:inherit;font-size:13px;text-align:left;" id="um-users">\uD83D\uDC65 Manage users</button>'
-      : '') +
-    '<button style="width:100%;padding:11px;background:#FCEAEA;border:1.5px solid var(--d);border-radius:var(--r);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--d);" id="um-logout">Sign out</button>'
-  );
-  var ul = document.getElementById('um-users');
-  if (ul) ul.addEventListener('click', function() { closeModal(); openTab('users'); });
-  var lo = document.getElementById('um-logout');
-  if (lo) lo.addEventListener('click', doLogout);
-}
-
-/* ═══════════════════════════════════════════
-   Boot — runs after login confirmed
-═══════════════════════════════════════════ */
-async function bootApp() {
-  onLoggedIn();
-
-  /* Show UI immediately — empty but styled */
+async function init(){
+  try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
   applyBrand();
-  popCatSel(); renderCatBar(); renderGrid(); renderEP();
-  renderPtbl(); refreshCusts(); updVATLbls(); updBadge();
-
-  /* Connect and load — runs in background, keeps retrying forever */
-  _connectAndLoad();
-}
-
-var _bootTimers = []; /* track timers so we can clear on logout */
-
-async function _connectAndLoad() {
-  /* Show waking-up message */
-  setSrv('chk', 'Connecting…');
-
-  /* Ping with a long timeout for Render cold start */
-  var connected = false;
-  var attempt   = 0;
-
-  while (!connected) {
-    if (attempt === 0) setSrv('chk', 'Connecting…');
-    if (attempt === 3) { setSrv('chk', 'Waking server up…'); toast('Server is starting up — please wait about 30 seconds…'); }
-    if (attempt === 12) setSrv('chk', 'Almost ready…');
-
-    connected = await pingSrv();
-    if (connected) {
-      toast('Connected! Loading your data…');
-      break;
-    }
-
+  popCatSel();renderCatBar();renderGrid();renderEP();renderPtbl();refreshCusts();updVATLbls();updBadge();
+  setSrv('chk','Connecting\u2026');
+  var attempt=0;
+  while(true){
+    if(attempt===2)setSrv('chk','Waking server\u2026');
+    if(await pingSrv())break;
     attempt++;
-    await new Promise(function(res) { setTimeout(res, 3000); });
+    await new Promise(function(r){setTimeout(r,3000);});
   }
-
-  setSrv('chk', 'Loading data…');
-  await _loadAndRender();
-}
-
-async function _loadAndRender() {
-  var status = await DB_LOAD();
-
-  if (status === 'ok') {
-    _renderAll();
-    setSrv('ok', '● Saved');
-  } else if (status === 'empty') {
-    /* First time ever — load sample products */
-    PRODS = SAMPLE_PRODS.map(function(p) { return Object.assign({}, p); });
-    CATS  = SAMPLE_CATS.map(function(c)  { return Object.assign({}, c); });
-    nid   = SAMPLE_PRODS.length + 1;
-    _renderAll();
-    DB_SAVE();
-    setSrv('ok', '● Ready');
-    toast('Welcome to SwiftPOS! Sample products loaded.');
-  } else {
-    setSrv('err', '● Database error — check /debug');
-    toast('Could not load data from Supabase. Open /debug for details.');
-    return;
+  setSrv('chk','Loading\u2026');
+  var status=await DB_LOAD();
+  if(status==='ok'){
+    applyBrand();popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();renderLSBanner();
+    setSrv('ok','\u25CF Connected');
+  }else if(status==='empty'){
+    PRODS=SAMPLE_PRODS.map(function(p){return Object.assign({},p);});
+    CATS=SAMPLE_CATS.map(function(c){return Object.assign({},c);});
+    nid=SAMPLE_PRODS.length+1;
+    applyBrand();popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();renderLSBanner();
+    await DB_SAVE();setSrv('ok','\u25CF Ready');toast('Welcome to SwiftPOS!');
+  }else{
+    setSrv('err','\u25CF DB error');toast('Cannot load data. Check /debug');
   }
-
-  /* Clear any old timers from previous logins */
-  _bootTimers.forEach(function(t) { clearInterval(t); });
-  _bootTimers = [];
-
-  /* Start background timers */
-  _bootTimers.push(setInterval(tick,       60000));
-  _bootTimers.push(setInterval(_syncNow,   8000));   /* multi-device sync */
-  _bootTimers.push(setInterval(DB_SAVE,    60000));  /* periodic save */
-  _bootTimers.push(setInterval(_keepAlive, 25000));  /* prevent Render sleep */
   tick();
+  setInterval(tick,60000);
+  setInterval(pollSync,8000);
+  setInterval(DB_SAVE,60000);
+  setInterval(pingSrv,25000);
 }
-
-/* Keep-alive — just pings the server so Render never sleeps */
-async function _keepAlive() {
-  var ok = await pingSrv();
-  if (!ok) {
-    setSrv('err', '● Offline — reconnecting…');
-    /* Reconnect loop */
-    var ri = setInterval(async function() {
-      if (await pingSrv()) {
-        clearInterval(ri);
-        setSrv('ok', '● Connected');
-      }
-    }, 5000);
-  }
-}
-
-/* Multi-device sync */
-var _syncBusy = false;
-async function _syncNow() {
-  if (_syncBusy || !srvOk) return;
-  _syncBusy = true;
-  try {
-    var r = await Promise.race([
-      api('/data/all'),
-      new Promise(function(_, j) { setTimeout(j, 10000); })
-    ]);
-    var serverReady = r && !r.error && r._db !== false && r.products !== undefined;
-    if (serverReady) {
-      var srvProds = (r.products     || []).length;
-      var srvTx    = (r.transactions || []).length;
-      var srvCusts = (r.customers    || []).length;
-      /* Sync if server has different data than us */
-      var changed = srvProds !== PRODS.length || srvTx !== TXS.length || srvCusts !== CUSTS.length;
-      if (changed) {
-        PRODS  = Array.isArray(r.products)    ? r.products    : [];
-        TXS    = Array.isArray(r.transactions)? r.transactions : [];
-        CUSTS  = Array.isArray(r.customers)   ? r.customers   : [];
-        CATS   = Array.isArray(r.categories)  ? r.categories  : [];
-        QUOTES = Array.isArray(r.quotations)  ? r.quotations  : [];
-        if (r.branding) BRAND = Object.assign({}, BRAND, r.branding);
-        if (r.vat)      VAT   = Object.assign({}, VAT,   r.vat);
-        if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
-        refreshAllUI();
-        setSrv('ok', '● Synced');
-        console.log('[Sync] Updated: ' + PRODS.length + ' products, ' + TXS.length + ' txs');
-      }
-    }
-  } catch(e) {}
-  _syncBusy = false;
-}
-
-/* Keep pollSync as alias */
-function pollSync() { return _syncNow(); }
-
-function _renderAll() {
-  applyBrand();
-  popCatSel(); renderCatBar(); renderGrid(); renderEP();
-  renderReports(); renderPtbl(); refreshCusts();
-  updVATLbls(); updBadge(); renderLSBanner();
-}
-
-/* ═══════════════════════════════════════════
-   Init — page entry point
-═══════════════════════════════════════════ */
-async function init() {
-  /* Apply cached branding for login screen */
-  try {
-    var cb = localStorage.getItem('sp_b');
-    if (cb) BRAND = Object.assign({}, BRAND, JSON.parse(cb));
-  } catch(e) {}
-  applyBrand();
-
-  var lm = document.getElementById('login-logo');
-  if (lm) { lm.textContent = BRAND.letter || 'S'; lm.style.background = BRAND.color || 'var(--a)'; }
-  var sn = document.getElementById('login-store-name');
-  if (sn) sn.textContent = BRAND.name || 'SwiftPOS';
-
-  /* Local file mode — skip login */
-  if (location.protocol === 'file:') {
-    CURRENT_USER = { username: 'local', role: 'admin', displayName: 'Local User' };
-    await bootApp();
-    return;
-  }
-
-  /* Check saved session token */
-  var token = localStorage.getItem('sp_token');
-  if (token) {
-    try {
-      /* Try to validate session - server may need time to wake up, so use long timeout */
-      var resp = await Promise.race([
-        fetch(SRV + '/auth/me', {
-          headers: { 'Content-Type': 'application/json', 'X-Session-Token': token }
-        }),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 65000); })
-      ]);
-      if (resp && resp.ok) {
-        var me = await resp.json().catch(function(){ return null; });
-        if (me && me.ok) {
-          CURRENT_USER = { username: me.username, role: me.role, displayName: me.displayName };
-          await bootApp();
-          return;
-        }
-      }
-    } catch(e) { console.log('[init] session check error:', e.message); }
-    /* Token invalid or expired - clear it */
-    localStorage.removeItem('sp_token');
-  }
-
-  showLoginScreen();
-}
-
-init();
 
 function taxRate(){return VAT.rate/100;}
 function calcTax(taxable){
@@ -2023,174 +1402,6 @@ function closeModal(){
 }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2500);}
 function tick(){const el=document.getElementById('clk');if(el)el.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
-
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','settings','backup','branding','users'];
-function openTab(name){
-  // Cashier role restrictions
-  if(CURRENT_USER&&CURRENT_USER.role==='cashier'){
-    if(['addprod','backup','branding','users'].includes(name)){toast('Admin access required');return;}
-  }
-  PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('on',PANELS[i]===name));
-  closeD();closeModal();
-  document.querySelectorAll('.mni').forEach(el=>el.classList.remove('on'));
-  const mp={catalog:'mn-catalog',sales:'mn-sales',customers:'mn-customers'};
-  if(mp[name])document.getElementById(mp[name])?.classList.add('on');
-  const panel=document.getElementById('panel-'+name);if(panel){const s=panel.querySelector('.sec');if(s)s.scrollTop=0;}
-  if(name==='customers')renderCusts();
-  if(name==='reports')renderReports();
-  if(name==='addprod'){renderPtbl();popCatSel();}
-  if(name==='branding')initBrand();
-  if(name==='sales')renderSales();
-  if(name==='backup')renderBkInfo();
-  if(name==='quotes')renderQuotes();
-  if(name==='settings'){initVATForm();renderCatMgmt();initStore();initLSSettings();}
-  if(name==='users')renderUsers();
-}
-
-/* ── USER MANAGEMENT ─────────────────────────────────── */
-async function renderUsers(){
-  const el=document.getElementById('users-list');
-  if(!el)return;
-  el.innerHTML='<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;">Loading…</div>';
-  try{
-    const r=await api('/users');
-    if(!r.ok){el.innerHTML='<div style="color:var(--d);padding:14px;">'+r.error+'</div>';return;}
-    const users=r.users||[];
-    if(!users.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:20px;">No users found</div>';return;}
-    el.innerHTML=users.map(u=>`<div style="background:var(--s);border:1px solid var(--b);border-radius:var(--rl);padding:11px 13px;display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-      <div style="width:38px;height:38px;border-radius:50%;background:${u.role==='admin'?'var(--a)':'var(--al)'};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:${u.role==='admin'?'#fff':'var(--a)'};flex-shrink:0;">${(u.display_name||u.username).charAt(0).toUpperCase()}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:600;">${u.display_name||u.username} ${CURRENT_USER&&CURRENT_USER.username===u.username?'<span style="font-size:10px;background:var(--wl);color:var(--w);padding:1px 6px;border-radius:8px;">you</span>':''}</div>
-        <div style="font-size:11px;color:var(--t3);">@${u.username} · ${u.last_login?'Last login '+new Date(u.last_login).toLocaleDateString():'Never logged in'}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${u.role==='admin'?'var(--al)':'#EEF5FF'};color:${u.role==='admin'?'var(--ad)':'#2468B0'};">${u.role}</span>
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${u.active?'#E8F5E1':'#FCEAEA'};color:${u.active?'#2D6A0A':'var(--d)'};">${u.active?'Active':'Inactive'}</span>
-        <button class="ibtn" style="color:#378ADD;" data-uid="${u.id}" data-act="edit-user" title="Edit">✏️</button>
-        ${CURRENT_USER&&CURRENT_USER.username!==u.username?`<button class="ibtn" style="color:var(--d);" data-uid="${u.id}" data-act="del-user" title="Delete">🗑</button>`:''}
-      </div>
-    </div>`).join('');
-  }catch(e){el.innerHTML='<div style="color:var(--d);padding:14px;">Error loading users</div>';}
-}
-
-function openAddUserModal(){
-  openModal(
-    '<h3>Add new user</h3>'+
-    '<div class="g2">'+
-      '<div class="f"><label>Display name</label><input type="text" id="nu-name" placeholder="e.g. John Smith"></div>'+
-      '<div class="f"><label>Username *</label><input type="text" id="nu-user" placeholder="e.g. john" autocapitalize="off"></div>'+
-    '</div>'+
-    '<div class="f" style="margin-top:4px;"><label>Password *</label><input type="password" id="nu-pass" placeholder="Min 6 characters"></div>'+
-    '<div class="f" style="margin-top:8px;"><label>Role</label>'+
-      '<select id="nu-role">'+
-        '<option value="cashier">Cashier — can process sales only</option>'+
-        '<option value="admin">Admin — full access to everything</option>'+
-      '</select>'+
-    '</div>'+
-    '<div class="mbs"><button id="nu-cancel">Cancel</button><button class="ok" id="nu-save">Create user</button></div>'
-  );
-  document.getElementById('nu-cancel').addEventListener('click',closeModal);
-  document.getElementById('nu-save').addEventListener('click',saveNewUser);
-}
-
-async function saveNewUser(){
-  const name=document.getElementById('nu-name').value.trim();
-  const user=document.getElementById('nu-user').value.trim().toLowerCase();
-  const pass=document.getElementById('nu-pass').value;
-  const role=document.getElementById('nu-role').value;
-  if(!user){toast('Username required');return;}
-  if(pass.length<6){toast('Password must be at least 6 characters');return;}
-  const btn=document.getElementById('nu-save');
-  if(btn){btn.disabled=true;btn.textContent='Creating…';}
-  try{
-    const r=await api('/users','POST',{username:user,password:pass,role,displayName:name||user});
-    if(r.ok){closeModal();renderUsers();toast('User created ✓');}
-    else toast(r.error||'Failed to create user');
-  }catch(e){toast('Error: '+e.message);}
-  finally{if(btn){btn.disabled=false;btn.textContent='Create user';}}
-}
-
-function openEditUserModal(userId){
-  // Find user from rendered list via API
-  api('/users').then(r=>{
-    if(!r.ok)return;
-    const u=r.users.find(x=>String(x.id)===String(userId));
-    if(!u)return;
-    openModal(
-      '<h3>Edit user</h3>'+
-      '<div class="f"><label>Display name</label><input type="text" id="eu-name" value="'+(u.display_name||'').replace(/"/g,'&quot;')+'"></div>'+
-      '<div class="f" style="margin-top:8px;"><label>Role</label>'+
-        '<select id="eu-role">'+
-          '<option value="cashier"'+(u.role==='cashier'?' selected':'')+'>Cashier</option>'+
-          '<option value="admin"'+(u.role==='admin'?' selected':'')+'>Admin</option>'+
-        '</select>'+
-      '</div>'+
-      '<div class="f" style="margin-top:8px;"><label>Status</label>'+
-        '<select id="eu-active">'+
-          '<option value="true"'+(u.active?' selected':'')+'>Active</option>'+
-          '<option value="false"'+(!u.active?' selected':'')+'>Inactive (cannot log in)</option>'+
-        '</select>'+
-      '</div>'+
-      '<div class="f" style="margin-top:8px;"><label>New password (leave blank to keep current)</label><input type="password" id="eu-pass" placeholder="Leave blank to keep"></div>'+
-      '<div class="mbs"><button id="eu-cancel">Cancel</button><button class="ok" id="eu-save">Save changes</button></div>'
-    );
-    document.getElementById('eu-cancel').addEventListener('click',closeModal);
-    document.getElementById('eu-save').addEventListener('click',async function(){
-      const updates={
-        displayName:document.getElementById('eu-name').value.trim(),
-        role:document.getElementById('eu-role').value,
-        active:document.getElementById('eu-active').value==='true',
-      };
-      const pw=document.getElementById('eu-pass').value;
-      if(pw){if(pw.length<6){toast('Password min 6 chars');return;}updates.password=pw;}
-      const btn=document.getElementById('eu-save');
-      if(btn){btn.disabled=true;btn.textContent='Saving…';}
-      try{
-        const r=await api('/users/'+userId,'POST',updates);
-        if(r.ok){closeModal();renderUsers();toast('User updated ✓');}
-        else toast(r.error||'Update failed');
-      }catch(e){toast('Error');}
-      finally{if(btn){btn.disabled=false;btn.textContent='Save changes';}}
-    });
-  });
-}
-
-async function deleteUser(userId){
-  if(!confirm('Delete this user? They will be logged out immediately.'))return;
-  try{
-    const r=await api('/users/'+userId,'DELETE');
-    if(r.ok){renderUsers();toast('User deleted');}
-    else toast(r.error||'Failed');
-  }catch(e){toast('Error');}
-}
-
-async function changeMyPassword(){
-  const pw1=document.getElementById('my-pw1').value;
-  const pw2=document.getElementById('my-pw2').value;
-  if(!pw1){toast('Enter a new password');return;}
-  if(pw1.length<6){toast('Password must be at least 6 characters');return;}
-  if(pw1!==pw2){toast('Passwords do not match');return;}
-  if(!CURRENT_USER){toast('Not logged in');return;}
-  try{
-    const r=await api('/users/me/password','POST',{password:pw1});
-    // Use update endpoint with current user's session
-    const users=await api('/users');
-    if(users.ok){
-      const me=users.users.find(u=>u.username===CURRENT_USER.username);
-      if(me){
-        const r2=await api('/users/'+me.id,'POST',{password:pw1});
-        if(r2.ok){
-          document.getElementById('my-pw1').value='';
-          document.getElementById('my-pw2').value='';
-          toast('Password updated ✓');
-          return;
-        }
-      }
-    }
-    toast('Could not update password');
-  }catch(e){toast('Error: '+e.message);}
-}
 
 // GLOBAL EVENT DELEGATION
 //  All dynamically injected HTML uses data-* attributes.
