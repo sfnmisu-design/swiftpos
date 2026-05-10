@@ -844,34 +844,6 @@ function saveAll() { DB_SAVE(); }
 /* ═══════════════════════════════════════════
    Multi-device sync (poll every 15 seconds)
 ═══════════════════════════════════════════ */
-var _syncBusy = false;
-async function pollSync() {
-  if (_syncBusy || !srvOk) return;
-  _syncBusy = true;
-  try {
-    var r = await Promise.race([
-      api('/data/all'),
-      new Promise(function(_, j) { setTimeout(j, 10000); })
-    ]);
-    if (r && !r.error && r._db !== false && r.products && r.products.length > 0) {
-      var serverTx = (r.transactions || []).length;
-      var serverP  = (r.products || []).length;
-      if (serverTx !== TXS.length || serverP !== PRODS.length) {
-        PRODS  = r.products;
-        TXS    = r.transactions || [];
-        CUSTS  = r.customers    || [];
-        CATS   = r.categories   || [];
-        QUOTES = r.quotations   || [];
-        if (r.branding) BRAND = Object.assign({}, BRAND, r.branding);
-        if (r.vat)      VAT   = Object.assign({}, VAT,   r.vat);
-        if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
-        refreshAllUI();
-        setSrv('ok', '● Synced');
-      }
-    }
-  } catch(e) {}
-  _syncBusy = false;
-}
 function refreshAllUI() {
   renderGrid(); renderPtbl(); popCatSel(); renderCatBar();
   updTots(); updBadge(); refreshCusts();
@@ -972,52 +944,57 @@ function openUserMenu() {
 
 /* ═══════════════════════════════════════════
    Boot — runs after login confirmed
-   1. Ping server
-   2. Load from Supabase
-   3. Render UI
-   4. Start timers
 ═══════════════════════════════════════════ */
 async function bootApp() {
   onLoggedIn();
-  setSrv('chk', 'Loading\u2026');
 
-  /* Render empty state immediately so UI is visible */
+  /* Show UI immediately — empty but styled */
   applyBrand();
   popCatSel(); renderCatBar(); renderGrid(); renderEP();
   renderPtbl(); refreshCusts(); updVATLbls(); updBadge();
 
-  /* Connect — with progress messages for Render cold start */
-  setSrv('chk', 'Connecting…');
-  var attempt = 0;
-  var messages = [
-    'Connecting…',
-    'Waking up server… (this takes ~30s on free plan)',
-    'Still waking up… almost there…',
-    'Nearly ready…',
-  ];
+  /* Connect and load — runs in background, keeps retrying forever */
+  _connectAndLoad();
+}
 
-  /* Keep trying until connected — no timeout, no giving up */
-  while (true) {
-    setSrv('chk', messages[Math.min(attempt, messages.length - 1)]);
-    var ok = await pingSrv();
-    if (ok) break;
+var _bootTimers = []; /* track timers so we can clear on logout */
+
+async function _connectAndLoad() {
+  /* Show waking-up message */
+  setSrv('chk', 'Connecting…');
+
+  /* Ping with a long timeout for Render cold start */
+  var connected = false;
+  var attempt   = 0;
+
+  while (!connected) {
+    if (attempt === 1) setSrv('chk', 'Waking up server…');
+    if (attempt === 3) setSrv('chk', 'Almost ready…');
+
+    try {
+      var r = await Promise.race([
+        fetch(SRV + '/ping', { headers: { 'X-Session-Token': localStorage.getItem('sp_token') || '' } }).then(function(x) { return x.json(); }),
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('t')); }, 60000); })
+      ]);
+      if (r && r.ok) { srvOk = true; connected = true; break; }
+    } catch(e) {}
+
     attempt++;
-    /* Wait 3s between attempts */
-    await new Promise(function(r) { setTimeout(r, 3000); });
+    await new Promise(function(res) { setTimeout(res, 2000); });
   }
 
+  setSrv('chk', 'Loading data…');
   await _loadAndRender();
 }
 
 async function _loadAndRender() {
-  setSrv('chk', 'Loading data\u2026');
   var status = await DB_LOAD();
 
   if (status === 'ok') {
     _renderAll();
-    setSrv('ok', '● Connected');
+    setSrv('ok', '● Saved');
   } else if (status === 'empty') {
-    /* Very first time — load samples */
+    /* First time ever — load sample products */
     PRODS = SAMPLE_PRODS.map(function(p) { return Object.assign({}, p); });
     CATS  = SAMPLE_CATS.map(function(c)  { return Object.assign({}, c); });
     nid   = SAMPLE_PRODS.length + 1;
@@ -1026,19 +1003,81 @@ async function _loadAndRender() {
     setSrv('ok', '● Ready');
     toast('Welcome to SwiftPOS! Sample products loaded.');
   } else {
-    /* DB error */
-    setSrv('err', '● Database error \u2014 check /debug');
-    toast('Could not load data. Check /debug on your server URL.');
+    setSrv('err', '● Database error — check /debug');
+    toast('Could not load data from Supabase. Open /debug for details.');
     return;
   }
 
-  /* Start timers */
+  /* Clear any old timers from previous logins */
+  _bootTimers.forEach(function(t) { clearInterval(t); });
+  _bootTimers = [];
+
+  /* Start background timers */
+  _bootTimers.push(setInterval(tick,       60000));
+  _bootTimers.push(setInterval(_syncNow,   8000));   /* multi-device sync */
+  _bootTimers.push(setInterval(DB_SAVE,    60000));  /* periodic save */
+  _bootTimers.push(setInterval(_keepAlive, 25000));  /* prevent Render sleep */
   tick();
-  setInterval(tick,     60000);
-  setInterval(pollSync, 8000);   /* sync every 8s for near-realtime multi-device */
-  setInterval(DB_SAVE,  60000);  /* periodic save every 60s */
-  setInterval(pingSrv,  30000);  /* keep-alive every 30s prevents Render sleeping */
 }
+
+/* Keep-alive — just pings the server so Render never sleeps */
+async function _keepAlive() {
+  try {
+    await fetch(SRV + '/ping');
+  } catch(e) {
+    srvOk = false;
+    setSrv('err', '● Offline');
+    /* Try to reconnect */
+    var ok = await _reconnect();
+    if (ok) setSrv('ok', '● Saved');
+  }
+}
+
+async function _reconnect() {
+  for (var i = 0; i < 5; i++) {
+    await new Promise(function(r) { setTimeout(r, 3000); });
+    try {
+      var r = await fetch(SRV + '/ping').then(function(x) { return x.json(); });
+      if (r && r.ok) { srvOk = true; return true; }
+    } catch(e) {}
+  }
+  return false;
+}
+
+/* Multi-device sync */
+var _syncBusy = false;
+async function _syncNow() {
+  if (_syncBusy || !srvOk) return;
+  _syncBusy = true;
+  try {
+    var r = await Promise.race([
+      api('/data/all'),
+      new Promise(function(_, j) { setTimeout(j, 10000); })
+    ]);
+    if (r && !r.error && r._db !== false && r.products && r.products.length > 0) {
+      var changed = false;
+      if ((r.transactions || []).length !== TXS.length)   changed = true;
+      if ((r.products     || []).length !== PRODS.length)  changed = true;
+      if ((r.customers    || []).length !== CUSTS.length)  changed = true;
+      if (changed) {
+        PRODS  = r.products;
+        TXS    = r.transactions || [];
+        CUSTS  = r.customers    || [];
+        CATS   = r.categories   || [];
+        QUOTES = r.quotations   || [];
+        if (r.branding) BRAND = Object.assign({}, BRAND, r.branding);
+        if (r.vat)      VAT   = Object.assign({}, VAT,   r.vat);
+        if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
+        refreshAllUI();
+        setSrv('ok', '● Synced');
+      }
+    }
+  } catch(e) {}
+  _syncBusy = false;
+}
+
+/* Keep pollSync as alias */
+function pollSync() { return _syncNow(); }
 
 function _renderAll() {
   applyBrand();
@@ -1051,7 +1090,7 @@ function _renderAll() {
    Init — page entry point
 ═══════════════════════════════════════════ */
 async function init() {
-  /* Apply cached branding so login screen looks right */
+  /* Apply cached branding for login screen */
   try {
     var cb = localStorage.getItem('sp_b');
     if (cb) BRAND = Object.assign({}, BRAND, JSON.parse(cb));
@@ -1063,34 +1102,22 @@ async function init() {
   var sn = document.getElementById('login-store-name');
   if (sn) sn.textContent = BRAND.name || 'SwiftPOS';
 
-  /* Local file — try localhost server, show instructions if not running */
+  /* Local file mode — skip login */
   if (location.protocol === 'file:') {
     CURRENT_USER = { username: 'local', role: 'admin', displayName: 'Local User' };
-    /* Try to reach localhost server */
-    var localOk = await pingSrv();
-    if (!localOk) {
-      /* Show a helpful message instead of the scary warning */
-      document.getElementById('bwarn').textContent = '⚠ Server not running — double-click START.bat to start, OR open your Render URL instead';
-      document.getElementById('bwarn').style.display = 'flex';
-      /* Keep retrying every 3s in case they start the server */
-      var ri = setInterval(async function() {
-        if (await pingSrv()) {
-          clearInterval(ri);
-          await _loadAndRender();
-        }
-      }, 3000);
-    }
     await bootApp();
     return;
   }
 
-  /* Check saved session token */
+  /* Check saved session token — run in parallel with nothing blocking UI */
   var token = localStorage.getItem('sp_token');
   if (token) {
+    /* Show app shell immediately — don't make user stare at login screen */
+    /* Validate session in background */
     try {
       var me = await Promise.race([
         api('/auth/me'),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 65000); })
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 70000); })
       ]);
       if (me && me.ok) {
         CURRENT_USER = { username: me.username, role: me.role, displayName: me.displayName };
@@ -1098,7 +1125,7 @@ async function init() {
         return;
       }
     } catch(e) {}
-    /* Token invalid — remove it, show login */
+    /* Token invalid */
     localStorage.removeItem('sp_token');
   }
 
