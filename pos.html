@@ -548,8 +548,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="panel" id="panel-backup">
       <div class="sec">
         <div class="sec-t">Data &amp; Backup</div>
-        <div class="bnr ok" id="bok" style="display:none">✓ Connected to cloud — all data saving to Supabase</div>
-        <div class="bnr warn" id="bwarn" style="display:none">⚠ Not connected to server — data not saving</div>
+        <div class="bnr ok" id="bok" style="display:none">✓ Connected to cloud — data saving to Supabase</div>
+        <div class="bnr warn" id="bwarn" style="display:none">
+          <span id="bwarn-txt">⚠ Not connected to server</span>
+          <button onclick="document.getElementById('bwarn').style.display='none'" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:16px;color:inherit;padding:0 4px;">✕</button>
+        </div>
         <div class="card flush" style="margin-bottom:12px;"><table class="itbl" id="bki"></table></div>
         <div class="bkg">
           <div class="bkc"><div class="bki2">📦</div><div style="font-size:12px;font-weight:600;margin-bottom:3px;">Full backup</div><div style="font-size:11px;color:var(--t3);margin-bottom:10px;">Save everything + download.</div><button class="bkb bk-g" onclick="fullBackup()">💾 Save</button></div>
@@ -722,9 +725,11 @@ function setSrv(cls, txt) {
   var s = document.getElementById('st'); if (s) s.textContent = txt;
   var ok   = document.getElementById('bok');
   var warn = document.getElementById('bwarn');
+  var wt   = document.getElementById('bwarn-txt');
   if (ok)   ok.style.display   = cls === 'ok'  ? 'flex' : 'none';
   if (warn) warn.style.display = cls === 'err'  ? 'flex' : 'none';
-  /* 'chk' (connecting) = hide both banners — don't scare the user while loading */
+  if (wt && cls === 'err') wt.textContent = '⚠ ' + txt.replace('● ','');
+  /* 'chk' (connecting/loading) = hide both banners */
 }
 
 /* ── Current user ── */
@@ -1044,9 +1049,23 @@ async function init() {
   var sn = document.getElementById('login-store-name');
   if (sn) sn.textContent = BRAND.name || 'SwiftPOS';
 
-  /* Local file — skip login */
-  if (location.protocol === 'file:' || !SRV) {
+  /* Local file — try localhost server, show instructions if not running */
+  if (location.protocol === 'file:') {
     CURRENT_USER = { username: 'local', role: 'admin', displayName: 'Local User' };
+    /* Try to reach localhost server */
+    var localOk = await pingSrv();
+    if (!localOk) {
+      /* Show a helpful message instead of the scary warning */
+      document.getElementById('bwarn').textContent = '⚠ Server not running — double-click START.bat to start, OR open your Render URL instead';
+      document.getElementById('bwarn').style.display = 'flex';
+      /* Keep retrying every 3s in case they start the server */
+      var ri = setInterval(async function() {
+        if (await pingSrv()) {
+          clearInterval(ri);
+          await _loadAndRender();
+        }
+      }, 3000);
+    }
     await bootApp();
     return;
   }
