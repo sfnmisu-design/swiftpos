@@ -968,15 +968,21 @@ async function _connectAndLoad() {
   var attempt   = 0;
 
   while (!connected) {
-    if (attempt === 1) setSrv('chk', 'Waking up server…');
-    if (attempt === 3) setSrv('chk', 'Almost ready…');
+    if (attempt === 0) { setSrv('chk', 'Connecting…'); toast('Connecting to server…'); }
+    if (attempt === 2) { setSrv('chk', 'Waking server up…'); toast('Server is waking up, please wait…'); }
+    if (attempt === 8) { setSrv('chk', 'Almost ready…'); toast('Almost there…'); }
 
     try {
       var r = await Promise.race([
-        fetch(SRV + '/ping', { headers: { 'X-Session-Token': localStorage.getItem('sp_token') || '' } }).then(function(x) { return x.json(); }),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('t')); }, 60000); })
+        fetch(SRV + '/ping').then(function(x) { return x.json(); }),
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('t')); }, 30000); })
       ]);
-      if (r && r.ok) { srvOk = true; connected = true; break; }
+      if (r && r.ok) {
+        srvOk = true; connected = true;
+        setSrv('ok', '● Connected');
+        toast('Connected! Loading your data…');
+        break;
+      }
     } catch(e) {}
 
     attempt++;
