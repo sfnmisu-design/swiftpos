@@ -16,7 +16,7 @@ const IS_LOCAL = !process.env.PORT;
 const POS_HTML = path.join(__dirname, 'pos.html');
 
 function makeToken() { return crypto.randomBytes(32).toString('hex'); }
-function hashPw(pw)  { return crypto.createHash('sha256').update(pw + 'swiftpos2024').digest('hex'); }
+function hashPw(pw)  { return crypto.createHash('sha256').update(pw + 'swiftpos_salt_2024').digest('hex'); }
 
 // ── Supabase ──────────────────────────────────────────────
 let sb = null, dbReady = false, dbError = null;

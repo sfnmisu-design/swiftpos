@@ -788,22 +788,31 @@ async function DB_LOAD() {
     if (!r) return 'error';
     if (r.error === 'Not logged in' || r.error === 'Admin access required') return 'error';
     if (r._db === false) { console.warn('[DB] Supabase not connected'); return 'error'; }
-    if (r.products && r.products.length > 0) {
-      PRODS  = r.products;
-      TXS    = r.transactions  || [];
-      CUSTS  = r.customers     || [];
-      CATS   = r.categories    || [];
-      QUOTES = r.quotations    || [];
-      if (r.branding)  BRAND = Object.assign({}, BRAND, r.branding);
-      if (r.vat)       VAT   = Object.assign({}, VAT,   r.vat);
-      if (r.storeInfo) STORE = Object.assign({}, STORE, r.storeInfo);
-      if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
-      /* Cache only branding for login screen speed */
-      try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
-      console.log('[DB] Loaded: ' + PRODS.length + ' products, ' + TXS.length + ' transactions');
-      return 'ok';
+
+    /* Check if server has EVER been initialized (any key present = initialized) */
+    var serverInitialized = r._db === true && (
+      r.products !== undefined || r.categories !== undefined || r.branding !== undefined
+    );
+
+    if (!serverInitialized) {
+      /* Server DB is truly empty — first time ever */
+      console.log('[DB] Server empty — first time setup');
+      return 'empty';
     }
-    return 'empty';
+
+    /* Server is initialized — load everything (even if arrays are empty) */
+    PRODS  = Array.isArray(r.products)    ? r.products    : [];
+    TXS    = Array.isArray(r.transactions)? r.transactions : [];
+    CUSTS  = Array.isArray(r.customers)   ? r.customers   : [];
+    CATS   = Array.isArray(r.categories)  ? r.categories  : [];
+    QUOTES = Array.isArray(r.quotations)  ? r.quotations  : [];
+    if (r.branding)  BRAND = Object.assign({}, BRAND, r.branding);
+    if (r.vat)       VAT   = Object.assign({}, VAT,   r.vat);
+    if (r.storeInfo) STORE = Object.assign({}, STORE, r.storeInfo);
+    if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
+    try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
+    console.log('[DB] Loaded: ' + PRODS.length + ' products, ' + TXS.length + ' txs, ' + CUSTS.length + ' customers');
+    return 'ok';
   } catch(e) {
     console.error('[DB] Load failed:', e.message);
     return 'error';
@@ -815,34 +824,44 @@ async function DB_LOAD() {
    Debounced 400ms, fire-and-forget
 ═══════════════════════════════════════════ */
 var _dbSaveTimer = null;
-function DB_SAVE() {
-  if (!srvOk) return;
-  clearTimeout(_dbSaveTimer);
-  _dbSaveTimer = setTimeout(async function() {
-    try {
-      var d = {
-        products: PRODS, transactions: TXS, customers: CUSTS,
-        branding: BRAND, vat: VAT, storeInfo: STORE,
-        categories: CATS, quotations: QUOTES, meta: { nid: nid, txn: txn, qn: qn }
-      };
-      var r = await Promise.race([
-        api('/data/save', 'POST', d),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 15000); })
-      ]);
-      if (r && r.ok) {
-        setSrv('ok', '● Saved');
-        try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
-      } else {
-        console.warn('[DB] Save failed:', r && r.error);
-      }
-    } catch(e) {
-      srvOk = false; setSrv('err', '● Offline');
+var _dbSaving    = false;
+
+/* DB_SAVE: saves to Supabase immediately. Use saveAll() from UI code. */
+async function DB_SAVE() {
+  if (!srvOk) { console.log('[DB] offline — save skipped'); return; }
+  if (_dbSaving) { /* queue another save after current one */ _dbSaveTimer = 1; return; }
+  _dbSaving = true;
+  try {
+    var d = {
+      products: PRODS, transactions: TXS, customers: CUSTS,
+      branding: BRAND, vat: VAT, storeInfo: STORE,
+      categories: CATS, quotations: QUOTES, meta: { nid: nid, txn: txn, qn: qn }
+    };
+    console.log('[DB] Saving: ' + PRODS.length + ' products...');
+    var r = await Promise.race([
+      api('/data/save', 'POST', d),
+      new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 20000); })
+    ]);
+    if (r && r.ok) {
+      setSrv('ok', '● Saved');
+      try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
+      console.log('[DB] Saved OK');
+    } else {
+      console.warn('[DB] Save failed:', r && r.error);
+      setSrv('err', '● Save failed');
     }
-  }, 400);
+  } catch(e) {
+    srvOk = false;
+    setSrv('err', '● Offline');
+    console.error('[DB] Save error:', e.message);
+  }
+  _dbSaving = false;
+  /* If another save was queued, run it now */
+  if (_dbSaveTimer) { _dbSaveTimer = null; DB_SAVE(); }
 }
 
-/* saveAll = alias so existing code keeps working */
-function saveAll() { DB_SAVE(); }
+/* saveAll — called from all UI actions. Returns promise. */
+function saveAll() { return DB_SAVE(); }
 
 /* ═══════════════════════════════════════════
    Multi-device sync (poll every 15 seconds)
@@ -1047,22 +1066,25 @@ async function _syncNow() {
       api('/data/all'),
       new Promise(function(_, j) { setTimeout(j, 10000); })
     ]);
-    if (r && !r.error && r._db !== false && r.products && r.products.length > 0) {
-      var changed = false;
-      if ((r.transactions || []).length !== TXS.length)   changed = true;
-      if ((r.products     || []).length !== PRODS.length)  changed = true;
-      if ((r.customers    || []).length !== CUSTS.length)  changed = true;
+    var serverReady = r && !r.error && r._db !== false && r.products !== undefined;
+    if (serverReady) {
+      var srvProds = (r.products     || []).length;
+      var srvTx    = (r.transactions || []).length;
+      var srvCusts = (r.customers    || []).length;
+      /* Sync if server has different data than us */
+      var changed = srvProds !== PRODS.length || srvTx !== TXS.length || srvCusts !== CUSTS.length;
       if (changed) {
-        PRODS  = r.products;
-        TXS    = r.transactions || [];
-        CUSTS  = r.customers    || [];
-        CATS   = r.categories   || [];
-        QUOTES = r.quotations   || [];
+        PRODS  = Array.isArray(r.products)    ? r.products    : [];
+        TXS    = Array.isArray(r.transactions)? r.transactions : [];
+        CUSTS  = Array.isArray(r.customers)   ? r.customers   : [];
+        CATS   = Array.isArray(r.categories)  ? r.categories  : [];
+        QUOTES = Array.isArray(r.quotations)  ? r.quotations  : [];
         if (r.branding) BRAND = Object.assign({}, BRAND, r.branding);
         if (r.vat)      VAT   = Object.assign({}, VAT,   r.vat);
         if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
         refreshAllUI();
         setSrv('ok', '● Synced');
+        console.log('[Sync] Updated: ' + PRODS.length + ' products, ' + TXS.length + ' txs');
       }
     }
   } catch(e) {}
