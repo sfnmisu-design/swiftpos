@@ -685,385 +685,393 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="mod" id="mbox"><div class="mh"></div><div class="mi" id="min"></div></div>
 </div>
 <div class="toast" id="toast"></div>
-<script>
+<script>/* ═══════════════════════════════════════════════════════
+   SwiftPOS — Storage & Auth
+   
+   Simple rules:
+   1. Supabase is the only real database
+   2. On page load: check session → load from Supabase → show app
+   3. On every change: save to Supabase (debounced 400ms)
+   4. localStorage stores: session token + branding only
+   5. PRODS/CATS/CUSTS/TXS start EMPTY — filled from Supabase
+═══════════════════════════════════════════════════════ */
 
-'use strict';
-// Auto-detect server URL:
-// - When served from Railway/cloud: use same origin (empty string = relative URLs)
-// - When opened as file:// locally: use localhost:3000
-const SRV = (location.protocol === 'file:') ? 'http://localhost:3000' : '';
-let srvOk=false;
+/* ── Server URL ── */
+const SRV = location.protocol === 'file:' ? 'http://localhost:3000' : '';
+let srvOk = false;
 
-/* ── AUTH STATE ─────────────────────────────────────────── */
-let SESSION_TOKEN = localStorage.getItem('sp_token') || '';
-let CURRENT_USER  = JSON.parse(localStorage.getItem('sp_user') || 'null');
-
-function api(p, m='GET', d=null){
-  const headers = {'Content-Type':'application/json'};
-  if(SESSION_TOKEN) headers['X-Session-Token'] = SESSION_TOKEN;
-  const o = {method:m, headers};
-  if(d) o.body = JSON.stringify(d);
-  return fetch(SRV+p, o).then(r => r.json());
+/* ── API helper — always sends session token ── */
+function api(path, method, data) {
+  var token = localStorage.getItem('sp_token') || '';
+  var headers = { 'Content-Type': 'application/json' };
+  if (token) headers['X-Session-Token'] = token;
+  var opts = { method: method || 'GET', headers: headers };
+  if (data) opts.body = JSON.stringify(data);
+  return fetch(SRV + path, opts).then(function(r) { return r.json(); });
 }
 
-/* ── LOGIN / LOGOUT ─────────────────────────────────────── */
-function showLoginScreen(){
-  document.getElementById('login-screen').style.display='flex';
-  document.querySelector('.app').style.display='none';
-  const mn=document.querySelector('.mob-nav');if(mn)mn.style.display='none';
-  // Pre-fill store branding on login screen
-  const lm=document.getElementById('login-logo');
-  if(lm){lm.textContent=BRAND.letter||'S';lm.style.background=BRAND.color||'var(--a)';}
-  const sn=document.getElementById('login-store-name');
-  if(sn)sn.textContent=BRAND.name||'SwiftPOS';
-  setTimeout(()=>{const u=document.getElementById('login-user');if(u)u.focus();},100);
+async function pingSrv() {
+  try {
+    var r = await Promise.race([api('/ping'), new Promise(function(_, j) { setTimeout(j, 4000); })]);
+    if (r && r.ok) { srvOk = true; setSrv('ok', '● Connected'); return true; }
+  } catch(e) {}
+  srvOk = false; setSrv('err', '● Offline'); return false;
 }
-function hideLoginScreen(){
-  document.getElementById('login-screen').style.display='none';
-  document.querySelector('.app').style.display='flex';
+function setSrv(cls, txt) {
+  var p = document.getElementById('sp'); if (p) p.className = 'pill ' + cls;
+  var s = document.getElementById('st'); if (s) s.textContent = txt;
+  var ok = document.getElementById('bok'), warn = document.getElementById('bwarn');
+  if (ok)   ok.style.display   = cls === 'ok' ? 'flex' : 'none';
+  if (warn) warn.style.display = cls === 'ok' ? 'none' : 'flex';
 }
-function toggleLoginPw(){
-  const inp=document.getElementById('login-pass');
-  const eye=document.getElementById('pw-eye');
-  if(inp.type==='password'){inp.type='text';eye.textContent='🙈';}
-  else{inp.type='password';eye.textContent='👁';}
-}
-async function doLogin(){
-  const btn=document.getElementById('login-btn');
-  const errDiv=document.getElementById('login-error');
-  const username=document.getElementById('login-user').value.trim();
-  const password=document.getElementById('login-pass').value;
-  if(!username||!password){showLoginErr('Please enter username and password');return;}
-  btn.disabled=true;btn.textContent='Signing in…';
-  errDiv.style.display='none';
-  try{
-    const r=await api('/auth/login','POST',{username,password});
-    if(r.ok){
-      SESSION_TOKEN=r.token;
-      CURRENT_USER={username:r.username,role:r.role,displayName:r.displayName};
-      localStorage.setItem('sp_token',SESSION_TOKEN);
-      localStorage.setItem('sp_user',JSON.stringify(CURRENT_USER));
-      onLoggedIn();
-    } else {
-      showLoginErr(r.error||'Login failed');
+
+/* ── Current user ── */
+var CURRENT_USER = null;
+
+/* ── Data — ALL START EMPTY ── */
+var nid = 1, txn = 1000, qn = 100;
+var PRODS = [], CATS = [], CUSTS = [], TXS = [], QUOTES = [];
+var VAT   = { rate: 15, label: 'VAT', mode: 'exclusive' };
+var STORE = { name: 'SwiftPOS', address: '', phone: '', email: '', reg: '', footer: 'Thank you for your business.' };
+var BRAND = { name: 'SwiftPOS', letter: 'S', sub: 'Retail Edition', color: '#1D9E75', radius: 8, size: 30 };
+var CART = {}, ACAT = 'All', SQ = '', COUPON = null, ESEL = '\uD83D\uDED2', PAY = 'cash';
+var LOW_STOCK_THRESHOLD = 10;
+var HRS  = Array.from({ length: 9 }, function(_, i) { return { h: 8 + i, v: Math.floor(Math.random() * 160 + 40) }; });
+var TOPI = [];
+const COUPONS = { SAVE10:{type:'pct',val:10,label:'10% off'}, SAVE5:{type:'fixed',val:5,label:'$5 off'}, HALFOFF:{type:'pct',val:50,label:'50% off'}, VIP20:{type:'pct',val:20,label:'20% off'} };
+const COLS = [{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
+const EMJS = ['\uD83D\uDED2','\uD83C\uDF4E','\uD83E\uDD5B','\uD83C\uDF5E','\uD83E\uDD5A','\uD83C\uDF5D','\uD83E\uDEB4','\uD83C\uDF66','\uD83E\uDD51','\uD83E\uDDC0','\uD83C\uDF6B','\uD83C\uDF4A','\uD83D\uDCA7','\uD83C\uDF57','\uD83D\uDC1F','\uD83E\uDD5C','\uD83C\uDF45','\uD83C\uDF4C','\uD83E\uDDE8','\uD83E\uDD65','\uD83E\uDD69','\uD83E\uDDC1','\u2615','\uD83C\uDF75','\uD83E\uDD64','\uD83C\uDF3F','\uD83E\uDDF4','\uD83E\uDDF9','\uD83D\uDC8A','\uD83D\uDCE6','\uD83C\uDF81','\u2B50','\uD83D\uDD25','\uD83E\uDEB7','\uD83C\uDF53','\uD83E\uDD66','\uD83E\uDD55'];
+
+/* ── Sample data (only used when Supabase is completely empty) ── */
+const SAMPLE_PRODS = [
+  {id:1,name:'Organic Apples',price:3.99,cat:'Produce',emoji:'\uD83C\uDF4E',stock:48,sku:'PRD001',vatExempt:false},
+  {id:2,name:'Whole Milk 1L',price:4.49,cat:'Dairy',emoji:'\uD83E\uDD5B',stock:32,sku:'PRD002',vatExempt:false},
+  {id:3,name:'Sourdough Bread',price:5.99,cat:'Bakery',emoji:'\uD83C\uDF5E',stock:12,sku:'PRD003',vatExempt:false},
+  {id:4,name:'Free-Range Eggs',price:6.49,cat:'Dairy',emoji:'\uD83E\uDD5A',stock:24,sku:'PRD004',vatExempt:false},
+  {id:5,name:'Pasta 500g',price:2.99,cat:'Pantry',emoji:'\uD83C\uDF5D',stock:60,sku:'PRD005',vatExempt:false},
+  {id:6,name:'Chicken Breast',price:7.99,cat:'Meat',emoji:'\uD83C\uDF57',stock:14,sku:'PRD006',vatExempt:false},
+  {id:7,name:'Sparkling Water',price:1.99,cat:'Drinks',emoji:'\uD83D\uDCA7',stock:50,sku:'PRD007',vatExempt:false},
+  {id:8,name:'Dark Chocolate',price:3.49,cat:'Snacks',emoji:'\uD83C\uDF6B',stock:42,sku:'PRD008',vatExempt:false},
+];
+const SAMPLE_CATS = [
+  {name:'Produce',emoji:'\uD83E\uDD66',color:'#639922'},{name:'Dairy',emoji:'\uD83E\uDD5B',color:'#378ADD'},
+  {name:'Bakery',emoji:'\uD83C\uDF5E',color:'#BA7517'},{name:'Pantry',emoji:'\uD83E\uDEB4',color:'#7F77DD'},
+  {name:'Snacks',emoji:'\uD83C\uDF6B',color:'#D4537E'},{name:'Drinks',emoji:'\uD83E\uDD64',color:'#1D9E75'},
+  {name:'Meat',emoji:'\uD83C\uDF57',color:'#D85A30'},
+];
+
+/* ═══════════════════════════════════════════
+   DB_LOAD — read everything from Supabase
+   Returns: 'ok' | 'empty' | 'error'
+═══════════════════════════════════════════ */
+async function DB_LOAD() {
+  if (!srvOk) return 'error';
+  try {
+    var r = await Promise.race([
+      api('/data/all'),
+      new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 12000); })
+    ]);
+    if (!r) return 'error';
+    if (r.error === 'Not logged in' || r.error === 'Admin access required') return 'error';
+    if (r._db === false) { console.warn('[DB] Supabase not connected'); return 'error'; }
+    if (r.products && r.products.length > 0) {
+      PRODS  = r.products;
+      TXS    = r.transactions  || [];
+      CUSTS  = r.customers     || [];
+      CATS   = r.categories    || [];
+      QUOTES = r.quotations    || [];
+      if (r.branding)  BRAND = Object.assign({}, BRAND, r.branding);
+      if (r.vat)       VAT   = Object.assign({}, VAT,   r.vat);
+      if (r.storeInfo) STORE = Object.assign({}, STORE, r.storeInfo);
+      if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
+      /* Cache only branding for login screen speed */
+      try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
+      console.log('[DB] Loaded: ' + PRODS.length + ' products, ' + TXS.length + ' transactions');
+      return 'ok';
     }
-  }catch(e){
-    showLoginErr('Could not connect to server');
-  } finally {
-    btn.disabled=false;btn.textContent='Sign in';
+    return 'empty';
+  } catch(e) {
+    console.error('[DB] Load failed:', e.message);
+    return 'error';
   }
 }
-function showLoginErr(msg){
-  const e=document.getElementById('login-error');
-  e.textContent=msg;e.style.display='block';
+
+/* ═══════════════════════════════════════════
+   DB_SAVE — write everything to Supabase
+   Debounced 400ms, fire-and-forget
+═══════════════════════════════════════════ */
+var _dbSaveTimer = null;
+function DB_SAVE() {
+  if (!srvOk) return;
+  clearTimeout(_dbSaveTimer);
+  _dbSaveTimer = setTimeout(async function() {
+    try {
+      var d = {
+        products: PRODS, transactions: TXS, customers: CUSTS,
+        branding: BRAND, vat: VAT, storeInfo: STORE,
+        categories: CATS, quotations: QUOTES, meta: { nid: nid, txn: txn, qn: qn }
+      };
+      var r = await Promise.race([
+        api('/data/save', 'POST', d),
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 15000); })
+      ]);
+      if (r && r.ok) {
+        setSrv('ok', '● Saved');
+        try { localStorage.setItem('sp_b', JSON.stringify(BRAND)); } catch(e) {}
+      } else {
+        console.warn('[DB] Save failed:', r && r.error);
+      }
+    } catch(e) {
+      srvOk = false; setSrv('err', '● Offline');
+    }
+  }, 400);
 }
-async function doLogout(){
-  try{await api('/auth/logout','POST');}catch(e){}
-  SESSION_TOKEN='';CURRENT_USER=null;
-  localStorage.removeItem('sp_token');localStorage.removeItem('sp_user');
+
+/* saveAll = alias so existing code keeps working */
+function saveAll() { DB_SAVE(); }
+
+/* ═══════════════════════════════════════════
+   Multi-device sync (poll every 15 seconds)
+═══════════════════════════════════════════ */
+var _syncBusy = false;
+async function pollSync() {
+  if (_syncBusy || !srvOk) return;
+  _syncBusy = true;
+  try {
+    var r = await Promise.race([
+      api('/data/all'),
+      new Promise(function(_, j) { setTimeout(j, 5000); })
+    ]);
+    if (r && !r.error && r._db !== false && r.products && r.products.length > 0) {
+      var serverTx = (r.transactions || []).length;
+      var serverP  = (r.products || []).length;
+      if (serverTx !== TXS.length || serverP !== PRODS.length) {
+        PRODS  = r.products;
+        TXS    = r.transactions || [];
+        CUSTS  = r.customers    || [];
+        CATS   = r.categories   || [];
+        QUOTES = r.quotations   || [];
+        if (r.branding) BRAND = Object.assign({}, BRAND, r.branding);
+        if (r.vat)      VAT   = Object.assign({}, VAT,   r.vat);
+        if (r.meta) { nid = r.meta.nid || nid; txn = r.meta.txn || txn; qn = r.meta.qn || qn; }
+        refreshAllUI();
+        setSrv('ok', '● Synced');
+      }
+    }
+  } catch(e) {}
+  _syncBusy = false;
+}
+function refreshAllUI() {
+  renderGrid(); renderPtbl(); popCatSel(); renderCatBar();
+  updTots(); updBadge(); refreshCusts();
+  var cur = document.querySelector('.tab.on');
+  if (cur) {
+    var panels = ['catalog','addprod','customers','quotes','sales','reports','settings','backup','branding','users'];
+    var name = panels[[...document.querySelectorAll('.tab')].indexOf(cur)];
+    if (name === 'sales')     renderSales();
+    if (name === 'quotes')    renderQuotes();
+    if (name === 'customers') renderCusts();
+    if (name === 'reports')   renderReports();
+  }
+}
+
+/* ═══════════════════════════════════════════
+   Login / Logout
+═══════════════════════════════════════════ */
+function showLoginScreen() {
+  var ls = document.getElementById('login-screen');
+  var app = document.querySelector('.app');
+  var mn  = document.querySelector('.mob-nav');
+  if (ls)  ls.style.display  = 'flex';
+  if (app) app.style.display = 'none';
+  if (mn)  mn.style.display  = 'none';
+  setTimeout(function() { var u = document.getElementById('login-user'); if (u) u.focus(); }, 100);
+}
+function hideLoginScreen() {
+  var ls = document.getElementById('login-screen');
+  var app = document.querySelector('.app');
+  if (ls)  ls.style.display  = 'none';
+  if (app) app.style.display = 'flex';
+}
+function toggleLoginPw() {
+  var i = document.getElementById('login-pass'), e = document.getElementById('pw-eye');
+  if (i.type === 'password') { i.type = 'text'; e.textContent = '\uD83D\uDE48'; }
+  else { i.type = 'password'; e.textContent = '\uD83D\uDC41'; }
+}
+async function doLogin() {
+  var btn    = document.getElementById('login-btn');
+  var errDiv = document.getElementById('login-error');
+  var username = document.getElementById('login-user').value.trim();
+  var password = document.getElementById('login-pass').value;
+  if (!username || !password) { showLoginErr('Please enter username and password'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in\u2026'; }
+  errDiv.style.display = 'none';
+  try {
+    var r = await api('/auth/login', 'POST', { username: username, password: password });
+    if (r.ok) {
+      localStorage.setItem('sp_token', r.token);
+      CURRENT_USER = { username: r.username, role: r.role, displayName: r.displayName };
+      await bootApp();
+    } else {
+      showLoginErr(r.error || 'Login failed');
+    }
+  } catch(e) { showLoginErr('Cannot connect to server. Try again.'); }
+  if (btn) { btn.disabled = false; btn.textContent = 'Sign in'; }
+}
+function showLoginErr(msg) {
+  var e = document.getElementById('login-error');
+  if (e) { e.textContent = msg; e.style.display = 'block'; }
+}
+async function doLogout() {
+  try { await api('/auth/logout', 'POST'); } catch(e) {}
+  localStorage.removeItem('sp_token');
+  CURRENT_USER = null;
   closeModal();
   showLoginScreen();
-  toast('Logged out');
+  toast('Signed out');
 }
-function onLoggedIn(){
+function onLoggedIn() {
   hideLoginScreen();
-  updateUserPill();
-  // Show Users tab only for admin
-  const ut=document.getElementById('tab-users');
-  if(ut) ut.style.display=CURRENT_USER&&CURRENT_USER.role==='admin'?'block':'none';
-  // Restrict cashier: hide add product, backup, branding tabs
-  if(CURRENT_USER&&CURRENT_USER.role==='cashier'){
-    document.querySelectorAll('.tab').forEach(t=>{
-      const txt=t.textContent.trim();
-      if(['➕ Add Product','💾 Backup','🎨 Brand','⚙ Settings'].some(s=>txt.includes(s.replace(' Product','').replace(' Backup','').replace(' Brand','').replace(' Settings','').trim()))){
-        // keep visible but lock down in openTab
-      }
-    });
-  }
+  var pill = document.getElementById('user-pill');
+  var name = document.getElementById('user-disp');
+  var role = document.getElementById('user-role-tag');
+  if (pill) pill.style.display = 'flex';
+  if (name) name.textContent = CURRENT_USER ? (CURRENT_USER.displayName || CURRENT_USER.username) : '';
+  if (role) role.textContent = CURRENT_USER && CURRENT_USER.role === 'admin' ? 'Admin' : 'Cashier';
+  var ut = document.getElementById('tab-users');
+  if (ut) ut.style.display = CURRENT_USER && CURRENT_USER.role === 'admin' ? 'block' : 'none';
 }
-function updateUserPill(){
-  if(!CURRENT_USER)return;
-  const pill=document.getElementById('user-pill');
-  const name=document.getElementById('user-disp');
-  const role=document.getElementById('user-role-tag');
-  if(pill) pill.style.display='flex';
-  if(name) name.textContent=CURRENT_USER.displayName||CURRENT_USER.username;
-  if(role) role.textContent=CURRENT_USER.role==='admin'?'Admin':'Cashier';
-}
-function openUserMenu(){
+function openUserMenu() {
   openModal(
-    '<h3 style="margin-bottom:4px;">Account</h3>'+
-    '<div style="font-size:13px;color:var(--t2);margin-bottom:16px;">Signed in as <strong>'+(CURRENT_USER?CURRENT_USER.displayName:'')+
-    '</strong> <span style="background:var(--al);color:var(--ad);padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;">'+(CURRENT_USER?CURRENT_USER.role:'')+
-    '</span></div>'+
-    (CURRENT_USER&&CURRENT_USER.role==='admin'?
-      '<button style="width:100%;padding:11px;margin-bottom:9px;background:var(--bg);border:1.5px solid var(--b);border-radius:var(--r);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;text-align:left;" id="um-users">👥 Manage users</button>':'')+
+    '<h3 style="margin-bottom:4px;">Account</h3>' +
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:16px;">Signed in as <strong>' +
+    (CURRENT_USER ? CURRENT_USER.displayName || CURRENT_USER.username : '') +
+    '</strong> <span style="background:var(--al);color:var(--ad);padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;">' +
+    (CURRENT_USER ? CURRENT_USER.role : '') + '</span></div>' +
+    (CURRENT_USER && CURRENT_USER.role === 'admin'
+      ? '<button style="width:100%;padding:11px;margin-bottom:9px;background:var(--bg);border:1.5px solid var(--b);border-radius:var(--r);cursor:pointer;font-family:inherit;font-size:13px;text-align:left;" id="um-users">\uD83D\uDC65 Manage users</button>'
+      : '') +
     '<button style="width:100%;padding:11px;background:#FCEAEA;border:1.5px solid var(--d);border-radius:var(--r);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--d);" id="um-logout">Sign out</button>'
   );
-  const ul=document.getElementById('um-users');
-  if(ul) ul.addEventListener('click',function(){closeModal();openTab('users');});
-  document.getElementById('um-logout').addEventListener('click',doLogout);
-}
-async function pingSrv(){
-  setSrv('chk','Connecting…');
-  try{const r=await Promise.race([api('/ping'),new Promise((_,j)=>setTimeout(j,3000))]);if(r&&r.ok){srvOk=true;setSrv('ok','● Saved');return true;}}catch(e){}
-  srvOk=false;setSrv('err','● Offline');return false;
-}
-function setSrv(cls,txt){
-  const p=document.getElementById('sp');p.className='pill '+cls;document.getElementById('st').textContent=txt;
-  const ok=document.getElementById('bok'),warn=document.getElementById('bwarn');
-  if(ok)ok.style.display=cls==='ok'?'flex':'none';if(warn)warn.style.display=cls==='ok'?'none':'flex';
-}
-/* DATA */
-let nid=21,txn=1000,qn=100;
-let PRODS=[] // populated from server/localStorage on boot
-// Default sample products only used when database is genuinely empty the very first time
-const SAMPLE_PRODS=[
-  {id:1,name:'Organic Apples',price:3.99,cat:'Produce',emoji:'🍎',stock:48,sku:'',vatExempt:false},
-  {id:2,name:'Whole Milk',price:4.49,cat:'Dairy',emoji:'🥛',stock:32,sku:'',vatExempt:false},
-  {id:3,name:'Sourdough Bread',price:5.99,cat:'Bakery',emoji:'🍞',stock:12,sku:'',vatExempt:false},
-  {id:4,name:'Free-Range Eggs',price:6.49,cat:'Dairy',emoji:'🥚',stock:24,sku:'',vatExempt:false},
-  {id:5,name:'Pasta 500g',price:2.99,cat:'Pantry',emoji:'🍝',stock:60,sku:'',vatExempt:false},
-  {id:6,name:'Olive Oil',price:8.99,cat:'Pantry',emoji:'🫙',stock:20,sku:'',vatExempt:false},
-  {id:7,name:'Greek Yogurt',price:3.49,cat:'Dairy',emoji:'🍦',stock:18,sku:'',vatExempt:false},
-  {id:8,name:'Avocado',price:1.99,cat:'Produce',emoji:'🥑',stock:35,sku:'',vatExempt:false},
-  {id:9,name:'Cheddar Cheese',price:5.49,cat:'Dairy',emoji:'🧀',stock:15,sku:'',vatExempt:false},
-  {id:10,name:'Granola Bar',price:1.49,cat:'Snacks',emoji:'🍫',stock:80,sku:'',vatExempt:false},
-  {id:11,name:'Orange Juice',price:4.29,cat:'Drinks',emoji:'🍊',stock:22,sku:'',vatExempt:false},
-  {id:12,name:'Sparkling Water',price:1.99,cat:'Drinks',emoji:'💧',stock:50,sku:'',vatExempt:false},
-  {id:13,name:'Chicken Breast',price:7.99,cat:'Meat',emoji:'🍗',stock:14,sku:'',vatExempt:false},
-  {id:14,name:'Salmon Fillet',price:10.99,cat:'Meat',emoji:'🐟',stock:8,sku:'',vatExempt:false},
-  {id:15,name:'Mixed Nuts',price:6.99,cat:'Snacks',emoji:'🥜',stock:30,sku:'',vatExempt:false},
-  {id:16,name:'Tomatoes',price:2.49,cat:'Produce',emoji:'🍅',stock:40,sku:'',vatExempt:false},
-  {id:17,name:'Banana Bunch',price:1.29,cat:'Produce',emoji:'🍌',stock:55,sku:'',vatExempt:false},
-  {id:18,name:'Butter 250g',price:3.79,cat:'Dairy',emoji:'🧈',stock:28,sku:'',vatExempt:false},
-  {id:19,name:'Coconut Water',price:2.79,cat:'Drinks',emoji:'🥥',stock:19,sku:'',vatExempt:false},
-  {id:20,name:'Dark Chocolate',price:3.49,cat:'Snacks',emoji:'🍫',stock:42,sku:'',vatExempt:false},
-];
-let CATS=[] // populated from server/localStorage on boot
-const SAMPLE_CATS=[
-  {name:'Produce',emoji:'🥦',color:'#639922'},{name:'Dairy',emoji:'🥛',color:'#378ADD'},
-  {name:'Bakery',emoji:'🍞',color:'#BA7517'},{name:'Pantry',emoji:'🫙',color:'#7F77DD'},
-  {name:'Snacks',emoji:'🍫',color:'#D4537E'},{name:'Drinks',emoji:'🥤',color:'#1D9E75'},{name:'Meat',emoji:'🍗',color:'#D85A30'},
-];
-const COUP={SAVE10:{type:'pct',val:10,label:'10% off'},SAVE5:{type:'fixed',val:5,label:'$5 off'},HALFOFF:{type:'pct',val:50,label:'50% off'},VIP20:{type:'pct',val:20,label:'20% off'}};
-const COLS=[{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
-const EMJS=['🛒','🍎','🥛','🍞','🥚','🍝','🫙','🍦','🥑','🧀','🍫','🍊','💧','🍗','🐟','🥜','🍅','🍌','🧈','🥥','🥩','🧁','☕','🍵','🥤','🌿','🧴','🧹','💊','📦','🎁','⭐','🔥','🫐','🍓','🥦','🥕'];
-let CUSTS=[] // populated from server/localStorage on boot
-let TXS=[],QUOTES=[];
-let VAT={rate:15,label:'VAT',mode:'exclusive'};
-let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
-let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
-let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAY='cash';
-let LOW_STOCK_THRESHOLD=10;
-let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
-let TOPI=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
-
-/* ══════════════════════════════════════════════════════
-   MULTI-DEVICE STORAGE SYSTEM
-   
-   HOW IT WORKS:
-   - MongoDB (via server) = SOURCE OF TRUTH for all devices
-   - localStorage = offline cache so app works without internet
-   - Every save goes to MongoDB first, then localStorage
-   - Every device polls MongoDB every 10 seconds to stay in sync
-   - If offline: localStorage keeps app working, syncs when back online
-══════════════════════════════════════════════════════ */
-
-let _lastSyncTime = 0;
-let _dataLoaded   = false; // true only after first successful load — blocks premature saves  // timestamp of last successful server sync
-let _pendingSync  = false; // prevents overlapping sync calls
-let _saveTimer    = null;  // debounce timer for rapid saves
-
-// ── Local cache (offline fallback) ──────────────────────
-function saveLocal(){
-  try{
-    localStorage.setItem('sp_p',   JSON.stringify(PRODS));
-    localStorage.setItem('sp_t',   JSON.stringify(TXS));
-    localStorage.setItem('sp_c',   JSON.stringify(CUSTS));
-    localStorage.setItem('sp_b',   JSON.stringify(BRAND));
-    localStorage.setItem('sp_v',   JSON.stringify(VAT));
-    localStorage.setItem('sp_si',  JSON.stringify(STORE));
-    localStorage.setItem('sp_cats',JSON.stringify(CATS));
-    localStorage.setItem('sp_q',   JSON.stringify(QUOTES));
-    localStorage.setItem('sp_m',   JSON.stringify({nid,txn,qn}));
-    localStorage.setItem('sp_ti',  JSON.stringify(TOPI));
-    localStorage.setItem('sp_sv',  new Date().toISOString());
-    localStorage.setItem('sp_lst', JSON.stringify(LOW_STOCK_THRESHOLD));
-  }catch(e){}
-}
-function loadLocal(){
-  try{
-    const g=k=>{const v=localStorage.getItem(k);return v?JSON.parse(v):null;};
-    const p=g('sp_p');   if(p&&p.length)    PRODS=[...p];
-    const t=g('sp_t');   if(t&&t.length)    TXS=[...t];
-    const c=g('sp_c');   if(c&&c.length)    CUSTS=[...c];
-    const b=g('sp_b');   if(b)              BRAND=Object.assign({},BRAND,b);
-    const v=g('sp_v');   if(v)              VAT=Object.assign({},VAT,v);
-    const si=g('sp_si'); if(si)             STORE=Object.assign({},STORE,si);
-    const cats=g('sp_cats'); if(cats&&cats.length) CATS=[...cats];
-    const q=g('sp_q');   if(q&&q.length)    QUOTES=[...q];
-    const ti=g('sp_ti'); if(ti&&ti.length)  TOPI=[...ti];
-    const m=g('sp_m');   if(m){nid=m.nid||nid;txn=m.txn||txn;qn=m.qn||qn;}
-    const lst=g('sp_lst'); if(lst!=null) LOW_STOCK_THRESHOLD=lst;
-  }catch(e){}
-  // Mark as loaded if we have real data (not just defaults)
-  if(PRODS.length>0) _dataLoaded=true;
+  var ul = document.getElementById('um-users');
+  if (ul) ul.addEventListener('click', function() { closeModal(); openTab('users'); });
+  var lo = document.getElementById('um-logout');
+  if (lo) lo.addEventListener('click', doLogout);
 }
 
-// ── Apply server data to local state ────────────────────
-function applyServerData(r){
-  if(!r) return false;
-  let changed = false;
-  if(r.products   && r.products.length)    { PRODS=[...r.products];   changed=true; }
-  if(r.transactions&&r.transactions.length){ TXS=[...r.transactions]; changed=true; }
-  if(r.customers  && r.customers.length)   { CUSTS=[...r.customers];  changed=true; }
-  if(r.categories && r.categories.length)  { CATS=[...r.categories];  changed=true; }
-  if(r.quotations && r.quotations.length)  { QUOTES=[...r.quotations];changed=true; }
-  if(r.branding)  { BRAND=Object.assign({},BRAND,r.branding);         changed=true; }
-  if(r.vat)       { VAT=Object.assign({},VAT,r.vat);                  changed=true; }
-  if(r.storeInfo) { STORE=Object.assign({},STORE,r.storeInfo);        changed=true; }
-  if(r.meta)      { nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn; }
-  if(changed) saveLocal();
-  return changed;
-}
+/* ═══════════════════════════════════════════
+   Boot — runs after login confirmed
+   1. Ping server
+   2. Load from Supabase
+   3. Render UI
+   4. Start timers
+═══════════════════════════════════════════ */
+async function bootApp() {
+  onLoggedIn();
+  setSrv('chk', 'Loading\u2026');
 
-// ── Save: write to server first, local as backup ────────
-async function saveAll(){
-  // NEVER save until data has been loaded from server/localStorage
-  // This prevents wiping server data with empty defaults on first login
-  if(!_dataLoaded) return;
-  // Always save locally first (instant, works offline)
-  saveLocal();
+  /* Render empty state immediately so UI is visible */
+  applyBrand();
+  popCatSel(); renderCatBar(); renderGrid(); renderEP();
+  renderPtbl(); refreshCusts(); updVATLbls(); updBadge();
 
-  if(!srvOk) return;
-
-  // Debounce rapid saves — wait 300ms after last call before sending
-  clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(async ()=>{
-    const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
-             vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
-    try{
-      const r=await Promise.race([
-        api('/data/save','POST',d),
-        new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
-      ]);
-      if(r&&r.ok){
-        _lastSyncTime=Date.now();
-        setSrv('ok','\u25CF Saved');
-      }
-    }catch(e){
-      srvOk=false;
-      setSrv('err','\u25CF Offline');
-      // Queue a retry when connection comes back
-      setTimeout(()=>pingSrv().then(ok=>{if(ok)saveAll();}), 5000);
-    }
-  }, 300);
-}
-
-// ── Load: get from server, fallback to local ─────────────
-async function loadAll(){
-  // NOTE: loadLocal() called by bootApp before this — don't call again
-  if(!srvOk) return;
-  try{
-    const r=await Promise.race([
-      api('/data/all'),
-      new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),8000))
-    ]);
-    // 401/not logged in — ignore, keep local data intact
-    if(!r||r.error==='Not logged in'||r.error==='Admin access required') return;
-    // Server DB not connected — ignore
-    if(r._db===false) return;
-    const serverEmpty=!r.products||r.products.length===0;
-    const localHasData=PRODS.length>0;
-    if(serverEmpty&&localHasData){
-      // Push local data up to empty server
-      setSrv('chk','Uploading...');
-      const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
-               vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
-      try{
-        const r2=await api('/data/save','POST',d);
-        if(r2&&r2.ok){_lastSyncTime=Date.now();setSrv('ok','● Saved');toast('Data uploaded to cloud ✓');}
-      }catch(e){setSrv('err','● Offline');}
-    }else if(!serverEmpty){
-      applyServerData(r);
-      _lastSyncTime=Date.now();
-    }else{
-      // Server AND local both empty — very first time, load sample data
-      PRODS=[...SAMPLE_PRODS];CATS=[...SAMPLE_CATS];
-      // Push samples to server so all devices get them
-      var sd={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,
-              vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
-      api('/data/save','POST',sd).then(function(r2){
-        if(r2&&r2.ok){toast('Welcome to SwiftPOS! Sample products loaded.');}
-      }).catch(function(){});
-    }
-  }catch(e){console.log('Server load failed, using local cache');}
-  // Mark data as loaded — saveAll is now safe to write
-  _dataLoaded=true;
-}
-
-// ── Live sync: poll server every 10s ─────────────────────
-// This keeps all devices (phone, tablet, computer) in sync
-let _syncPollTimer = null;
-async function pollSync(){
-  if(_pendingSync||!srvOk) return;
-  _pendingSync=true;
-  try{
-    const r=await Promise.race([
-      api('/data/all'),
-      new Promise((_,j)=>setTimeout(()=>j(new Error('t')),5000))
-    ]);
-    if(r&&r.products){
-      // Check if server has newer data by comparing record counts
-      const serverTotal=(r.products||[]).length+(r.transactions||[]).length+(r.customers||[]).length;
-      const localTotal=PRODS.length+TXS.length+CUSTS.length;
-      if(serverTotal>localTotal||(r.transactions&&r.transactions.length>TXS.length)){
-        const changed=applyServerData(r);
-        if(changed){
-          // Another device made changes — refresh UI silently
-          refreshAllUI();
-          setSrv('ok','\u25CF Synced');
-        }
-      }
-      _lastSyncTime=Date.now();
-    }
-  }catch(e){ srvOk=false; setSrv('err','\u25CF Offline'); }
-  finally{ _pendingSync=false; }
-}
-
-function refreshAllUI(){
-  // Refresh all visible panels without disrupting what user is doing
-  renderGrid();renderPtbl();popCatSel();renderCatBar();
-  updTots();updBadge();refreshCusts();
-  const cur=document.querySelector('.tab.on');
-  if(cur){
-    const idx=[...document.querySelectorAll('.tab')].indexOf(cur);
-    const panels=['catalog','addprod','customers','quotes','sales','reports','settings','backup','branding'];
-    if(panels[idx]==='sales')renderSales();
-    if(panels[idx]==='quotes')renderQuotes();
-    if(panels[idx]==='reports')renderReports();
-    if(panels[idx]==='customers')renderCusts();
+  /* Ping server */
+  var ok = await pingSrv();
+  if (!ok) {
+    setSrv('err', '● Server offline \u2014 retrying\u2026');
+    /* Keep retrying every 5s */
+    var ri = setInterval(async function() {
+      if (await pingSrv()) { clearInterval(ri); await _loadAndRender(); }
+    }, 5000);
+    return;
   }
+  await _loadAndRender();
 }
 
+async function _loadAndRender() {
+  setSrv('chk', 'Loading data\u2026');
+  var status = await DB_LOAD();
 
-/* MOBILE */
-function isMob(){return window.innerWidth<=768;}
-function openD(){document.getElementById('dov').classList.add('open');document.getElementById('drw').classList.add('open');document.body.style.overflow='hidden';}
-function closeD(){document.getElementById('dov').classList.remove('open');document.getElementById('drw').classList.remove('open');document.body.style.overflow='';}
-function updBadge(){
-  const n=Object.values(CART).reduce((s,v)=>s+v,0);
-  const b=document.getElementById('cbg');if(b){b.textContent=n;b.className='cbage'+(n>0?' show':'');}
-}
-function moreMenu(){
-  openModal('<h3 style="margin-bottom:14px;">More</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'+
-    ['➕ Add Product|addprod','📋 Quotations|quotes','📊 Reports|reports','⚙ Settings|settings','💾 Backup|backup','🎨 Branding|branding'].map(s=>{
-      const[l,t]=s.split('|');return`<button onclick="openTab('${t}');closeModal()" style="padding:16px 8px;border:1px solid var(--b);border-radius:var(--rl);background:var(--bg);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;">${l}</button>`;
-    }).join('')+'</div><div class="mbs"><button onclick="closeModal()">Close</button></div>');
+  if (status === 'ok') {
+    _renderAll();
+    setSrv('ok', '● Connected');
+  } else if (status === 'empty') {
+    /* Very first time — load samples */
+    PRODS = SAMPLE_PRODS.map(function(p) { return Object.assign({}, p); });
+    CATS  = SAMPLE_CATS.map(function(c)  { return Object.assign({}, c); });
+    nid   = SAMPLE_PRODS.length + 1;
+    _renderAll();
+    DB_SAVE();
+    setSrv('ok', '● Ready');
+    toast('Welcome to SwiftPOS! Sample products loaded.');
+  } else {
+    /* DB error */
+    setSrv('err', '● Database error \u2014 check /debug');
+    toast('Could not load data. Check /debug on your server URL.');
+    return;
+  }
+
+  /* Start timers */
+  tick();
+  setInterval(tick,     60000);
+  setInterval(pollSync, 15000);
+  setInterval(DB_SAVE,  60000); /* periodic save every 60s */
+  setInterval(pingSrv,  60000);
 }
 
-/* VAT */
+function _renderAll() {
+  applyBrand();
+  popCatSel(); renderCatBar(); renderGrid(); renderEP();
+  renderReports(); renderPtbl(); refreshCusts();
+  updVATLbls(); updBadge(); renderLSBanner();
+}
+
+/* ═══════════════════════════════════════════
+   Init — page entry point
+═══════════════════════════════════════════ */
+async function init() {
+  /* Apply cached branding so login screen looks right */
+  try {
+    var cb = localStorage.getItem('sp_b');
+    if (cb) BRAND = Object.assign({}, BRAND, JSON.parse(cb));
+  } catch(e) {}
+  applyBrand();
+
+  var lm = document.getElementById('login-logo');
+  if (lm) { lm.textContent = BRAND.letter || 'S'; lm.style.background = BRAND.color || 'var(--a)'; }
+  var sn = document.getElementById('login-store-name');
+  if (sn) sn.textContent = BRAND.name || 'SwiftPOS';
+
+  /* Local file — skip login */
+  if (location.protocol === 'file:' || !SRV) {
+    CURRENT_USER = { username: 'local', role: 'admin', displayName: 'Local User' };
+    await bootApp();
+    return;
+  }
+
+  /* Check saved session token */
+  var token = localStorage.getItem('sp_token');
+  if (token) {
+    try {
+      var me = await Promise.race([
+        api('/auth/me'),
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 5000); })
+      ]);
+      if (me && me.ok) {
+        CURRENT_USER = { username: me.username, role: me.role, displayName: me.displayName };
+        await bootApp();
+        return;
+      }
+    } catch(e) {}
+    /* Token invalid — remove it, show login */
+    localStorage.removeItem('sp_token');
+  }
+
+  showLoginScreen();
+}
+
+init();
+
 function taxRate(){return VAT.rate/100;}
 function calcTax(taxable){
   if(VAT.mode==='inclusive'){return +(taxable-(taxable/(1+taxRate()))).toFixed(4);}
@@ -2103,79 +2111,7 @@ async function changeMyPassword(){
   }catch(e){toast('Error: '+e.message);}
 }
 
-async function init(){
-  // ALWAYS load local first — safe, instant, never loses data
-  loadLocal();
-  applyBrand();
-
-  // Brand the login screen with store info
-  var lm=document.getElementById('login-logo');
-  if(lm){lm.textContent=BRAND.letter||'S';lm.style.background=BRAND.color||'var(--a)';}
-  var sn=document.getElementById('login-store-name');
-  if(sn)sn.textContent=BRAND.name||'SwiftPOS';
-
-  // Check saved session token
-  if(SESSION_TOKEN){
-    try{
-      var me=await Promise.race([
-        api('/auth/me'),
-        new Promise(function(_,j){setTimeout(function(){j(new Error('timeout'));},4000);})
-      ]);
-      if(me&&me.ok){
-        CURRENT_USER={username:me.username,role:me.role,displayName:me.displayName};
-        localStorage.setItem('sp_user',JSON.stringify(CURRENT_USER));
-        await bootApp();
-        return;
-      }
-    }catch(e){}
-    // Token expired — remove token ONLY, NEVER touch data keys
-    SESSION_TOKEN='';
-    localStorage.removeItem('sp_token');
-    // Data keys (sp_p, sp_t etc) are untouched — data preserved
-  }
-
-  // No valid session
-  if(location.protocol==='file:'||!SRV){
-    // Local mode — skip login
-    CURRENT_USER={username:'local',role:'admin',displayName:'Local User'};
-    await bootApp();
-  }else{
-    // Show login — data already in memory from loadLocal() above
-    showLoginScreen();
-  }
-}
-
-async function bootApp(){
-  onLoggedIn();
-  // ALWAYS load local first — instant, never loses data
-  loadLocal();
-  applyBrand();
-  popCatSel();renderCatBar();renderGrid();renderEP();renderReports();renderPtbl();refreshCusts();updVATLbls();updBadge();
-  tick();setInterval(tick,60000);
-
-  // Connect to server in background — won't block UI
-  setSrv('chk','Connecting…');
-  var connected=await pingSrv();
-  if(connected){
-    setSrv('chk','Loading…');
-    await loadAll(); // safe — never wipes local data
-    applyBrand();
-    popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();
-    setSrv('ok','● Connected');
-  }else{
-    // Render cold start — retry after 10s
-    setTimeout(async function(){
-      var retry=await pingSrv();
-      if(retry){await loadAll();applyBrand();popCatSel();renderCatBar();renderGrid();renderPtbl();refreshCusts();updVATLbls();updBadge();}
-    },10000);
-  }
-  setInterval(pollSync,10000);
-  setInterval(saveAll,30000);
-  setInterval(pingSrv,60000);
-}
-
-// ═══════════════════════════════════════════════════════
-//  GLOBAL EVENT DELEGATION
+// GLOBAL EVENT DELEGATION
 //  All dynamically injected HTML uses data-* attributes.
 //  No inline onclick anywhere — fixes mobile syntax errors.
 // ═══════════════════════════════════════════════════════
