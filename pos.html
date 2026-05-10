@@ -715,7 +715,11 @@ function api(path, method, data) {
 
 async function pingSrv() {
   try {
-    var r = await Promise.race([api('/ping'), new Promise(function(_, j) { setTimeout(j, 4000); })]);
+    /* 60s timeout — Render free tier can take up to 60s to wake from sleep */
+    var r = await Promise.race([
+      api('/ping'),
+      new Promise(function(_, j) { setTimeout(j, 60000); })
+    ]);
     if (r && r.ok) { srvOk = true; setSrv('ok', '● Connected'); return true; }
   } catch(e) {}
   srvOk = false; setSrv('err', '● Offline'); return false;
@@ -776,7 +780,7 @@ async function DB_LOAD() {
   try {
     var r = await Promise.race([
       api('/data/all'),
-      new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 12000); })
+      new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 30000); })
     ]);
     if (!r) return 'error';
     if (r.error === 'Not logged in' || r.error === 'Admin access required') return 'error';
@@ -847,7 +851,7 @@ async function pollSync() {
   try {
     var r = await Promise.race([
       api('/data/all'),
-      new Promise(function(_, j) { setTimeout(j, 5000); })
+      new Promise(function(_, j) { setTimeout(j, 10000); })
     ]);
     if (r && !r.error && r._db !== false && r.products && r.products.length > 0) {
       var serverTx = (r.transactions || []).length;
@@ -982,16 +986,26 @@ async function bootApp() {
   popCatSel(); renderCatBar(); renderGrid(); renderEP();
   renderPtbl(); refreshCusts(); updVATLbls(); updBadge();
 
-  /* Ping server */
-  var ok = await pingSrv();
-  if (!ok) {
-    setSrv('err', '● Server offline \u2014 retrying\u2026');
-    /* Keep retrying every 5s */
-    var ri = setInterval(async function() {
-      if (await pingSrv()) { clearInterval(ri); await _loadAndRender(); }
-    }, 5000);
-    return;
+  /* Connect — with progress messages for Render cold start */
+  setSrv('chk', 'Connecting…');
+  var attempt = 0;
+  var messages = [
+    'Connecting…',
+    'Waking up server… (this takes ~30s on free plan)',
+    'Still waking up… almost there…',
+    'Nearly ready…',
+  ];
+
+  /* Keep trying until connected — no timeout, no giving up */
+  while (true) {
+    setSrv('chk', messages[Math.min(attempt, messages.length - 1)]);
+    var ok = await pingSrv();
+    if (ok) break;
+    attempt++;
+    /* Wait 3s between attempts */
+    await new Promise(function(r) { setTimeout(r, 3000); });
   }
+
   await _loadAndRender();
 }
 
@@ -1021,9 +1035,9 @@ async function _loadAndRender() {
   /* Start timers */
   tick();
   setInterval(tick,     60000);
-  setInterval(pollSync, 15000);
-  setInterval(DB_SAVE,  60000); /* periodic save every 60s */
-  setInterval(pingSrv,  60000);
+  setInterval(pollSync, 8000);   /* sync every 8s for near-realtime multi-device */
+  setInterval(DB_SAVE,  60000);  /* periodic save every 60s */
+  setInterval(pingSrv,  30000);  /* keep-alive every 30s prevents Render sleeping */
 }
 
 function _renderAll() {
@@ -1076,7 +1090,7 @@ async function init() {
     try {
       var me = await Promise.race([
         api('/auth/me'),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 5000); })
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 65000); })
       ]);
       if (me && me.ok) {
         CURRENT_USER = { username: me.username, role: me.role, displayName: me.displayName };
