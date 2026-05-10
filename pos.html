@@ -715,14 +715,17 @@ function api(path, method, data) {
 
 async function pingSrv() {
   try {
-    /* 60s timeout — Render free tier can take up to 60s to wake from sleep */
-    var r = await Promise.race([
-      api('/ping'),
-      new Promise(function(_, j) { setTimeout(j, 60000); })
+    var resp = await Promise.race([
+      fetch(SRV + '/ping'),
+      new Promise(function(_, j) { setTimeout(function(){j(new Error('timeout'));}, 55000); })
     ]);
-    if (r && r.ok) { srvOk = true; setSrv('ok', '● Connected'); return true; }
-  } catch(e) {}
-  srvOk = false; setSrv('err', '● Offline'); return false;
+    if (resp && resp.ok) {
+      var json = await resp.json().catch(function(){ return null; });
+      if (json && json.ok) { srvOk = true; setSrv('ok', '● Connected'); return true; }
+    }
+  } catch(e) { console.log('[ping]', e.message); }
+  srvOk = false;
+  return false;
 }
 function setSrv(cls, txt) {
   var p = document.getElementById('sp'); if (p) p.className = 'pill ' + cls;
@@ -968,25 +971,18 @@ async function _connectAndLoad() {
   var attempt   = 0;
 
   while (!connected) {
-    if (attempt === 0) { setSrv('chk', 'Connecting…'); toast('Connecting to server…'); }
-    if (attempt === 2) { setSrv('chk', 'Waking server up…'); toast('Server is waking up, please wait…'); }
-    if (attempt === 8) { setSrv('chk', 'Almost ready…'); toast('Almost there…'); }
+    if (attempt === 0) setSrv('chk', 'Connecting…');
+    if (attempt === 3) { setSrv('chk', 'Waking server up…'); toast('Server is starting up — please wait about 30 seconds…'); }
+    if (attempt === 12) setSrv('chk', 'Almost ready…');
 
-    try {
-      var r = await Promise.race([
-        fetch(SRV + '/ping').then(function(x) { return x.json(); }),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('t')); }, 30000); })
-      ]);
-      if (r && r.ok) {
-        srvOk = true; connected = true;
-        setSrv('ok', '● Connected');
-        toast('Connected! Loading your data…');
-        break;
-      }
-    } catch(e) {}
+    connected = await pingSrv();
+    if (connected) {
+      toast('Connected! Loading your data…');
+      break;
+    }
 
     attempt++;
-    await new Promise(function(res) { setTimeout(res, 2000); });
+    await new Promise(function(res) { setTimeout(res, 3000); });
   }
 
   setSrv('chk', 'Loading data…');
@@ -1028,26 +1024,17 @@ async function _loadAndRender() {
 
 /* Keep-alive — just pings the server so Render never sleeps */
 async function _keepAlive() {
-  try {
-    await fetch(SRV + '/ping');
-  } catch(e) {
-    srvOk = false;
-    setSrv('err', '● Offline');
-    /* Try to reconnect */
-    var ok = await _reconnect();
-    if (ok) setSrv('ok', '● Saved');
+  var ok = await pingSrv();
+  if (!ok) {
+    setSrv('err', '● Offline — reconnecting…');
+    /* Reconnect loop */
+    var ri = setInterval(async function() {
+      if (await pingSrv()) {
+        clearInterval(ri);
+        setSrv('ok', '● Connected');
+      }
+    }, 5000);
   }
-}
-
-async function _reconnect() {
-  for (var i = 0; i < 5; i++) {
-    await new Promise(function(r) { setTimeout(r, 3000); });
-    try {
-      var r = await fetch(SRV + '/ping').then(function(x) { return x.json(); });
-      if (r && r.ok) { srvOk = true; return true; }
-    } catch(e) {}
-  }
-  return false;
 }
 
 /* Multi-device sync */
@@ -1115,23 +1102,27 @@ async function init() {
     return;
   }
 
-  /* Check saved session token — run in parallel with nothing blocking UI */
+  /* Check saved session token */
   var token = localStorage.getItem('sp_token');
   if (token) {
-    /* Show app shell immediately — don't make user stare at login screen */
-    /* Validate session in background */
     try {
-      var me = await Promise.race([
-        api('/auth/me'),
-        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 70000); })
+      /* Try to validate session - server may need time to wake up, so use long timeout */
+      var resp = await Promise.race([
+        fetch(SRV + '/auth/me', {
+          headers: { 'Content-Type': 'application/json', 'X-Session-Token': token }
+        }),
+        new Promise(function(_, j) { setTimeout(function() { j(new Error('timeout')); }, 65000); })
       ]);
-      if (me && me.ok) {
-        CURRENT_USER = { username: me.username, role: me.role, displayName: me.displayName };
-        await bootApp();
-        return;
+      if (resp && resp.ok) {
+        var me = await resp.json().catch(function(){ return null; });
+        if (me && me.ok) {
+          CURRENT_USER = { username: me.username, role: me.role, displayName: me.displayName };
+          await bootApp();
+          return;
+        }
       }
-    } catch(e) {}
-    /* Token invalid */
+    } catch(e) { console.log('[init] session check error:', e.message); }
+    /* Token invalid or expired - clear it */
     localStorage.removeItem('sp_token');
   }
 

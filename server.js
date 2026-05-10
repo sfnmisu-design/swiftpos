@@ -89,6 +89,38 @@ async function dbGetAll() {
     if (error) return {};
     const out = {};
     (data || []).forEach(r => { out[r.key] = r.value; });
+
+    // Map old localStorage-style keys to new proper keys if present
+    const keyMap = {
+      'sp_p':    'products',
+      'sp_t':    'transactions',
+      'sp_c':    'customers',
+      'sp_b':    'branding',
+      'sp_v':    'vat',
+      'sp_si':   'storeInfo',
+      'sp_cats': 'categories',
+      'sp_q':    'quotations',
+      'sp_m':    'meta',
+    };
+    let migrated = false;
+    Object.entries(keyMap).forEach(([oldKey, newKey]) => {
+      if (out[oldKey] !== undefined && out[newKey] === undefined) {
+        out[newKey] = out[oldKey];
+        migrated = true;
+      }
+    });
+
+    // If we found old keys, migrate them to new keys in Supabase
+    if (migrated) {
+      console.log('[DB] Migrating old key format to new format...');
+      const now = new Date().toISOString();
+      const newRows = Object.entries(keyMap)
+        .filter(([oldKey, newKey]) => out[oldKey] !== undefined)
+        .map(([oldKey, newKey]) => ({ key: newKey, value: out[oldKey], updated_at: now }));
+      await supabase.from('posdata').upsert(newRows, { onConflict: 'key' });
+      console.log('[DB] Migration complete — saved', newRows.length, 'keys');
+    }
+
     return out;
   } catch(e) { return {}; }
 }
@@ -181,6 +213,14 @@ async function start() {
 
     // ── Public: ping ──────────────────────────────────────
     if (url === '/ping') return sendJ(res, 200, { ok: true, db: dbReady, dbError });
+
+    if (url === '/debug-keys') {
+      try {
+        const { data } = await supabase.from('posdata').select('key,updated_at').order('key');
+        cors(res); res.writeHead(200, {'Content-Type':'application/json'});
+        return res.end(JSON.stringify({ rows: data||[], count: (data||[]).length }, null, 2));
+      } catch(e) { return sendJ(res, 500, { error: e.message }); }
+    }
 
     // ── Public: debug ─────────────────────────────────────
     if (url === '/debug') {
