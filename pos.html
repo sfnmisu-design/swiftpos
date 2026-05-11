@@ -797,8 +797,9 @@ function setSrv(cls,txt){
 
 /* ════════ PERSIST ════════ */
 async function saveAll(){
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn}};
-  if(srvOk){try{await api('/data/save','POST',d);}catch(e){srvOk=false;setSrv('err','● Offline');}}
+  var _now=Date.now();
+  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn},savedAt:_now};
+  if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;setSrv('err','● Offline');}}
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
     localStorage.setItem('sp_t',JSON.stringify(TXS));
@@ -838,6 +839,7 @@ async function loadAll(){
       if(r.vat)       VAT=Object.assign({},VAT,r.vat);
       if(r.storeInfo) STORE=Object.assign({},STORE,r.storeInfo);
       if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
+      if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       console.log('[load] OK:',PRODS.length,'prods',TXS.length,'txs');
       return 'ok';
     }catch(e){console.warn('[load]',e.message);}
@@ -878,6 +880,7 @@ let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAYM='cash';
+let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPITS=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
 
@@ -1880,27 +1883,35 @@ async function init(){
     try{
       var r=await Promise.race([api('/data/all'),new Promise(function(_,j){setTimeout(j,10000);})]);
       if(!r||r.error||r._db===false||r.products===undefined) return;
-      var sp=(r.products||[]).length;
-      var st=(r.transactions||[]).length;
-      var sc=(r.customers||[]).length;
-      /* Only pull from server if it has MORE data — never overwrite local additions */
-      var serverHasMore=sp>PRODS.length||st>TXS.length||sc>CUSTS.length;
-      var serverHasLess=sp<PRODS.length;
-      if(serverHasMore&&!serverHasLess){
-        if(Array.isArray(r.products))    PRODS=[...r.products];
-        if(Array.isArray(r.transactions))TXS=[...r.transactions];
-        if(Array.isArray(r.customers))   CUSTS=[...r.customers];
-        if(Array.isArray(r.categories))  CATS=[...r.categories];
-        if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
-        if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
-        if(r.vat)VAT=Object.assign({},VAT,r.vat);
-        if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
-        applyBrand();renderGrid();renderPtbl();populateCatDropdown();renderCats();
-        setSrv('ok','● Synced');
-      }else if(serverHasLess){
-        /* We have more products than server — push to server */
-        saveAll();
+
+      /* Get server's save timestamp */
+      var serverSavedAt = (r.meta && r.meta.savedAt) ? r.meta.savedAt : 0;
+      var serverTime = typeof serverSavedAt==='number' ? serverSavedAt : new Date(serverSavedAt).getTime();
+
+      /* Only update from server if server was saved AFTER our last save.
+         This means another device made a change more recently than us. */
+      if(serverTime > _lastSaveTime){
+        var sp=(r.products||[]).length;
+        var st=(r.transactions||[]).length;
+        var sc=(r.customers||[]).length;
+        var changed=sp!==PRODS.length||st!==TXS.length||sc!==CUSTS.length;
+        /* Always apply if server is newer, even if counts are same (could be edits) */
+        if(changed || serverTime > _lastSaveTime + 2000){
+          if(Array.isArray(r.products))    PRODS=[...r.products];
+          if(Array.isArray(r.transactions))TXS=[...r.transactions];
+          if(Array.isArray(r.customers))   CUSTS=[...r.customers];
+          if(Array.isArray(r.categories))  CATS=[...r.categories];
+          if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
+          if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
+          if(r.vat)VAT=Object.assign({},VAT,r.vat);
+          if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
+          _lastSaveTime=serverTime; /* update so we don't re-apply same data */
+          applyBrand();renderGrid();renderPtbl();populateCatDropdown();renderCats();
+          setSrv('ok','● Synced');
+          console.log('[sync] pulled from server (server newer by '+(serverTime-_lastSaveTime)+'ms)');
+        }
       }
+      /* If our save is newer — do nothing. Our periodic saveAll() will keep server updated. */
     }catch(e){}
   },8000);
 }
