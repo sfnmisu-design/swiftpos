@@ -632,6 +632,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           </div>
           <button class="sbtn" onclick="saveVAT()">Save VAT settings</button>
         </div>
+
+        <div class="stitle" style="margin-top:4px;">Low Stock Alert</div>
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:3px;">Alert threshold</div>
+              <div style="font-size:11px;color:var(--t3);">Show ⚠️ warning when stock falls at or below this number</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button data-act="lst-minus" style="width:32px;height:32px;border-radius:var(--r);border:1.5px solid var(--b);background:var(--bg);font-size:16px;cursor:pointer;font-family:inherit;">−</button>
+              <input type="number" id="lst-val" value="10" min="1" max="999"
+                style="width:64px;padding:6px;font-size:18px;font-weight:700;border:1.5px solid var(--a);border-radius:var(--r);background:var(--bg);text-align:center;font-family:monospace;">
+              <button data-act="lst-plus" style="width:32px;height:32px;border-radius:var(--r);border:1.5px solid var(--b);background:var(--bg);font-size:16px;cursor:pointer;font-family:inherit;">+</button>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:var(--r);font-size:12px;color:var(--t2);display:flex;justify-content:space-between;align-items:center;">
+            <span>Products currently at or below threshold:</span>
+            <span id="lst-preview" style="font-weight:700;color:var(--d);">0</span>
+          </div>
+          <button class="sbtn" style="margin-top:10px;" data-act="lst-save">Save threshold</button>
+        </div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div class="stitle" style="margin:0;">Category Management</div>
           <button class="tbtn" onclick="openAddCatModal()">+ Add category</button>
@@ -798,18 +820,27 @@ async function saveTx(tx){
 async function loadAll(){
   if(srvOk){
     try{
-      const r=await api('/data/all');
-      if(r.products)PRODS=[...r.products];
-      if(r.transactions)TXS=[...r.transactions];
-      if(r.customers)CUSTS=[...r.customers];
-      if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
-      if(r.vat)VAT=Object.assign({},VAT,r.vat);
-      if(r.storeInfo)STORE=Object.assign({},STORE,r.storeInfo);
-      if(r.categories)CATS=[...r.categories];
-      if(r.quotations)QUOTES=[...r.quotations];
+      var r=await Promise.race([
+        api('/data/all'),
+        new Promise(function(_,j){setTimeout(function(){j(new Error('timeout'));},20000);})
+      ]);
+      if(!r||r.error||r._db===false) throw new Error('bad response');
+      /* Server has this key = it was previously initialized */
+      var wasInit=r.products!==undefined||r.categories!==undefined||r.branding!==undefined;
+      if(!wasInit) return 'empty';
+      /* Load all data — even empty arrays override defaults */
+      if(Array.isArray(r.products))    PRODS=[...r.products];
+      if(Array.isArray(r.transactions))TXS=[...r.transactions];
+      if(Array.isArray(r.customers))   CUSTS=[...r.customers];
+      if(Array.isArray(r.categories))  CATS=[...r.categories];
+      if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
+      if(r.branding)  BRAND=Object.assign({},BRAND,r.branding);
+      if(r.vat)       VAT=Object.assign({},VAT,r.vat);
+      if(r.storeInfo) STORE=Object.assign({},STORE,r.storeInfo);
       if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
-      return;
-    }catch(e){}
+      console.log('[load] OK:',PRODS.length,'prods',TXS.length,'txs');
+      return 'ok';
+    }catch(e){console.warn('[load]',e.message);}
   }
   try{
     const p=localStorage.getItem('sp_p');if(p)PRODS=JSON.parse(p);
@@ -826,29 +857,9 @@ async function loadAll(){
 }
 
 /* ════════ DATA ════════ */
-let nid=21,txn=1000,qn=100;
-let PRODS=[
-  {id:1,name:'Organic Apples',price:3.99,cat:'Produce',emoji:'🍎',stock:48,sku:'',vatExempt:false},
-  {id:2,name:'Whole Milk',price:4.49,cat:'Dairy',emoji:'🥛',stock:32,sku:'',vatExempt:false},
-  {id:3,name:'Sourdough Bread',price:5.99,cat:'Bakery',emoji:'🍞',stock:12,sku:'',vatExempt:false},
-  {id:4,name:'Free-Range Eggs',price:6.49,cat:'Dairy',emoji:'🥚',stock:24,sku:'',vatExempt:false},
-  {id:5,name:'Pasta 500g',price:2.99,cat:'Pantry',emoji:'🍝',stock:60,sku:'',vatExempt:false},
-  {id:6,name:'Olive Oil',price:8.99,cat:'Pantry',emoji:'🫙',stock:20,sku:'',vatExempt:false},
-  {id:7,name:'Greek Yogurt',price:3.49,cat:'Dairy',emoji:'🍦',stock:18,sku:'',vatExempt:false},
-  {id:8,name:'Avocado',price:1.99,cat:'Produce',emoji:'🥑',stock:35,sku:'',vatExempt:false},
-  {id:9,name:'Cheddar Cheese',price:5.49,cat:'Dairy',emoji:'🧀',stock:15,sku:'',vatExempt:false},
-  {id:10,name:'Granola Bar',price:1.49,cat:'Snacks',emoji:'🍫',stock:80,sku:'',vatExempt:false},
-  {id:11,name:'Orange Juice',price:4.29,cat:'Drinks',emoji:'🍊',stock:22,sku:'',vatExempt:false},
-  {id:12,name:'Sparkling Water',price:1.99,cat:'Drinks',emoji:'💧',stock:50,sku:'',vatExempt:false},
-  {id:13,name:'Chicken Breast',price:7.99,cat:'Meat',emoji:'🍗',stock:14,sku:'',vatExempt:false},
-  {id:14,name:'Salmon Fillet',price:10.99,cat:'Meat',emoji:'🐟',stock:8,sku:'',vatExempt:false},
-  {id:15,name:'Mixed Nuts',price:6.99,cat:'Snacks',emoji:'🥜',stock:30,sku:'',vatExempt:false},
-  {id:16,name:'Tomatoes',price:2.49,cat:'Produce',emoji:'🍅',stock:40,sku:'',vatExempt:false},
-  {id:17,name:'Banana Bunch',price:1.29,cat:'Produce',emoji:'🍌',stock:55,sku:'',vatExempt:false},
-  {id:18,name:'Butter 250g',price:3.79,cat:'Dairy',emoji:'🧈',stock:28,sku:'',vatExempt:false},
-  {id:19,name:'Coconut Water',price:2.79,cat:'Drinks',emoji:'🥥',stock:19,sku:'',vatExempt:false},
-  {id:20,name:'Dark Chocolate',price:3.49,cat:'Snacks',emoji:'🍫',stock:42,sku:'',vatExempt:false},
-];
+let nid=1,txn=1000,qn=100;
+let PRODS=[];
+
 let CATS=[
   {name:'Produce',emoji:'🥦',color:'#639922'},{name:'Dairy',emoji:'🥛',color:'#378ADD'},
   {name:'Bakery',emoji:'🍞',color:'#BA7517'},{name:'Pantry',emoji:'🫙',color:'#7F77DD'},
@@ -1565,7 +1576,7 @@ function openTab(name){
   if(name==='backup')renderBkInfo();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
-  if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();}
+  if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
   closeCartDrawer();
   // Scroll to top
   const panel=document.getElementById('panel-'+name);
@@ -1576,6 +1587,40 @@ function openTab(name){
 /* ── LOW STOCK ALERT ───────────────────────────────── */
 var LOW_STOCK_THRESHOLD = 10;
 function getLowStock(){ return PRODS.filter(function(p){return p.stock<=LOW_STOCK_THRESHOLD;}).sort(function(a,b){return a.stock-b.stock;}); }
+
+function initLST(){
+  var inp=document.getElementById('lst-val');
+  if(inp){
+    inp.value=LOW_STOCK_THRESHOLD;
+    inp.addEventListener('input', updateLSTPreview);
+  }
+  updateLSTPreview();
+}
+function updateLSTPreview(){
+  var inp=document.getElementById('lst-val');
+  var prev=document.getElementById('lst-preview');
+  if(!inp||!prev) return;
+  var val=parseInt(inp.value)||LOW_STOCK_THRESHOLD;
+  prev.textContent=PRODS.filter(function(p){return p.stock<=val;}).length;
+}
+function changeLST(delta){
+  var inp=document.getElementById('lst-val');
+  if(!inp) return;
+  var val=Math.max(1,Math.min(999,(parseInt(inp.value)||LOW_STOCK_THRESHOLD)+delta));
+  inp.value=val;
+  updateLSTPreview();
+}
+async function saveLST(){
+  var inp=document.getElementById('lst-val');
+  if(!inp) return;
+  var val=parseInt(inp.value)||10;
+  if(val<1){toast('Minimum is 1');return;}
+  LOW_STOCK_THRESHOLD=val;
+  try{localStorage.setItem('sp_lst',String(val));}catch(e){}
+  renderLSBanner();renderGrid();renderPtbl();
+  await saveAll();
+  toast('Low stock alert set to \u2264'+val+' units \u2713');
+}
 function renderLSBanner(){
   var wrap=document.getElementById('ls-wrap'); if(!wrap) return;
   var low=getLowStock();
@@ -1797,6 +1842,7 @@ function openMobMore(){
 
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
+  try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
   applyBrand();
   populateCatDropdown();renderCats();renderGrid();renderEP();renderPtbl();updCustDropdown();updVATDisplay();
   tick();setInterval(tick,60000);
@@ -1811,11 +1857,17 @@ async function init(){
     await new Promise(function(r){setTimeout(r,3000);});
   }
   setSrv('chk','Loading…');
-  await loadAll();
+  var loadStatus=await loadAll();
   applyBrand();
-  populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();
+  populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();
+  if(loadStatus==='empty'){
+    /* First time ever — save defaults to Supabase */
+    console.log('[init] First time setup — saving defaults');
+    await saveAll();
+    toast('Welcome to SwiftPOS!');
+  }
   setSrv('ok','● Connected');
-  await saveAll();
+  /* DO NOT call saveAll() here — would overwrite server with local state */
   setInterval(saveAll,60000);
   setInterval(pingSrv,25000);
   setInterval(async function(){
@@ -1905,6 +1957,10 @@ document.addEventListener('click',function(e){
   if(txel){viewTx(txel.getAttribute('data-txid'));return;}
   // addCat button in modal
   if(act==='addcat-ok'||btn.id==='addcat-ok'){addCat();return;}
+  // Low stock threshold
+  if(act==='lst-minus'){changeLST(-1);return;}
+  if(act==='lst-plus') {changeLST(1);return;}
+  if(act==='lst-save') {saveLST();return;}
 });
 
 </script>
