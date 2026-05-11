@@ -23,10 +23,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ══ TOP BAR ══ */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--s);border-bottom:1px solid var(--b);gap:8px;flex-shrink:0;}
-.logo{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0;}
+.logo{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0;flex:1;}
 .logo-ic{width:30px;height:30px;border-radius:7px;background:var(--a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;transition:all .3s;}
-.logo-n{font-size:14px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;}
-.logo-s{font-size:10px;color:var(--t3);}
+.logo-n{font-size:14px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.logo-s{font-size:10px;color:var(--t3);white-space:nowrap;}
 .topbar-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 .clk{font-family:monospace;font-size:12px;color:var(--t2);}
 .tbtn{padding:5px 10px;font-size:11px;border:1px solid var(--b2);border-radius:18px;background:var(--bg);color:var(--t2);cursor:pointer;font-weight:500;white-space:nowrap;transition:all .15s;font-family:inherit;}
@@ -316,8 +316,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   body{overflow:auto;}
   .root{flex-direction:column;min-height:100vh;}
   .right{display:none;}
-  .topbar{padding:8px 12px;}
+  .topbar{padding:8px 10px;}
+  /* Show full branding — let it wrap if needed */
+  .logo{flex:1;min-width:0;}
+  .logo-n{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .logo-s{display:none;}
+  /* Shrink right side — only show pill and clock, hide desktop nav buttons */
+  .topbar-right{gap:4px;}
+  #btn-settings{display:none;}
+  #btn-backup{display:none;}
+  .clk{display:none;}
+  /* Pill compact */
+  .spill{font-size:10px;padding:3px 7px;}
   .tabs{padding:0 8px;}
   .t{padding:8px 9px;font-size:11px;}
   .pgrid{grid-template-columns:repeat(2,1fr);gap:8px;padding:10px;padding-bottom:80px;}
@@ -358,10 +368,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 @media (max-width:768px){
   .root{flex-direction:column;height:auto;min-height:100vh;padding-bottom:calc(62px + var(--safe-bottom));}
   .left{flex:1;height:auto;overflow:visible;}
-  .right{display:none;} /* cart is now the drawer */
+  .right{display:none;}
   .mob-nav{display:flex;}
   .toast{bottom:calc(72px + var(--safe-bottom));}
-  /* Make panels fill available space */
+  /* Topbar: keep logo visible, shrink right side */
+  .logo{flex:1;min-width:0;}
+  .logo-n{font-size:14px;}
+  .logo-s{font-size:10px;color:var(--t3);}
+  .topbar-right{flex-shrink:0;gap:5px;}
+  #btn-settings{display:none;}
+  #btn-backup{display:none;}
+  .clk{display:none;}
+}  /* Make panels fill available space */
   .panel.on{min-height:calc(100vh - 62px - var(--safe-bottom) - 116px);}
   .pgrid{min-height:300px;}
   /* Wider touch targets */
