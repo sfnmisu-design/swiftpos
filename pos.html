@@ -546,7 +546,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
               </div>
             <div class="ep" id="epicker"></div>
           </div>
-          <button class="sbtn" onclick="addProd()">Add to catalog</button>
+          <button class="sbtn" data-act="add-prod">Add to catalog</button>
         </div>
         <div class="stitle">Catalog <span id="pcount" style="color:var(--t3);font-weight:400;text-transform:none;font-size:11px;margin-left:2px;"></span></div>
         <div class="card np">
@@ -656,7 +656,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div class="stitle" style="margin:0;">Category Management</div>
-          <button class="tbtn" onclick="openAddCatModal()">+ Add category</button>
+          <button class="tbtn" data-act="open-add-cat">+ Add category</button>
         </div>
         <div id="catmgmt"></div>
         <div class="stitle" style="margin-top:4px;">Store information</div>
@@ -906,7 +906,7 @@ function toggleMoreMenu(){
       <button onclick="openTab('backup');closeModal()" style="padding:14px;border:1px solid var(--b);border-radius:var(--rl);background:var(--bg);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;">💾<br>Backup</button>
       <button onclick="openTab('branding');closeModal()" style="padding:14px;border:1px solid var(--b);border-radius:var(--rl);background:var(--bg);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;">🎨<br>Branding</button>
     </div>
-    <div class="mbs"><button onclick="closeModal()">Close</button></div>`);
+    <div class="mbs"><button id="mc1">Close</button></div>`);
 }
 
 /* ════════ VAT ════════ */
@@ -987,11 +987,15 @@ function renderCatMgmt(){
   </div>`).join('');
 }
 function openAddCatModal(){
-  openModal(`<h3>Add category</h3>
-    <div class="fr"><label>Name *</label><input type="text" id="mc-n" placeholder="e.g. Frozen"></div>
-    <div class="fr" style="margin-top:8px;"><label>Emoji icon</label><input type="text" id="mc-e" placeholder="🧊" maxlength="2" style="font-size:20px;width:80px;"></div>
-    <div class="fr" style="margin-top:8px;"><label>Color</label><input type="color" id="mc-c" value="#1D9E75" style="width:50px;height:38px;border-radius:7px;cursor:pointer;padding:2px;border:1px solid var(--b);"></div>
-    <div class="mbs"><button onclick="closeModal()">Cancel</button><button class="ok" id="addcat-ok">Add</button></div>`);
+  openModal(
+    '<h3>Add category</h3>'+
+    '<div class="fr"><label>Name *</label><input type="text" id="mc-n" placeholder="e.g. Frozen"></div>'+
+    '<div class="fr" style="margin-top:8px;"><label>Emoji icon</label><input type="text" id="mc-e" placeholder="??" maxlength="2" style="font-size:20px;width:80px;"></div>'+
+    '<div class="fr" style="margin-top:8px;"><label>Color</label><input type="color" id="mc-c" value="#1D9E75" style="width:50px;height:38px;border-radius:7px;cursor:pointer;padding:2px;border:1px solid var(--b);"></div>'+
+    '<div class="mbs"><button id="cat-cancel">Cancel</button><button class="ok" id="addcat-ok">Add</button></div>'
+  );
+  document.getElementById('cat-cancel').addEventListener('click', closeModal);
+  document.getElementById('addcat-ok').addEventListener('click', function(){ addCat(); closeModal(); });
 }
 function openEditCatModal(i){
   const c=CATS[i];
@@ -999,7 +1003,8 @@ function openEditCatModal(i){
     <div class="fr"><label>Name *</label><input type="text" id="mc-n" value="${c.name}"></div>
     <div class="fr" style="margin-top:8px;"><label>Emoji icon</label><input type="text" id="mc-e" value="${c.emoji}" maxlength="2" style="font-size:20px;width:80px;"></div>
     <div class="fr" style="margin-top:8px;"><label>Color</label><input type="color" id="mc-c" value="${c.color||'#1D9E75'}" style="width:50px;height:38px;border-radius:7px;cursor:pointer;padding:2px;border:1px solid var(--b);"></div>
-    <div class="mbs"><button onclick="closeModal()">Cancel</button><button class="ok" data-actidx="${i}" data-act="save-ecat">Save</button></div>`);
+    <div class="mbs"><button id="ecat-cancel">Cancel</button><button class="ok" data-actidx="${i}" data-act="save-ecat" id="save-ecat-btn">Save</button></div>`);
+  document.getElementById('ecat-cancel').addEventListener('click', closeModal);
 }
 function addCat(){
   const n=document.getElementById('mc-n').value.trim(),e=document.getElementById('mc-e').value.trim()||'📦',c=document.getElementById('mc-c').value;
@@ -1230,7 +1235,7 @@ function rcptHTML(tx,p=false){
 function showReceipt(tx){
   window._ptx=tx;
   openModal(`<div style="font-family:monospace;">${rcptHTML(tx)}</div>
-    <div class="mbs" style="margin-top:14px;"><button onclick="closeModal()">Close</button><button class="ok" onclick="doPrint()">🖨 Print</button></div>`);
+    <div class="mbs" style="margin-top:14px;"><button id="mc2">Close</button><button class="ok" onclick="doPrint()">🖨 Print</button></div>`);
 }
 function doPrint(){if(!window._ptx)return;document.getElementById('pra').innerHTML=rcptHTML(window._ptx,true);window.print();}
 function viewTx(id){const tx=TXS.find(t=>t.id===id);if(tx){window._ptx=tx;showReceipt(tx);}}
@@ -1346,7 +1351,7 @@ function openEditCustModal(id){
   openModal(`<h3>Edit customer</h3>
     <div class="fg"><div class="fr"><label>Name *</label><input type="text" id="ec-n" value="${c.name}"></div><div class="fr"><label>Company</label><input type="text" id="ec-co" value="${c.company||''}"></div><div class="fr"><label>Phone</label><input type="text" id="ec-p" value="${c.phone||''}"></div><div class="fr"><label>Email</label><input type="text" id="ec-e" value="${c.email||''}"></div></div>
     <div class="fr" style="margin-top:8px;"><label>Address</label><input type="text" id="ec-a" value="${c.address||''}"></div>
-    <div class="mbs"><button onclick="closeModal()">Cancel</button><button class="ok" data-actid="${id}" data-act="save-ec">Save</button></div>`);
+    <div class="mbs"><button id="mc3">Cancel</button><button class="ok" data-actid="${id}" data-act="save-ec">Save</button></div>`);
 }
 async function saveEditCust(id){
   const c=CUSTS.find(x=>x.id===id);if(!c)return;
@@ -1386,13 +1391,7 @@ function selE(e){
     el.classList.toggle('on', el.getAttribute('data-em')===e);
   });
 }
-/* Click on big preview icon — scroll picker into view */
-document.addEventListener('click',function(e){
-  var prev=e.target.closest('#eprev');
-  if(prev){ document.getElementById('epicker').scrollIntoView({behavior:'smooth',block:'nearest'}); return; }
-  var eo=e.target.closest('#epicker .eo');
-  if(eo){ selE(eo.getAttribute('data-em')); return; }
-});
+/* epicker handled in main delegation */
 async function addProd(){
   const n=document.getElementById('np-n').value.trim();const pr=parseFloat(document.getElementById('np-p').value);
   const cn=document.getElementById('np-cn').value.trim();const cat=cn||document.getElementById('np-c').value;
@@ -1919,13 +1918,16 @@ function confirmModal(msg, onYes){
 }
 
 
-document.addEventListener('click',function(e){
-  if(e.target.closest('[data-act="go-addprod"]')){openTab('addprod');return;}
-});
+
 init();
 
 /* ── GLOBAL EVENT DELEGATION ── */
 document.addEventListener('click',function(e){
+  // Emoji picker preview
+  var prev=e.target.closest('#eprev');
+  if(prev){var ep=document.getElementById('epicker');if(ep)ep.scrollIntoView({behavior:'smooth',block:'nearest'});return;}
+  var eo=e.target.closest('#epicker .eo');
+  if(eo){selE(eo.getAttribute('data-em'));return;}
   // Cat bar
   var cc=e.target.closest('[data-cat]');
   if(cc){setCat(cc.getAttribute('data-cat'));return;}
@@ -1933,6 +1935,8 @@ document.addEventListener('click',function(e){
   var cs=e.target.closest('[data-col]');
   if(cs){setCol(cs.getAttribute('data-col'));return;}
   // data-act router
+  // Low-stock banner -> go to addprod
+  if(e.target.closest('[data-act="go-addprod"]')){openTab('addprod');return;}
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
@@ -1984,6 +1988,10 @@ document.addEventListener('click',function(e){
   if(txel){viewTx(txel.getAttribute('data-txid'));return;}
   // addCat button in modal
   if(act==='addcat-ok'||btn.id==='addcat-ok'){addCat();return;}
+  // Open add cat modal
+  if(act==='open-add-cat'){openAddCatModal();return;}
+  // Add product submit
+  if(act==='add-prod'){addProd();return;}
   // Low stock threshold
   if(act==='lst-minus'){changeLST(-1);return;}
   if(act==='lst-plus') {changeLST(1);return;}
