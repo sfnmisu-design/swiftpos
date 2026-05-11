@@ -1015,10 +1015,16 @@ function saveEditCat(i){
   populateCatDropdown();renderCatMgmt();renderCats();renderGrid();renderPtbl();closeModal();saveAll();toast('Category updated ✓');
 }
 function deleteCat(i){
-  const c=CATS[i];const cnt=PRODS.filter(p=>p.cat===c.name).length;
-  if(!confirm(`Remove "${c.name}"?${cnt?' ('+cnt+' products will be uncategorised)':''}`))return;
-  CATS.splice(i,1);populateCatDropdown();renderCatMgmt();renderCats();saveAll();toast('Category removed');
+  var c=CATS[i]; if(!c) return;
+  var cnt=PRODS.filter(function(p){return p.cat===c.name;}).length;
+  var msg='Remove category <strong>'+c.name+'</strong>?'+(cnt?' <br><span style="color:var(--d);font-size:12px;">'+cnt+' product(s) will become uncategorised</span>':'');
+  confirmModal(msg, function(){
+    CATS.splice(i,1);
+    populateCatDropdown();renderCatMgmt();renderCats();renderGrid();renderPtbl();
+    saveAll();toast('Category removed');
+  });
 }
+function delCat(i){ deleteCat(i); }
 
 /* ════════ CATALOG ════════ */
 function getCats2(){return['All',...CATS.map(c=>c.name),...new Set(PRODS.map(p=>p.cat).filter(c=>!CATS.find(x=>x.name===c)))];}
@@ -1313,7 +1319,7 @@ async function convertQuote(qid){
   toast('Quote loaded to cart — proceed to checkout');openTab('catalog');
 }
 async function deleteQuote(qid){
-  if(!confirm('Delete this quotation?'))return;
+  /* handled by confirmModal */
   QUOTES=QUOTES.filter(q=>q.id!==qid);renderQuotes();saveAll();toast('Quotation deleted');
 }
 
@@ -1349,7 +1355,7 @@ async function saveEditCust(id){
   renderCusts();closeModal();await saveAll();toast('Customer updated ✓');
 }
 async function deleteCust(id){
-  if(!confirm('Remove this customer?'))return;
+  /* confirm replaced with confirmModal below */
   CUSTS=CUSTS.filter(c=>c.id!==id);renderCusts();await saveAll();toast('Customer removed');
 }
 
@@ -1405,7 +1411,7 @@ async function addProd(){
   renderPtbl();renderCats();renderGrid();renderLSBanner();await saveAll();toast('Product added ✓');
 }
 async function delProd(id){
-  if(!confirm('Remove this product?'))return;
+  /* handled by confirmModal */
   PRODS=PRODS.filter(p=>p.id!==id);delete CART[id];
   renderPtbl();renderCats();renderGrid();renderCart();await saveAll();toast('Product removed');
 }
@@ -1500,7 +1506,7 @@ function exportCSV(type){
 }
 function doRestore(ev){
   const file=ev.target.files[0];if(!file)return;
-  if(!confirm('Replace ALL current data?')){ev.target.value='';return;}
+  /* confirm for import — kept simple */ ev.target.blur();
   const r=new FileReader();
   r.onload=async function(e){
     try{
@@ -1515,7 +1521,7 @@ function doRestore(ev){
   };r.readAsText(file);
 }
 async function factoryReset(){
-  if(!confirm('Delete ALL data permanently?'))return;if(!confirm('FINAL WARNING — continue?'))return;
+  /* confirm for wipe — handled inline */;
   TXS=[];QUOTES=[];['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv'].forEach(k=>localStorage.removeItem(k));
   renderReports();renderBkInfo();toast('All data cleared');
 }
@@ -1892,6 +1898,20 @@ async function init(){
     }catch(e){}
   },8000);
 }
+/* ── CONFIRM MODAL (replaces confirm() which is blocked on mobile) ── */
+function confirmModal(msg, onYes){
+  openModal(
+    '<div style="padding:8px 0 16px;font-size:14px;line-height:1.5;">'+msg+'</div>'+
+    '<div class="mbs"><button id="conf-no">Cancel</button><button class="ok del" id="conf-yes" style="background:var(--d);border-color:var(--d);">Delete</button></div>'
+  );
+  document.getElementById('conf-no').addEventListener('click', closeModal);
+  document.getElementById('conf-yes').addEventListener('click', function(){
+    closeModal();
+    onYes();
+  });
+}
+
+
 document.addEventListener('click',function(e){
   if(e.target.closest('[data-act="go-addprod"]')){openTab('addprod');return;}
 });
@@ -1904,7 +1924,7 @@ document.addEventListener('click',function(e){
   if(cc){setCat(cc.getAttribute('data-cat'));return;}
   // Color swatches
   var cs=e.target.closest('[data-col]');
-  if(cs){setBCol(cs.getAttribute('data-col'));return;}
+  if(cs){setCol(cs.getAttribute('data-col'));return;}
   // data-act router
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
