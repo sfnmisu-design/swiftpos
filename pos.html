@@ -2064,15 +2064,14 @@ function renderLSBanner(){
   var wrap=document.getElementById('ls-wrap'); if(!wrap) return;
   var low=getLowStock();
   if(!low.length){wrap.innerHTML='';return;}
-  wrap.innerHTML='<div class="ls-banner" data-act="go-addprod">' +
-    '<div class="ls-banner-hd">'+
-      '<div class="ls-banner-title">⚠️ Low stock <span class="ls-cnt">'+low.length+'</span></div>'+
-      '<span style="font-size:11px;color:#E65100">Tap to manage →</span>'+
-    '</div>'+
-    '<div class="ls-items">'+
-      low.map(function(p){return'<div class="ls-item">'+p.emoji+' '+p.name+': <strong>'+p.stock+'</strong> left</div>';}).join('')+
-    '</div>'+
-  '</div>';
+  wrap.innerHTML=
+    '<div class="ls-banner" data-act="go-addprod" style="display:flex;align-items:center;justify-content:space-between;">'+
+      '<div class="ls-banner-title">\u26a0\ufe0f Low stock</div>'+
+      '<div style="display:flex;align-items:center;gap:8px;">'+
+        '<span class="ls-cnt">'+low.length+' item'+(low.length>1?'s':'')+'</span>'+
+        '<span style="font-size:11px;color:#E65100;">\u2192 View</span>'+
+      '</div>'+
+    '</div>';
 }
 
 /* ── EDIT PRODUCT ─────────────────────────────────── */
