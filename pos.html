@@ -333,7 +333,12 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
   .spill{font-size:10px;padding:3px 7px;}
   .tabs{padding:0 8px;}
   .t{padding:8px 9px;font-size:11px;}
-  .pgrid{grid-template-columns:repeat(2,1fr);gap:8px;padding:10px;padding-bottom:80px;}
+  
+/* Loading skeleton */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skeleton{background:linear-gradient(90deg,var(--b) 25%,var(--bg) 50%,var(--b) 75%);background-size:800px 100%;animation:shimmer 1.5s infinite;border-radius:var(--r);}
+.skel-card{height:90px;border-radius:var(--rl);margin-bottom:0;}
+.pgrid{grid-template-columns:repeat(2,1fr);gap:8px;padding:10px;padding-bottom:80px;}
   .left{flex:1;display:flex;flex-direction:column;overflow:hidden;}
   .sec{padding:12px;padding-bottom:80px;}
   .fg{grid-template-columns:1fr;}
@@ -685,7 +690,7 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
       <div class="sec">
         <div class="stitle">Data &amp; Backup</div>
         <div class="bnr ok" id="bnr-ok" style="display:none">✓ Server connected — saving to local drive</div>
-        <div class="bnr warn" id="bnr-warn">⚠ Server not connected — run server.js to save to disk</div>
+        <div class="bnr warn" id="bnr-warn">⚠ Offline — changes will sync when reconnected</div>
         <div class="card np" style="margin-bottom:11px;"><table class="itbl" id="binfo"></table></div>
         <div class="bgd">
           <div class="bc2"><div class="bi">📦</div><div class="bt">Full backup</div><div class="bd">Save everything + download.</div><button class="bbtn bg" onclick="fullBackup()">💾 Save</button></div>
@@ -1085,14 +1090,14 @@ function delCat(i){ deleteCat(i); }
 /* ════════ CATALOG ════════ */
 function getCats2(){return['All',...CATS.map(c=>c.name),...new Set(PRODS.map(p=>p.cat).filter(c=>!CATS.find(x=>x.name===c)))];}
 function renderCats(){
-  document.getElementById('catbar').innerHTML=getCats2().map(function(c){return'<div class="cp '+(c===ACAT?'on':'')+'" data-cat="'+c.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+c+'</div>';}).join('');
+  var _cb=document.getElementById('catbar');if(_cb)_cb.innerHTML=getCats2().map(function(c){return'<div class="cp '+(c===ACAT?'on':'')+'" data-cat="'+c.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">'+c+'</div>';}).join('');
 }
 function setCat(c){ACAT=c;renderCats();renderGrid();}
 function filterGrid(){SQ=document.getElementById('srch').value.toLowerCase();renderGrid();}
 function renderGrid(){renderLSBanner();
   const g=document.getElementById('pgrid');
   const f=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)));
-  if(!f.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:36px;font-size:13px;">No products found</div>';return;}
+  if(!f.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:36px;font-size:13px;">'+(PRODS.length===0&&!srvOk?'<div style="margin-bottom:8px;font-size:20px;">🔄</div>Connecting to server…':'No products found')+'</div>';return;}
   g.innerHTML=f.map(p=>{
     const q=CART[p.id]||0,lo=p.stock<=10;
     return`<div class="pc" data-pid="${p.id}" data-act="add">${q?`<div class="bq">${q}</div>`:''}<span class="pe">${p.emoji}</span><div class="pn">${p.name}${p.vatExempt?'<span style="font-size:9px;background:#FCEBEB;color:var(--d);padding:1px 4px;border-radius:9px;margin-left:4px;font-weight:600;">Exempt</span>':''}</div><div class="pp">$${p.price.toFixed(2)}</div><div class="pst${lo?' lo':''}">${lo?'⚠ ':''}${p.stock} in stock</div>${(p.size&&p.unit)?`<div style="font-size:9px;color:var(--t3);margin-top:1px;">${p.size}${p.unit}</div>`:''}</div>`;
@@ -1103,6 +1108,7 @@ function renderGrid(){renderLSBanner();
 function addCart(id){
   CART[id]=(CART[id]||0)+1;
   renderCart();renderGrid();updCartBadge();
+  if(navigator.vibrate) navigator.vibrate(30);
   if(isMobile())openCartDrawer();
 }
 function upQ(id,d){CART[id]=(CART[id]||0)+d;if(CART[id]<=0)delete CART[id];renderCart();renderGrid();updCartBadge();}
@@ -1302,6 +1308,15 @@ function openPay(){
 
   setTipPct(0);
   setTimeout(function(){var i=document.getElementById('tend');if(i)i.focus();},300);
+  /* Enter key confirms payment */
+  document.addEventListener('keydown', function _payEnter(e){
+    if(e.key==='Enter'){
+      var ok=document.getElementById('okbtn');
+      if(ok&&!ok.disabled){ok.click();}
+      document.removeEventListener('keydown',_payEnter);
+    }
+    if(e.key==='Escape'){closeModal();document.removeEventListener('keydown',_payEnter);}
+  });
 }
 function setTend(v,g){document.getElementById('tend').value=v.toFixed(2);calcChg(g);}
 function calcChg(g){
@@ -1481,7 +1496,7 @@ function viewTx(id){const tx=TXS.find(t=>t.id===id);if(tx){window._ptx=tx;showRe
 function renderTx(){
   const el=document.getElementById('txlist');
   document.getElementById('txlbl').textContent=TXS.length+' sales';
-  if(!TXS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;font-size:13px;">No transactions yet</div>';return;}
+  if(!TXS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;"><div style="font-size:32px;margin-bottom:8px;">🧾</div><div style="font-size:14px;font-weight:600;">No sales yet</div><div style="font-size:12px;margin-top:4px;">Complete a sale to see it here</div></div>';return;}
   el.innerHTML=TXS.map(tx=>{
     const isRefund=tx.payMethod==='refund';
     const wasRefunded=!!tx.refunded;
@@ -1655,7 +1670,7 @@ async function delProd(id){
 }
 function renderPtbl(){
   document.getElementById('pcount').textContent='('+PRODS.length+' items)';
-  document.getElementById('ptbody').innerHTML=PRODS.map(p=>`<tr>
+  var _pb=document.getElementById('ptbody');if(_pb)_pb.innerHTML=PRODS.map(p=>`<tr>
     <td style="font-size:17px;">${p.emoji}</td>
     <td style="font-weight:500;">${p.name}${(p.size&&p.unit)?`<span style="font-size:10px;color:var(--a);background:var(--al);padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">${p.size}${p.unit}</span>`:''} ${p.sku?`<br><span style="font-size:10px;color:var(--t3)">SKU:${p.sku}</span>`:''}</td>
     <td style="color:var(--t2);">${p.cat}</td>
@@ -1718,7 +1733,7 @@ async function saveStoreInfo(){
 /* ════════ BACKUP ════════ */
 function renderBkInfo(){
   const sv=localStorage.getItem('sp_sv');
-  document.getElementById('binfo').innerHTML=`
+  var _bi=document.getElementById('binfo');if(_bi)_bi.innerHTML=`
     <tr><td>Products</td><td>${PRODS.length}</td></tr>
     <tr><td>Transactions</td><td>${TXS.length}</td></tr>
     <tr><td>Customers</td><td>${CUSTS.length}</td></tr>
@@ -1787,7 +1802,7 @@ async function factoryReset(){
 }
 
 /* ════════ BRANDING ════════ */
-function renderSwts(){document.getElementById('swts').innerHTML=BCOLS.map(function(c){return'<div class="sw '+(c.h===BRAND.color?'on':'')+'" style="background:'+c.h+'" data-col="'+c.h+'"><span class="swcheck">\u2713</span></div>';}).join('');}
+function renderSwts(){var _sw=document.getElementById('swts');if(!_sw)return;_sw.innerHTML=BCOLS.map(function(c){return'<div class="sw '+(c.h===BRAND.color?'on':'')+'" style="background:'+c.h+'" data-col="'+c.h+'"><span class="swcheck">\u2713</span></div>';}).join('');}
 function setCol(h){BRAND.color=h;document.getElementById('b-hex').textContent=h;document.getElementById('b-col').value=h;renderSwts();prevBrand();}
 function prevBrand(){
   const n=document.getElementById('b-n').value||'SwiftPOS',l=(document.getElementById('b-l').value||'S').toUpperCase(),s=document.getElementById('b-s').value||'Retail Edition';
@@ -1815,7 +1830,7 @@ function initBrand(){
 /* ════════ MODAL / TABS ════════ */
 function openModal(html){
   document.getElementById('modal').style.display='flex';
-  const mc=document.getElementById('mcont');mc.innerHTML='<div class="mod-handle"></div>'+html;
+  const mc=document.getElementById('mcont');if(!mc)return;mc.innerHTML='<div class="mod-handle"></div>'+html;
 }
 function closeModal(){document.getElementById('modal').style.display='none';}
 function ovClick(e){if(e.target===document.getElementById('modal'))closeModal();}
