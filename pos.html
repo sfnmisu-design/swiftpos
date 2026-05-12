@@ -1202,9 +1202,15 @@ async function doPay(total){
   TXS.unshift(tx);
   HRS[Math.floor(Math.random()*HRS.length)].v+=total;
   items.forEach(it=>{const ti=TOPITS.find(t=>t.name===it.name);if(ti)ti.sold+=it.qty;});
+  /* ── Deduct stock ── */
+  items.forEach(function(it){
+    var p=PRODS.find(function(x){return x.id===it.id;});
+    if(p) p.stock=Math.max(0, (p.stock||0) - it.qty);
+  });
   if(custId){const cu=CUSTS.find(c=>c.id===custId);if(cu){cu.spent+=grand;cu.visits++;}}
-  await saveTx(tx);await saveAll();
+  await saveAll();
   window._ptx=tx;showReceipt(tx);clearCart();
+  renderGrid();renderPtbl();renderLSBanner();
 }
 
 /* ════════ RECEIPT ════════ */
@@ -1913,7 +1919,7 @@ async function init(){
       }
       /* If our save is newer — do nothing. Our periodic saveAll() will keep server updated. */
     }catch(e){}
-  },8000);
+  },3000);
 }
 /* ── CONFIRM MODAL (replaces confirm() which is blocked on mobile) ── */
 function confirmModal(msg, onYes){
