@@ -735,6 +735,20 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
     </div>
   </div>
 
+      <!-- ── DAILY REPORT ── -->
+    <div class="panel" id="panel-daily">
+      <div class="sec">
+        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Daily Report</span>
+          <div style="display:flex;gap:6px;">
+            <button class="tbtn" onclick="renderDailyReport()">↻ Refresh</button>
+            <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-eod">&#127937; Close Register</button>
+          </div>
+        </div>
+        <div id="daily-content"></div>
+      </div>
+    </div>
+
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
     <div class="cart-hd">
@@ -1206,11 +1220,24 @@ function openPay(){
   var tots=getTots(); var grand=tots.grand; PAYM='cash';
   openModal(
     '<h3>Payment</h3>'+
-    '<div class="mtot">$'+grand.toFixed(2)+'</div>'+
+    '<div class="mtot" id="pay-total">$'+grand.toFixed(2)+'</div>'+
     '<div class="pms">'+
       '<div class="pm on" id="pm-cash"><span class="pm-ic">&#128181;</span>Cash</div>'+
       '<div class="pm" id="pm-card"><span class="pm-ic">&#128179;</span>Card</div>'+
       '<div class="pm" id="pm-mob"><span class="pm-ic">&#128241;</span>Mobile</div>'+
+    '</div>'+
+    /* Tip row */
+    '<div style="display:flex;align-items:center;gap:8px;margin:8px 0;padding:8px 10px;background:var(--bg);border-radius:var(--r);border:1px solid var(--b);">'+
+      '<span style="font-size:13px;color:var(--t2);flex:1;">Tip / Gratuity</span>'+
+      '<div style="display:flex;gap:5px;">'+
+        '<button class="qa" id="tip-0" style="min-width:42px;">None</button>'+
+        '<button class="qa" id="tip-10" style="min-width:42px;">10%</button>'+
+        '<button class="qa" id="tip-15" style="min-width:42px;">15%</button>'+
+        '<button class="qa" id="tip-custom" style="min-width:42px;">$...</button>'+
+      '</div>'+
+    '</div>'+
+    '<div id="tip-custom-wrap" style="display:none;margin-bottom:8px;">'+
+      '<div class="cwrap"><em>$</em><input type="number" id="tip-amt" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>'+
     '</div>'+
     '<div id="cashwrap">'+
       '<div class="csec"><label>Cash tendered</label>'+
@@ -1221,22 +1248,59 @@ function openPay(){
     '</div>'+
     '<div class="mbs"><button id="pay-cancel">Cancel</button><button class="ok" id="okbtn" disabled>Confirm</button></div>'
   );
-  /* Attach all listeners via JS — no inline handlers */
+
+  var _tip=0;
+  function getTipTotal(){ return +(grand+_tip).toFixed(2); }
+  function updateTipDisplay(){
+    var el=document.getElementById('pay-total');
+    if(el) el.textContent='$'+getTipTotal().toFixed(2)+(_tip>0?' (incl. $'+_tip.toFixed(2)+' tip)':'');
+    calcChg(getTipTotal());
+    /* reattach okbtn */
+    var ok=document.getElementById('okbtn');
+    if(ok) ok.onclick=function(){doPay(getTipTotal(),_tip);};
+  }
+  function setTipPct(pct){
+    _tip=+(grand*pct/100).toFixed(2);
+    document.getElementById('tip-custom-wrap').style.display='none';
+    updateTipDisplay();
+    ['tip-0','tip-10','tip-15','tip-custom'].forEach(function(id){
+      var b=document.getElementById(id); if(b) b.style.background='';
+    });
+    var active=pct===0?'tip-0':pct===10?'tip-10':'tip-15';
+    var ab=document.getElementById(active); if(ab) ab.style.background='var(--al)';
+  }
+
   document.getElementById('pm-cash').addEventListener('click',function(){selPay('cash');});
   document.getElementById('pm-card').addEventListener('click',function(){selPay('card');});
-  document.getElementById('pm-mob').addEventListener('click', function(){selPay('mobile');});
+  document.getElementById('pm-mob').addEventListener('click',function(){selPay('mobile');});
   document.getElementById('pay-cancel').addEventListener('click',closeModal);
-  document.getElementById('okbtn').addEventListener('click',function(){doPay(grand);});
-  document.getElementById('tend').addEventListener('input',function(){calcChg(grand);});
+  document.getElementById('okbtn').addEventListener('click',function(){doPay(getTipTotal(),_tip);});
+  document.getElementById('tend').addEventListener('input',function(){calcChg(getTipTotal());});
+  document.getElementById('tip-0').addEventListener('click',function(){setTipPct(0);});
+  document.getElementById('tip-10').addEventListener('click',function(){setTipPct(10);});
+  document.getElementById('tip-15').addEventListener('click',function(){setTipPct(15);});
+  document.getElementById('tip-custom').addEventListener('click',function(){
+    document.getElementById('tip-custom-wrap').style.display='block';
+    document.getElementById('tip-amt').focus();
+    ['tip-0','tip-10','tip-15','tip-custom'].forEach(function(id){var b=document.getElementById(id);if(b)b.style.background='';});
+    document.getElementById('tip-custom').style.background='var(--al)';
+  });
+  document.getElementById('tip-amt').addEventListener('input',function(){
+    _tip=parseFloat(this.value)||0;
+    updateTipDisplay();
+  });
+
   /* Quick-amount buttons */
-  var sugg=[...new Set([Math.ceil(grand),Math.ceil(grand/5)*5,Math.ceil(grand/10)*10,Math.ceil(grand/20)*20].filter(function(v){return v>=grand;}))].slice(0,4);
   var qas=document.getElementById('qas');
+  var sugg=[...new Set([Math.ceil(grand),Math.ceil(grand/5)*5,Math.ceil(grand/10)*10,Math.ceil(grand/20)*20].filter(function(v){return v>=grand;}))].slice(0,4);
   sugg.forEach(function(v){
     var b=document.createElement('button');
     b.className='qa'; b.textContent='$'+v.toFixed(2);
-    b.addEventListener('click',(function(val){return function(){setTend(val,grand);};})(v));
+    b.addEventListener('click',(function(val){return function(){setTend(val,getTipTotal());};})(v));
     qas.appendChild(b);
   });
+
+  setTipPct(0);
   setTimeout(function(){var i=document.getElementById('tend');if(i)i.focus();},300);
 }
 function setTend(v,g){document.getElementById('tend').value=v.toFixed(2);calcChg(g);}
@@ -1265,14 +1329,15 @@ function selPay(m){
     if(btn) btn.disabled=false;
   }
 }
-async function doPay(total){
+async function doPay(total,tip){
+  tip=tip||0;
   const tendered=PAYM==='cash'?(parseFloat(document.getElementById('tend').value)||0):total;
   const change=PAYM==='cash'?Math.max(0,tendered-total):0;
   const txid='TXN-'+(++txn);
   const custId=document.getElementById('cart-cust').value;
   const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(p.price*CART[id]).toFixed(2),vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
   const{sub,disc,tax,grand}=getTots();
-  const tx={id:txid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,tendered,change,payMethod:PAYM,coupon:COUPON?COUPON.label:null,customerId:custId||null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode};
+  const tx={id:txid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,tip:tip,tendered,change,payMethod:PAYM,coupon:COUPON?COUPON.label:null,customerId:custId||null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode};
   TXS.unshift(tx);
   HRS[Math.floor(Math.random()*HRS.length)].v+=total;
   items.forEach(it=>{const ti=TOPITS.find(t=>t.name===it.name);if(ti)ti.sold+=it.qty;});
@@ -1308,6 +1373,7 @@ function rcptHTML(tx,p=false){
   <div style="padding-bottom:9px;border-bottom:2px dashed ${bc};margin-bottom:9px;">
     <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#888;"><span>Subtotal</span><span>$${tx.subtotal.toFixed(2)}</span></div>
     ${tx.discount>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#BA7517;"><span>Discount</span><span>-$${tx.discount.toFixed(2)}</span></div>`:''}
+    ${tx.tip>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#1D9E75;"><span>Tip</span><span>+$${tx.tip.toFixed(2)}</span></div>`:''}
     <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#888;"><span>${tx.vatLabel||'VAT'} (${tx.vatRate||VAT.rate}%)</span><span>$${tx.tax.toFixed(2)}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:5px;"><span>TOTAL</span><span>$${tx.total.toFixed(2)}</span></div>
     ${tx.payMethod==='cash'?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#888;"><span>Tendered</span><span>$${tx.tendered.toFixed(2)}</span></div>`:''}
@@ -1317,8 +1383,96 @@ function rcptHTML(tx,p=false){
 }
 function showReceipt(tx){
   window._ptx=tx;
-  openModal(`<div style="font-family:monospace;">${rcptHTML(tx)}</div>
-    <div class="mbs" style="margin-top:14px;"><button id="mc2">Close</button><button class="ok" onclick="doPrint()">🖨 Print</button></div>`);
+  openModal(
+    '<div style="font-family:monospace;">'+rcptHTML(tx)+'</div>'+
+    '<div class="mbs" style="margin-top:14px;flex-wrap:wrap;gap:8px;">'+
+      '<button class="ok" id="rcpt-close">✓ Done</button>'+
+      '<button id="rcpt-refund" style="color:var(--d);border-color:var(--d);">↩ Refund</button>'+
+      '<button id="rcpt-wa" style="background:#25D366;border-color:#25D366;color:#fff;">💬 WhatsApp</button>'+
+      '<button id="rcpt-print">🖨 Print</button>'+
+    '</div>'
+  );
+  /* Done = close, transaction already saved */
+  document.getElementById('rcpt-close').addEventListener('click',closeModal);
+  document.getElementById('rcpt-print').addEventListener('click',function(){
+    doPrint();
+    /* Close modal after a short delay — print dialog may or may not appear */
+    setTimeout(closeModal, 500);
+  });
+  document.getElementById('rcpt-wa').addEventListener('click',function(){sendWhatsApp(tx);});
+  var rfBtn=document.getElementById('rcpt-refund');
+  if(rfBtn){
+    if(tx.refunded){rfBtn.disabled=true;rfBtn.textContent='Refunded';}
+    else rfBtn.addEventListener('click',function(){doRefund(tx);});
+  }
+}
+
+function doRefund(tx){
+  if(tx.refunded){toast('This sale has already been refunded');return;}
+  confirmModal(
+    'Refund <strong>$'+tx.total.toFixed(2)+'</strong> for receipt '+tx.id+'?<br>'+
+    '<span style="font-size:12px;color:var(--t3);">Stock will be restored for all items</span>',
+    function(){
+      /* Mark original as refunded */
+      tx.refunded=true;
+      /* Restore stock */
+      tx.items.forEach(function(it){
+        var p=PRODS.find(function(x){return x.id===it.id;});
+        if(p) p.stock=(p.stock||0)+it.qty;
+      });
+      /* Create refund transaction */
+      var rtx={
+        id:'REF-'+(++txn),
+        timestamp:new Date().toISOString(),
+        items:tx.items,
+        subtotal:-tx.subtotal,
+        discount:0,
+        tip:0,
+        tax:-tx.tax,
+        total:-tx.total,
+        tendered:0,
+        change:0,
+        payMethod:'refund',
+        refundOf:tx.id,
+        vatRate:tx.vatRate,vatLabel:tx.vatLabel,vatMode:tx.vatMode
+      };
+      TXS.unshift(rtx);
+      /* Update customer spend */
+      if(tx.customerId){
+        var cu=CUSTS.find(function(c){return c.id===tx.customerId;});
+        if(cu){cu.spent=Math.max(0,cu.spent-tx.total);cu.visits=Math.max(0,cu.visits-1);}
+      }
+      saveAll();
+      renderGrid();renderPtbl();renderTx();renderLSBanner();
+      closeModal();
+      toast('Refund of $'+tx.total.toFixed(2)+' processed ✓');
+    }
+  );
+}
+
+
+function sendWhatsApp(tx){
+  var dt=new Date(tx.timestamp);
+  var lines=['*'+BRAND.name+' Receipt*'];
+  if(STORE.address) lines.push(STORE.address);
+  lines.push(dt.toLocaleDateString()+' at '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+  lines.push('Receipt: '+tx.id);
+  lines.push('');
+  tx.items.forEach(function(it){
+    lines.push(it.emoji+' '+it.name+(it.size&&it.unit?' ('+it.size+it.unit+')':'')+' x'+it.qty+'  $'+it.line.toFixed(2));
+  });
+  lines.push('');
+  lines.push('Subtotal: $'+tx.subtotal.toFixed(2));
+  if(tx.discount>0) lines.push('Discount: -$'+tx.discount.toFixed(2));
+  if(tx.tip>0) lines.push('Tip: +$'+tx.tip.toFixed(2));
+  lines.push((tx.vatLabel||'VAT')+' ('+tx.vatRate+'%): $'+tx.tax.toFixed(2));
+  lines.push('*TOTAL: $'+tx.total.toFixed(2)+'*');
+  lines.push('Payment: '+tx.payMethod.toUpperCase());
+  if(tx.payMethod==='cash') lines.push('Change: $'+tx.change.toFixed(2));
+  lines.push('');
+  lines.push('Thank you for shopping at '+BRAND.name+'!');
+  var msg=encodeURIComponent(lines.join('\n'));
+  window.open('https://wa.me/?text='+msg,'_blank');
 }
 function doPrint(){if(!window._ptx)return;document.getElementById('pra').innerHTML=rcptHTML(window._ptx,true);window.print();}
 function viewTx(id){const tx=TXS.find(t=>t.id===id);if(tx){window._ptx=tx;showReceipt(tx);}}
@@ -1329,12 +1483,14 @@ function renderTx(){
   document.getElementById('txlbl').textContent=TXS.length+' sales';
   if(!TXS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;font-size:13px;">No transactions yet</div>';return;}
   el.innerHTML=TXS.map(tx=>{
+    const isRefund=tx.payMethod==='refund';
+    const wasRefunded=!!tx.refunded;
     const dt=new Date(tx.timestamp);
     const cust=tx.customerId?CUSTS.find(c=>c.id===tx.customerId):null;
     const its=tx.items.map(i=>i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'')).slice(0,3).join(', ')+(tx.items.length>3?'…':'');
     return`<div class="txr" data-txid="${tx.id}">
       <div class="txt"><span class="txid">${tx.id}</span><span class="txam">$${tx.total.toFixed(2)}</span></div>
-      <div class="txm">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}<span class="pmb">${tx.payMethod}</span>${cust?`<span class="pmb" style="background:#EEF5FF;color:#2468B0;">👤 ${cust.name}</span>`:''}</div>
+      <div class="txm">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}<span class="pmb" style="${isRefund?'background:#FCEBEB;color:#A32D2D':wasRefunded?'background:#F1EFE8;color:#5F5E5A':''}">${isRefund?'↩ REFUND':tx.payMethod}</span>${wasRefunded?'<span class="pmb" style="background:#F1EFE8;color:#888">refunded</span>':''}${cust?`<span class="pmb" style="background:#EEF5FF;color:#2468B0;">👤 ${cust.name}</span>`:''}</div>
       <div class="txits">${its}</div>
     </div>`;
   }).join('');
@@ -1512,16 +1668,38 @@ function renderPtbl(){
 
 /* ════════ REPORTS ════════ */
 function renderReports(){
-  const tot=TXS.reduce((s,x)=>s+x.total,0);const tx=TXS.length,avg=tx?tot/tx:0;
-  document.getElementById('sgd').innerHTML=`
-    <div class="sc"><div class="sl2">Revenue</div><div class="sv">$${tot.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})}</div><div class="ss">All time</div></div>
-    <div class="sc"><div class="sl2">Transactions</div><div class="sv">${tx}</div><div class="ss">All time</div></div>
-    <div class="sc"><div class="sl2">Avg order</div><div class="sv">$${avg.toFixed(2)}</div><div class="ss">Per sale</div></div>
-    <div class="sc"><div class="sl2">Products</div><div class="sv">${PRODS.length}</div><div class="ss">In catalog</div></div>`;
-  const mv=Math.max(...HRS.map(x=>x.v),1);
-  document.getElementById('bchart').innerHTML=HRS.map(x=>`<div class="bcc"><div class="bar" style="height:${Math.round((x.v/mv)*62)+4}px" title="$${x.v.toFixed(0)}"></div><div class="bl">${x.h>12?x.h-12+'p':x.h+'a'}</div></div>`).join('');
-  const ms=Math.max(...TOPITS.map(t=>t.sold),1);
-  document.getElementById('toplist').innerHTML=TOPITS.slice(0,6).map(t=>`<div class="ti"><span class="tn">${t.emoji} ${t.name}</span><div class="tw"><div class="tb2" style="width:${Math.round((t.sold/ms)*100)}%"></div></div><span class="ts">${t.sold}</span></div>`).join('');
+  var sgd=document.getElementById('sgd');
+  var bchart=document.getElementById('bchart');
+  var toplist=document.getElementById('toplist');
+  if(!sgd||!bchart||!toplist) return; /* panel not in DOM yet */
+
+  var tot=TXS.filter(function(x){return x.payMethod!=='refund';}).reduce(function(s,x){return s+x.total;},0);
+  var txCount=TXS.filter(function(x){return x.payMethod!=='refund';}).length;
+  var avg=txCount?tot/txCount:0;
+
+  sgd.innerHTML=
+    '<div class="sc"><div class="sl2">Revenue</div><div class="sv">$'+tot.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="ss">All time</div></div>'+
+    '<div class="sc"><div class="sl2">Transactions</div><div class="sv">'+txCount+'</div><div class="ss">All time</div></div>'+
+    '<div class="sc"><div class="sl2">Avg order</div><div class="sv">$'+avg.toFixed(2)+'</div><div class="ss">Per sale</div></div>'+
+    '<div class="sc"><div class="sl2">Products</div><div class="sv">'+PRODS.length+'</div><div class="ss">In catalog</div></div>';
+
+  /* Bar chart — guard against empty/zero */
+  var hrsVals=HRS.map(function(x){return x.v;});
+  var mv=hrsVals.length?Math.max.apply(null,hrsVals.concat([1])):1;
+  bchart.innerHTML=HRS.map(function(x){
+    return'<div class="bcc"><div class="bar" style="height:'+( Math.round((x.v/mv)*62)+4)+'px" title="$'+x.v.toFixed(0)+'"></div><div class="bl">'+(x.h>12?x.h-12+'p':x.h+'a')+'</div></div>';
+  }).join('');
+
+  /* Top products — guard against empty */
+  if(!TOPITS||!TOPITS.length){
+    toplist.innerHTML='<div style="color:var(--t3);font-size:12px;padding:8px;">No sales data yet</div>';
+    return;
+  }
+  var soldVals=TOPITS.map(function(t){return t.sold;});
+  var ms=Math.max.apply(null,soldVals.concat([1]));
+  toplist.innerHTML=TOPITS.slice(0,6).map(function(t){
+    return'<div class="ti"><span class="tn">'+t.emoji+' '+t.name+'</span><div class="tw"><div class="tb2" style="width:'+Math.round((t.sold/ms)*100)+'%"></div></div><span class="ts">'+t.sold+'</span></div>';
+  }).join('');
 }
 
 /* ════════ STORE INFO ════════ */
@@ -1928,6 +2106,77 @@ function openMobMore(){
 }
 
 
+/* ════════ END OF DAY ════════ */
+function openEOD(){
+  var today=new Date().toDateString();
+  var todayTxs=TXS.filter(function(tx){return new Date(tx.timestamp).toDateString()===today&&tx.payMethod!=='refund';});
+  var refunds=TXS.filter(function(tx){return new Date(tx.timestamp).toDateString()===today&&tx.payMethod==='refund';});
+
+  var cash=0,card=0,mobile=0,refundTotal=0;
+  todayTxs.forEach(function(tx){
+    if(tx.payMethod==='cash')   cash+=tx.total;
+    else if(tx.payMethod==='card')  card+=tx.total;
+    else if(tx.payMethod==='mobile')mobile+=tx.total;
+  });
+  refunds.forEach(function(tx){refundTotal+=Math.abs(tx.total);});
+
+  var totalSales=todayTxs.reduce(function(s,tx){return s+tx.total;},0);
+  var totalTax=todayTxs.reduce(function(s,tx){return s+tx.tax;},0);
+  var totalTip=todayTxs.reduce(function(s,tx){return s+(tx.tip||0);},0);
+  var netRevenue=totalSales-refundTotal;
+
+  function row(label,val,color){
+    return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);font-size:13px;">'+
+      '<span style="color:var(--t2);">'+label+'</span>'+
+      '<span style="font-weight:700;'+(color?'color:'+color:'')+'">'+val+'</span></div>';
+  }
+
+  openModal(
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">'+
+      '<div style="font-size:24px;">🏁</div>'+
+      '<div><div style="font-size:15px;font-weight:700;">End of Day Summary</div>'+
+      '<div style="font-size:11px;color:var(--t3);">'+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</div></div>'+
+    '</div>'+
+    '<div style="background:var(--bg);border-radius:var(--r);padding:4px 12px;margin-bottom:12px;">'+
+      row('Total transactions', todayTxs.length)+
+      row('Cash sales', '$'+cash.toFixed(2), '#1D9E75')+
+      row('Card sales', '$'+card.toFixed(2), '#378ADD')+
+      row('Mobile sales', '$'+mobile.toFixed(2), '#7F77DD')+
+      (refundTotal>0?row('Refunds', '-$'+refundTotal.toFixed(2), '#E24B4A'):'')+
+      (totalTip>0?row('Tips collected', '$'+totalTip.toFixed(2), '#1D9E75'):'')+
+      row((VAT&&VAT.label?VAT.label:'VAT')+' collected', '$'+totalTax.toFixed(2))+
+    '</div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--al);border-radius:var(--r);border:1.5px solid var(--a);margin-bottom:12px;">'+
+      '<span style="font-size:14px;font-weight:600;color:var(--ad);">Net Revenue</span>'+
+      '<span style="font-size:22px;font-weight:700;color:var(--a);">$'+netRevenue.toFixed(2)+'</span>'+
+    '</div>'+
+    '<div class="mbs">'+
+      '<button id="eod-close">Close</button>'+
+      '<button class="ok" id="eod-print">🖨 Print Summary</button>'+
+    '</div>'
+  );
+  document.getElementById('eod-close').addEventListener('click',closeModal);
+  document.getElementById('eod-print').addEventListener('click',function(){
+    var win=window.open('','_blank','width=400,height=600');
+    win.document.write('<html><body style="font-family:sans-serif;padding:20px;">'+
+      '<h2>'+BRAND.name+' — End of Day</h2>'+
+      '<p>'+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</p>'+
+      '<table style="width:100%;border-collapse:collapse;">'+
+      '<tr><td>Total transactions</td><td align="right"><b>'+todayTxs.length+'</b></td></tr>'+
+      '<tr><td>Cash</td><td align="right">$'+cash.toFixed(2)+'</td></tr>'+
+      '<tr><td>Card</td><td align="right">$'+card.toFixed(2)+'</td></tr>'+
+      '<tr><td>Mobile</td><td align="right">$'+mobile.toFixed(2)+'</td></tr>'+
+      (refundTotal>0?'<tr><td>Refunds</td><td align="right">-$'+refundTotal.toFixed(2)+'</td></tr>':'')+
+      (totalTip>0?'<tr><td>Tips</td><td align="right">$'+totalTip.toFixed(2)+'</td></tr>':'')+
+      '<tr><td>'+(VAT&&VAT.label?VAT.label:'VAT')+'</td><td align="right">$'+totalTax.toFixed(2)+'</td></tr>'+
+      '<tr style="font-size:18px;"><td><b>Net Revenue</b></td><td align="right"><b>$'+netRevenue.toFixed(2)+'</b></td></tr>'+
+      '</table></body></html>');
+    win.print();
+    win.close();
+  });
+}
+
+
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
   try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
@@ -2087,6 +2336,7 @@ document.addEventListener('click',function(e){
   if(act==='lst-minus'){changeLST(-1);return;}
   if(act==='lst-plus') {changeLST(1);return;}
   if(act==='lst-save') {saveLST();return;}
+  if(act==='open-eod')  {openEOD();return;}
 });
 
 </script>
@@ -2122,14 +2372,3 @@ document.addEventListener('click',function(e){
 </div>
 </body>
 </html>
-    <!-- ── DAILY REPORT ── -->
-    <div class="panel" id="panel-daily">
-      <div class="sec">
-        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
-          <span>Daily Report</span>
-          <button class="tbtn" onclick="renderDailyReport()">↻ Refresh</button>
-        </div>
-        <div id="daily-content"></div>
-      </div>
-    </div>
-
