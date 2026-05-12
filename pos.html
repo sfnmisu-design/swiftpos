@@ -487,7 +487,23 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
 
     <!-- CATALOG -->
     <div class="panel on" id="panel-catalog">
-      <div class="srchbar"><div class="si"><input type="text" id="srch" placeholder="   Search products…" oninput="filterGrid()"></div></div>
+      <div class="srchbar">
+        <div class="si" style="display:flex;gap:6px;align-items:center;">
+          <div style="position:relative;flex:1;">
+            <input type="text" id="srch" placeholder="   Search or scan barcode…" oninput="filterGrid()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          </div>
+          <button id="scan-btn" title="Camera barcode scanner" style="flex-shrink:0;padding:7px 10px;border:1px solid var(--b);border-radius:var(--r);background:var(--bg);cursor:pointer;font-size:16px;line-height:1;" data-act="open-scanner">📷</button>
+        </div>
+        <!-- Camera scanner overlay -->
+        <div id="scanner-wrap" style="display:none;margin-top:8px;border-radius:var(--r);overflow:hidden;position:relative;background:#000;">
+          <video id="scanner-video" style="width:100%;max-height:220px;display:block;" playsinline muted></video>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:70%;height:2px;background:rgba(29,158,117,.8);box-shadow:0 0 8px rgba(29,158,117,.8);pointer-events:none;"></div>
+          <div style="position:absolute;top:8px;right:8px;">
+            <button data-act="close-scanner" style="background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;">✕</button>
+          </div>
+          <div id="scanner-status" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#fff;font-size:12px;background:rgba(0,0,0,.5);padding:4px;">Scanning…</div>
+        </div>
+      </div>
       <div class="catbar" id="catbar"></div>
       <div id="ls-wrap"></div>
       <div class="pgrid" id="pgrid"></div>
@@ -1094,6 +1110,144 @@ function renderCats(){
 }
 function setCat(c){ACAT=c;renderCats();renderGrid();}
 function filterGrid(){SQ=document.getElementById('srch').value.toLowerCase();renderGrid();}
+
+/* ════════ BARCODE SCANNER ════════ */
+/* Matches product by SKU or name against a scanned code */
+function findProductByBarcode(code){
+  var c=code.trim().toLowerCase();
+  if(!c) return null;
+  /* 1. Exact SKU match */
+  var p=PRODS.find(function(x){return x.sku&&x.sku.toLowerCase()===c;});
+  if(p) return p;
+  /* 2. Exact name match */
+  p=PRODS.find(function(x){return x.name.toLowerCase()===c;});
+  if(p) return p;
+  /* 3. Partial SKU match */
+  p=PRODS.find(function(x){return x.sku&&x.sku.toLowerCase().includes(c);});
+  if(p) return p;
+  return null;
+}
+
+function handleScanResult(code){
+  if(!code||code.length<2) return;
+  var srch=document.getElementById('srch');
+  var p=findProductByBarcode(code);
+  if(p){
+    /* Found — add to cart, flash feedback */
+    addCart(p.id);
+    toast('\u2713 '+p.name+' added to cart');
+    if(srch){srch.value='';SQ='';renderGrid();}
+  } else {
+    /* Not found — put code in search so user can see */
+    if(srch){srch.value=code;SQ=code.toLowerCase();renderGrid();}
+    toast('No product found for: '+code,'warn');
+  }
+}
+
+/* ── USB / Bluetooth scanner (types fast + sends Enter) ── */
+var _scanBuf='', _scanTimer=null;
+document.addEventListener('keydown',function(e){
+  /* Only capture when search box is focused or no modal is open */
+  var modal=document.getElementById('modal');
+  var modalOpen=modal&&modal.style.display!=='none';
+  if(modalOpen) return;
+  var tag=document.activeElement?document.activeElement.tagName:'';
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT') return;
+
+  if(e.key==='Enter'){
+    if(_scanBuf.length>=2){
+      handleScanResult(_scanBuf);
+    }
+    _scanBuf='';
+    clearTimeout(_scanTimer);
+    return;
+  }
+  /* Barcode chars come very fast (<30ms between each) */
+  if(e.key.length===1){
+    _scanBuf+=e.key;
+    clearTimeout(_scanTimer);
+    _scanTimer=setTimeout(function(){
+      /* If buffer filled slowly (manual typing) — ignore */
+      _scanBuf='';
+    },100);
+  }
+});
+
+/* Also detect scan while search is focused (scanner types into search box) */
+var _searchScanTimer=null;
+document.addEventListener('keydown',function(e){
+  var srch=document.getElementById('srch');
+  if(document.activeElement!==srch) return;
+  if(e.key!=='Enter') return;
+  var val=srch.value.trim();
+  if(!val) return;
+  var p=findProductByBarcode(val);
+  if(p){
+    addCart(p.id);
+    toast('\u2713 '+p.name+' added');
+    srch.value='';SQ='';renderGrid();
+    e.preventDefault();
+  }
+  /* If not found, let normal search stay */
+});
+
+/* ── Camera scanner (BarcodeDetector API) ── */
+var _scanStream=null, _scanLoop=null;
+
+async function openCameraScanner(){
+  var wrap=document.getElementById('scanner-wrap');
+  var video=document.getElementById('scanner-video');
+  var status=document.getElementById('scanner-status');
+  if(!wrap||!video) return;
+
+  /* Check BarcodeDetector support */
+  if(!('BarcodeDetector' in window)){
+    toast('Camera scanner not supported on this browser. Use a USB scanner or search by SKU.','warn');
+    return;
+  }
+  try{
+    var stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}
+    });
+    _scanStream=stream;
+    video.srcObject=stream;
+    await video.play();
+    wrap.style.display='block';
+    var detector=new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code']});
+    var lastResult='', lastTime=0;
+    _scanLoop=setInterval(async function(){
+      if(video.readyState!==4) return;
+      try{
+        var barcodes=await detector.detect(video);
+        if(barcodes.length>0){
+          var code=barcodes[0].rawValue;
+          var now=Date.now();
+          /* Debounce — don't re-trigger same code within 2s */
+          if(code!==lastResult||now-lastTime>2000){
+            lastResult=code; lastTime=now;
+            if(status) status.textContent='\u2713 Scanned: '+code;
+            handleScanResult(code);
+            /* Auto-close after successful scan */
+            setTimeout(closeCameraScanner, 800);
+          }
+        }
+      }catch(e){}
+    },250);
+  }catch(e){
+    toast('Camera access denied. Use USB scanner or search by SKU.','warn');
+  }
+}
+
+function closeCameraScanner(){
+  clearInterval(_scanLoop); _scanLoop=null;
+  if(_scanStream){_scanStream.getTracks().forEach(function(t){t.stop();});_scanStream=null;}
+  var wrap=document.getElementById('scanner-wrap');
+  var video=document.getElementById('scanner-video');
+  if(wrap) wrap.style.display='none';
+  if(video){video.srcObject=null;}
+}
+
+/* Add to delegation */
 function renderGrid(){renderLSBanner();
   const g=document.getElementById('pgrid');
   const f=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)));
@@ -1834,9 +1988,13 @@ function openModal(html){
 }
 function closeModal(){document.getElementById('modal').style.display='none';}
 function ovClick(e){if(e.target===document.getElementById('modal'))closeModal();}
-function toast(msg){
-  const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';
-  clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity='0',2400);
+function toast(msg, type){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.opacity='1';
+  t.style.background=type==='warn'?'#BA4A00':type==='error'?'var(--d)':'';
+  clearTimeout(t._t);
+  t._t=setTimeout(function(){t.style.opacity='0'; t.style.background='';},2400);
 }
 function tick(){document.getElementById('clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
@@ -2352,6 +2510,8 @@ document.addEventListener('click',function(e){
   if(act==='lst-plus') {changeLST(1);return;}
   if(act==='lst-save') {saveLST();return;}
   if(act==='open-eod')  {openEOD();return;}
+  if(act==='open-scanner'){openCameraScanner();return;}
+  if(act==='close-scanner'){closeCameraScanner();return;}
 });
 
 </script>
