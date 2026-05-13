@@ -23,10 +23,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ══ TOP BAR ══ */
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--s);border-bottom:1px solid var(--b);gap:8px;flex-shrink:0;}
-.logo{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0;flex:1;}
+.logo{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0;flex:1;overflow:hidden;}
 .logo-ic{width:30px;height:30px;border-radius:7px;background:var(--a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;transition:all .3s;}
 .logo-n{font-size:14px;font-weight:700;letter-spacing:-.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.logo-s{font-size:10px;color:var(--t3);white-space:nowrap;}
+.logo-s{font-size:10px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .topbar-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 .clk{font-family:monospace;font-size:12px;color:var(--t2);}
 .tbtn{padding:5px 10px;font-size:11px;border:1px solid var(--b2);border-radius:18px;background:var(--bg);color:var(--t2);cursor:pointer;font-weight:500;white-space:nowrap;transition:all .15s;font-family:inherit;}
@@ -611,7 +611,10 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
     <div class="topbar">
       <div class="logo" onclick="openTab('branding')">
         <div class="logo-ic" id="logo-ic">S</div>
-        <div><div class="logo-n" id="logo-n">SwiftPOS</div><div class="logo-s" id="logo-s">Retail Edition</div></div>
+        <div style="min-width:0;flex:1;overflow:hidden;">
+          <div class="logo-n" id="logo-n">SwiftPOS</div>
+          <div class="logo-s" id="logo-s">Retail Edition</div>
+        </div>
       </div>
       <div class="topbar-right">
         <div class="spill chk" id="spill" onclick="pingSrv()" title="Click to retry"><div class="sdot"></div><span id="stxt">Connecting…</span></div>
@@ -2120,9 +2123,21 @@ async function saveBrand(){
 }
 function applyBrand(){
   document.documentElement.style.setProperty('--a',BRAND.color);
-  const li=document.getElementById('logo-ic');
-  li.textContent=BRAND.letter;li.style.background=BRAND.color;li.style.borderRadius=BRAND.radius+'px';li.style.width=BRAND.size+'px';li.style.height=BRAND.size+'px';li.style.fontSize=Math.round(BRAND.size*.5)+'px';
-  document.getElementById('logo-n').textContent=BRAND.name;document.getElementById('logo-s').textContent=BRAND.sub;document.title=BRAND.name+' — POS';
+  var li=document.getElementById('logo-ic');
+  if(li){
+    li.textContent=BRAND.letter||'S';
+    li.style.background=BRAND.color;
+    li.style.borderRadius=BRAND.radius+'px';
+    /* Cap icon size on small screens */
+    var maxSz=window.innerWidth<=480?32:window.innerWidth<=600?36:BRAND.size||30;
+    var sz=Math.min(BRAND.size||30,maxSz);
+    li.style.width=sz+'px';
+    li.style.height=sz+'px';
+    li.style.fontSize=Math.round(sz*.5)+'px';
+  }
+  var ln=document.getElementById('logo-n'); if(ln) ln.textContent=BRAND.name||'SwiftPOS';
+  var ls=document.getElementById('logo-s'); if(ls) ls.textContent=BRAND.sub||'';
+  document.title=(BRAND.name||'SwiftPOS')+' — POS';
 }
 function initBrand(){
   document.getElementById('b-n').value=BRAND.name;document.getElementById('b-l').value=BRAND.letter;document.getElementById('b-s').value=BRAND.sub;
