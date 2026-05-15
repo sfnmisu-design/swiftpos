@@ -592,6 +592,10 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
       <div class="cart-sheet-footer">
         <div class="cust-sel"><span>👤</span><select id="mob-cart-cust" onchange="syncCustSel('mob')"></select></div>
         <div class="crow"><input type="text" id="mob-cpn" placeholder="Coupon code…"><button onclick="applyCoupon('mob')">Apply</button></div>
+        <div class="crow" style="gap:6px;">
+          <button id="mob-disc-btn" data-act="open-disc" style="flex:1;padding:7px;font-size:12px;border:1px dashed var(--a);border-radius:var(--r);background:var(--al);color:var(--ad);cursor:pointer;font-family:inherit;font-weight:600;">🏷 Add Discount</button>
+          <button id="mob-disc-clear-btn" data-act="clear-disc" style="display:none;padding:7px 10px;font-size:12px;border:1px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--d);cursor:pointer;font-family:inherit;">✕</button>
+        </div>
         <div class="tr2"><span>Subtotal</span><span id="mob-t-sub">$0.00</span></div>
         <div class="tr2" id="mob-t-dr" style="display:none;color:var(--w)"><span>Discount <span class="db" id="mob-t-dl"></span></span><span id="mob-t-da"></span></div>
         <div class="tr2"><span id="mob-vat-row-label">VAT (15%)</span><span id="mob-t-tax">$0.00</span></div>
@@ -634,6 +638,7 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
       <div class="t" onclick="openTab('settings')">⚙ Settings</div>
       <div class="t" onclick="openTab('backup')">💾 Backup</div>
       <div class="t" onclick="openTab('branding')">🎨 Brand</div>
+      <div class="t" onclick="openTab('discounts')">🏷 Discounts</div>
     </div>
 
     <!-- CATALOG -->
@@ -921,6 +926,37 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
       </div>
     </div>
 
+
+    <!-- ── DISCOUNTS ── -->
+    <div class="panel" id="panel-discounts">
+      <div class="sec">
+        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>🏷 Discount Codes</span>
+          <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-add-disc">+ Add code</button>
+        </div>
+
+        <!-- Active coupon on cart -->
+        <div class="card" id="disc-cart-info" style="display:none;margin-bottom:10px;background:var(--al);border-color:var(--a);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:13px;font-weight:600;color:var(--ad);">Active on current cart</div>
+            <button class="dbtn" data-act="clear-coupon">✕ Remove</button>
+          </div>
+          <div id="disc-cart-label" style="font-size:12px;color:var(--ad);margin-top:2px;"></div>
+        </div>
+
+        <!-- Quick apply -->
+        <div class="card" style="margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:600;color:var(--t2);margin-bottom:8px;">Quick apply to cart</div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="disc-apply-inp" placeholder="Enter code…" style="flex:1;padding:8px 10px;border:1px solid var(--b);border-radius:var(--r);background:var(--bg);font-size:14px;text-transform:uppercase;font-family:inherit;">
+            <button class="ok" data-act="apply-disc-code" style="padding:8px 14px;">Apply</button>
+          </div>
+        </div>
+
+        <!-- Discount list -->
+        <div id="disc-list"></div>
+      </div>
+    </div>
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
     <div class="cart-hd">
@@ -936,6 +972,10 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
     <div class="cart-ft">
       <div class="cust-sel"><span>👤</span><select id="cart-cust" onchange="syncCustSel('desk')"></select></div>
       <div class="crow"><input type="text" id="cpn" placeholder="Coupon code…"><button onclick="applyCoupon('desk')">Apply</button></div>
+      <div class="crow" style="gap:6px;">
+        <button id="disc-btn" data-act="open-disc" style="flex:1;padding:7px;font-size:12px;border:1px dashed var(--a);border-radius:var(--r);background:var(--al);color:var(--ad);cursor:pointer;font-family:inherit;font-weight:600;">🏷 Add Discount</button>
+        <button id="disc-clear-btn" data-act="clear-disc" style="display:none;padding:7px 10px;font-size:12px;border:1px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--d);cursor:pointer;font-family:inherit;">✕</button>
+      </div>
       <div class="tr2"><span>Subtotal</span><span id="t-sub">$0.00</span></div>
       <div class="tr2" id="t-dr" style="display:none;color:var(--w)"><span>Discount <span class="db" id="t-dl"></span></span><span id="t-da"></span></div>
       <div class="tr2"><span id="vat-row-label">VAT (15%)</span><span id="t-tax">$0.00</span></div>
@@ -992,7 +1032,7 @@ function setSrv(cls,txt){
 /* ════════ PERSIST ════════ */
 async function saveAll(){
   var _now=Date.now();
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,meta:{nid,txn,qn},savedAt:_now};
+  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,meta:{nid,txn,qn},savedAt:_now};
   if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;setSrv('err','● Offline');}}
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
@@ -1033,6 +1073,7 @@ async function loadAll(){
       if(r.vat)       VAT=Object.assign({},VAT,r.vat);
       if(r.storeInfo) STORE=Object.assign({},STORE,r.storeInfo);
       if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
+    if(r.coupons&&typeof r.coupons==='object') COUPONS=Object.assign({},COUPONS,r.coupons);
       if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       console.log('[load] OK:',PRODS.length,'prods',TXS.length,'txs');
       return 'ok';
@@ -1062,7 +1103,7 @@ let CATS=[
   {name:'Snacks',emoji:'🍫',color:'#D4537E'},{name:'Drinks',emoji:'🥤',color:'#1D9E75'},
   {name:'Meat',emoji:'🍗',color:'#D85A30'},
 ];
-const COUPONS={SAVE10:{type:'pct',val:10,label:'10% off'},SAVE5:{type:'fixed',val:5,label:'$5 off'},HALFOFF:{type:'pct',val:50,label:'50% off'},VIP20:{type:'pct',val:20,label:'20% off'}};
+let COUPONS={SAVE10:{type:'pct',val:10,label:'10% off'},SAVE5:{type:'fixed',val:5,label:'$5 off'},HALFOFF:{type:'pct',val:50,label:'50% off'},VIP20:{type:'pct',val:20,label:'20% off'}};
 const BCOLS=[{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
 const EMJS=['🛒','🍎','🥛','🍞','🥚','🍝','🫙','🍦','🥑','🧀','🍫','🍊','💧','🍗','🐟','🥜','🍅','🍌','🧈','🥥','🥩','🧁','☕','🍵','🥤','🌿','🧴','🧹','💊','📦','🎁','⭐','🔥','🫐','🍓','🥦','🥕'];
 let CUSTS=[
@@ -1416,8 +1457,8 @@ function addCart(id){
   if(navigator.vibrate) navigator.vibrate(30);
   if(isMobile())openCartDrawer();
 }
-function upQ(id,d){CART[id]=(CART[id]||0)+d;if(CART[id]<=0)delete CART[id];renderCart();renderGrid();updCartBadge();}
-function clearCart(){CART={};COUPON=null;document.getElementById('cpn').value='';document.getElementById('cart-cust').value='';document.getElementById('mob-cpn').value='';document.getElementById('mob-cart-cust').value='';renderCart();renderGrid();updCartBadge();}
+function upQ(id,d){CART[id]=(CART[id]||0)+d;if(CART[id]<=0)delete CART[id];renderCart();renderGrid();updCartBadge();updateDiscButtons();}
+function clearCart(){CART={};COUPON=null;MANUAL_DISC=null;document.getElementById('cpn').value='';document.getElementById('cart-cust').value='';document.getElementById('mob-cpn').value='';document.getElementById('mob-cart-cust').value='';renderCart();renderGrid();updCartBadge();}
 
 function renderCart(){
   const ids=Object.keys(CART);
@@ -1479,7 +1520,10 @@ function getTots(){
     const p=PRODS.find(x=>x.id==id);const line=p.price*CART[id];
     sub+=line;if(p.vatExempt)exemptSub+=line;else taxableSub+=line;
   });
-  let disc=0;if(COUPON){disc=COUPON.type==='pct'?sub*COUPON.val/100:Math.min(COUPON.val,sub);}
+  let disc=0;
+  if(COUPON){disc=COUPON.type==='pct'?sub*COUPON.val/100:Math.min(COUPON.val,sub);}
+  else if(MANUAL_DISC){disc=MANUAL_DISC.type==='pct'?sub*MANUAL_DISC.val/100:Math.min(MANUAL_DISC.val,sub);}
+  disc=+disc.toFixed(2);
   const discRatio=sub>0?disc/sub:0;
   const taxableAfterDisc=taxableSub*(1-discRatio);
   const{tax}=calcVAT(taxableAfterDisc);
@@ -1494,12 +1538,13 @@ function updTot(){
   const setD=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
   setD('t-sub','$'+sub.toFixed(2));setD('t-tax','$'+tax.toFixed(2));setD('t-grd','$'+grand.toFixed(2));
   const dr=document.getElementById('t-dr');
-  if(COUPON&&dr){dr.style.display='flex';setD('t-dl',COUPON.label);setD('t-da','-$'+disc.toFixed(2));}
+  var _dl=COUPON?COUPON.label:(MANUAL_DISC?MANUAL_DISC.label:'');
+  if((COUPON||MANUAL_DISC)&&dr){dr.style.display='flex';setD('t-dl',_dl);setD('t-da','-$'+disc.toFixed(2));}else if(dr)dr.style.display='none';
   else if(dr)dr.style.display='none';
   // Mobile
   setD('mob-t-sub','$'+sub.toFixed(2));setD('mob-t-tax','$'+tax.toFixed(2));setD('mob-t-grd','$'+grand.toFixed(2));
   const mdr=document.getElementById('mob-t-dr');
-  if(COUPON&&mdr){mdr.style.display='flex';setD('mob-t-dl',COUPON.label);setD('mob-t-da','-$'+disc.toFixed(2));}
+  if((COUPON||MANUAL_DISC)&&mdr){mdr.style.display='flex';setD('mob-t-dl',_dl);setD('mob-t-da','-$'+disc.toFixed(2));}else if(mdr)mdr.style.display='none';
   else if(mdr)mdr.style.display='none';
   // Buttons
   const hasItems=Object.keys(CART).length>0;
@@ -2161,7 +2206,7 @@ function toast(msg, type){
 }
 function tick(){document.getElementById('clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding'];
+const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts'];
 const MOB_NAV_ITEMS=['catalog','sales','cart','customers','more'];
 function openTab(name){
   PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
@@ -2176,6 +2221,7 @@ function openTab(name){
   if(name==='branding')initBrand();
   if(name==='sales')renderTx();
   if(name==='backup')renderBkInfo();
+  if(name==='discounts')renderDiscounts();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
   if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
@@ -2240,7 +2286,121 @@ function renderLSBanner(){
     '</div>';
 }
 
-/* ── EDIT PRODUCT ─────────────────────────────────── */
+/* ── MANUAL DISCOUNT ─────────────────────────────── */
+var MANUAL_DISC = null; /* {type:'pct'|'fixed', val:number, label:string} */
+
+function openDiscountModal(){
+  openModal(
+    '<h3 style="margin-bottom:14px;">Add Discount</h3>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'+
+      '<button class="disc-type-btn on" id="dt-pct" data-dtype="pct" style="padding:12px;border:2px solid var(--a);border-radius:var(--r);background:var(--al);color:var(--ad);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;">% Percentage</button>'+
+      '<button class="disc-type-btn" id="dt-fixed" data-dtype="fixed" style="padding:12px;border:2px solid var(--b);border-radius:var(--r);background:var(--bg);color:var(--t);cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;">$ Fixed amount</button>'+
+    '</div>'+
+    '<div style="position:relative;margin-bottom:8px;">'+
+      '<span id="disc-prefix" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--t3);font-weight:600;">%</span>'+
+      '<input type="number" id="disc-val" inputmode="decimal" min="0" placeholder="0" style="width:100%;padding:12px 12px 12px 36px;font-size:24px;font-weight:700;border:2px solid var(--a);border-radius:var(--r);background:var(--bg);font-family:inherit;box-sizing:border-box;">'+
+    '</div>'+
+    '<div id="disc-preview" style="text-align:center;font-size:13px;color:var(--t3);margin-bottom:14px;min-height:20px;"></div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;">'+
+      '<button class="qa disc-quick" data-dv="5">5%</button>'+
+      '<button class="qa disc-quick" data-dv="10">10%</button>'+
+      '<button class="qa disc-quick" data-dv="15">15%</button>'+
+      '<button class="qa disc-quick" data-dv="20">20%</button>'+
+    '</div>'+
+    '<div class="mbs"><button id="disc-cancel">Cancel</button><button class="ok" id="disc-apply">Apply Discount</button></div>'
+  );
+
+  var type = 'pct';
+  var inp = document.getElementById('disc-val');
+  var prefix = document.getElementById('disc-prefix');
+  var preview = document.getElementById('disc-preview');
+  var tots = getTots();
+
+  function updatePreview(){
+    var v = parseFloat(inp.value)||0;
+    if(!v){ preview.textContent=''; return; }
+    var disc = type==='pct' ? tots.sub*v/100 : Math.min(v, tots.sub);
+    var newTotal = Math.max(0, tots.grand - disc);
+    preview.innerHTML = '<span style="color:var(--d);font-weight:700;">-$'+disc.toFixed(2)+'</span> off → Total: <span style="font-weight:700;">$'+newTotal.toFixed(2)+'</span>';
+  }
+
+  function setType(t){
+    type = t;
+    prefix.textContent = t==='pct'?'%':'$';
+    document.getElementById('dt-pct').style.borderColor   = t==='pct'?'var(--a)':'var(--b)';
+    document.getElementById('dt-pct').style.background    = t==='pct'?'var(--al)':'var(--bg)';
+    document.getElementById('dt-pct').style.color         = t==='pct'?'var(--ad)':'var(--t)';
+    document.getElementById('dt-fixed').style.borderColor = t==='fixed'?'var(--a)':'var(--b)';
+    document.getElementById('dt-fixed').style.background  = t==='fixed'?'var(--al)':'var(--bg)';
+    document.getElementById('dt-fixed').style.color       = t==='fixed'?'var(--ad)':'var(--t)';
+    // Update quick buttons
+    document.querySelectorAll('.disc-quick').forEach(function(b){
+      var v = b.getAttribute('data-dv');
+      b.textContent = t==='pct' ? v+'%' : '$'+v;
+    });
+    updatePreview();
+  }
+
+  document.getElementById('dt-pct').addEventListener('click',function(){ setType('pct'); });
+  document.getElementById('dt-fixed').addEventListener('click',function(){ setType('fixed'); });
+  inp.addEventListener('input', updatePreview);
+
+  document.querySelectorAll('.disc-quick').forEach(function(b){
+    b.addEventListener('click',function(){
+      inp.value = b.getAttribute('data-dv');
+      updatePreview();
+    });
+  });
+
+  document.getElementById('disc-cancel').addEventListener('click', closeModal);
+  document.getElementById('disc-apply').addEventListener('click', function(){
+    var v = parseFloat(inp.value)||0;
+    if(!v){ toast('Enter a discount value'); return; }
+    if(type==='pct' && v>100){ toast('Percentage cannot exceed 100%'); return; }
+    applyDiscount(type, v);
+    closeModal();
+  });
+
+  setTimeout(function(){ inp.focus(); }, 200);
+}
+
+function applyDiscount(type, val){
+  var label = type==='pct' ? val+'% off' : '$'+val.toFixed(2)+' off';
+  MANUAL_DISC = {type:type, val:val, label:label};
+  COUPON = null; /* Clear coupon if one was set */
+  ['cpn','mob-cpn'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  updTot();
+  /* Update button labels */
+  updateDiscButtons();
+  toast('Discount applied: '+label+' \u2713');
+}
+
+function clearDiscount(){
+  MANUAL_DISC = null;
+  updTot();
+  updateDiscButtons();
+  toast('Discount removed');
+}
+
+function updateDiscButtons(){
+  var hasDisc = !!MANUAL_DISC;
+  var label = hasDisc ? '\uD83C\uDFF7 '+MANUAL_DISC.label : '\uD83C\uDFF7 Add Discount';
+  ['disc-btn','mob-disc-btn'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(!el) return;
+    el.textContent = label;
+    el.style.borderStyle = hasDisc ? 'solid' : 'dashed';
+    el.style.background  = hasDisc ? 'var(--al)' : 'var(--al)';
+    el.style.color       = hasDisc ? 'var(--ad)' : 'var(--ad)';
+    el.style.borderColor = hasDisc ? 'var(--a)' : 'var(--a)';
+  });
+  ['disc-clear-btn','mob-disc-clear-btn'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.style.display = hasDisc ? 'inline-block' : 'none';
+  });
+}
+
+
 function openEditProd(id){
   var p=PRODS.find(function(x){return x.id===id;}); if(!p) return;
   var catOpts=CATS.map(function(c){return'<option value="'+c.name+'"'+(p.cat===c.name?' selected':'')+'>'+c.emoji+' '+c.name+'</option>';}).join('');
@@ -2432,15 +2592,22 @@ function updateMobBadge(){
   if(badge){badge.textContent=total;badge.style.display=total>0?'flex':'none';}
 }
 function openMobMore(){
-  openModal('<h3 style="margin-bottom:14px;">More</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="mob-more-grid"></div><div class="mbs"><button id="mob-more-cl">Close</button></div>');
-  [['👥 Customers','customers'],['📋 Quotes','quotes'],['⚙ Settings','settings'],['💾 Backup','backup'],['🎨 Brand','branding']].forEach(function(item){
+  openModal(
+    '<h3 style="margin-bottom:14px;">More</h3>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="mob-more-grid"></div>'+
+    '<button id="mob-more-cl" style="width:100%;padding:13px;border:1.5px solid var(--b);border-radius:12px;background:var(--bg);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;">Close</button>'
+  );
+  var items=[['👥 Customers','customers'],['📋 Quotes','quotes'],['⚙ Settings','settings'],['💾 Backup','backup'],['🏷 Discounts','discounts'],['🎨 Brand','branding'],['📅 Daily','daily']];
+  var grid=document.getElementById('mob-more-grid');
+  items.forEach(function(item){
     var b=document.createElement('button');
-    b.style.cssText='padding:13px 8px;border:1px solid var(--b);border-radius:10px;background:var(--bg);cursor:pointer;font-family:inherit;font-size:13px;';
+    b.style.cssText='padding:14px 8px;border:1.5px solid var(--b);border-radius:12px;background:var(--bg);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;width:100%;';
     b.textContent=item[0];
-    b.onclick=function(){openTab(item[1]);closeModal();};
-    document.getElementById('mob-more-grid').appendChild(b);
+    b.addEventListener('click',function(){closeModal();openTab(item[1]);});
+    grid.appendChild(b);
   });
-  document.getElementById('mob-more-cl').addEventListener('click',closeModal);
+  var cl=document.getElementById('mob-more-cl');
+  if(cl) cl.addEventListener('click',function(){closeModal();});
 }
 
 
@@ -2514,6 +2681,112 @@ function openEOD(){
   });
 }
 
+
+/* ════════ DISCOUNTS ════════ */
+function renderDiscounts(){
+  /* Update cart info */
+  var ci=document.getElementById('disc-cart-info');
+  var cl=document.getElementById('disc-cart-label');
+  if(ci){
+    if(COUPON){
+      ci.style.display='block';
+      if(cl) cl.textContent=COUPON.label+' — code: '+Object.keys(COUPONS).find(function(k){return COUPONS[k]===COUPON;})||'';
+    } else {
+      ci.style.display='none';
+    }
+  }
+
+  /* Render list */
+  var el=document.getElementById('disc-list');
+  if(!el) return;
+  var keys=Object.keys(COUPONS);
+  if(!keys.length){
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:24px;font-size:13px;">No discount codes yet. Tap + Add code to create one.</div>';
+    return;
+  }
+  el.innerHTML='<div class="card np">'+
+    '<table class="tbl" style="min-width:unset;width:100%;">'+
+    '<thead><tr><th>Code</th><th>Discount</th><th>Type</th><th></th></tr></thead><tbody>'+
+    keys.map(function(k){
+      var c=COUPONS[k];
+      var val=c.type==='pct'?c.val+'%':'$'+c.val.toFixed(2);
+      var active=COUPON===c;
+      return'<tr style="'+(active?'background:var(--al);':'')+'">'+
+        '<td><strong style="font-family:monospace;font-size:13px;letter-spacing:.5px;">'+k+'</strong></td>'+
+        '<td style="color:var(--d);font-weight:700;">-'+val+'</td>'+
+        '<td style="font-size:12px;color:var(--t3);">'+c.label+'</td>'+
+        '<td style="white-space:nowrap;text-align:right;">'+
+          '<button class="icon-btn" style="color:var(--a);margin-right:4px;" data-disc-apply="'+k+'" title="Apply to cart">✓</button>'+
+          '<button class="icon-btn edit" data-disc-edit="'+k+'" title="Edit">✏️</button>'+
+          '<button class="icon-btn del" data-disc-del="'+k+'" title="Delete">🗑</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('')+
+    '</tbody></table></div>';
+}
+
+function openAddDiscModal(editKey){
+  var isEdit=!!editKey;
+  var ex=isEdit?COUPONS[editKey]:{type:'pct',val:10,label:''};
+  openModal(
+    '<h3>'+(isEdit?'Edit discount':'New discount code')+'</h3>'+
+    '<div class="fg" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'+
+      '<div class="f"><label>Code (e.g. SUMMER20)</label>'+
+        '<input type="text" id="dc-key" placeholder="CODE" value="'+(editKey||'')+'" '+(isEdit?'readonly':'')+' style="text-transform:uppercase;font-family:monospace;font-weight:700;letter-spacing:1px;">'+
+      '</div>'+
+      '<div class="f"><label>Type</label>'+
+        '<select id="dc-type">'+
+          '<option value="pct"'+(ex.type==='pct'?' selected':'')+'>Percentage (%)</option>'+
+          '<option value="fixed"'+(ex.type==='fixed'?' selected':'')+'>Fixed amount ($)</option>'+
+        '</select>'+
+      '</div>'+
+    '</div>'+
+    '<div class="fg" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'+
+      '<div class="f"><label>Value</label>'+
+        '<input type="number" id="dc-val" value="'+ex.val+'" min="0.01" step="0.01" inputmode="decimal" placeholder="10">'+
+      '</div>'+
+      '<div class="f"><label>Label (shown on receipt)</label>'+
+        '<input type="text" id="dc-label" value="'+(ex.label||'')+'" placeholder="e.g. 10% off">'+
+      '</div>'+
+    '</div>'+
+    '<div class="mbs"><button id="dc-cancel">Cancel</button><button class="ok" id="dc-save">'+(isEdit?'Save changes':'Add code')+'</button></div>'
+  );
+  document.getElementById('dc-cancel').addEventListener('click',closeModal);
+  /* Auto-fill label when type/val changes */
+  function autoLabel(){
+    var lbl=document.getElementById('dc-label');
+    var t=document.getElementById('dc-type').value;
+    var v=parseFloat(document.getElementById('dc-val').value)||0;
+    if(lbl&&!lbl.dataset.edited) lbl.value=(t==='pct'?v+'% off':'$'+v.toFixed(2)+' off');
+  }
+  document.getElementById('dc-type').addEventListener('change',autoLabel);
+  document.getElementById('dc-val').addEventListener('input',autoLabel);
+  document.getElementById('dc-label').addEventListener('input',function(){this.dataset.edited='1';});
+  document.getElementById('dc-save').addEventListener('click',function(){
+    var key=document.getElementById('dc-key').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    var type=document.getElementById('dc-type').value;
+    var val=parseFloat(document.getElementById('dc-val').value);
+    var label=document.getElementById('dc-label').value.trim();
+    if(!key){toast('Enter a code name');return;}
+    if(!val||val<=0){toast('Enter a valid discount value');return;}
+    if(!label) label=type==='pct'?val+'% off':'$'+val.toFixed(2)+' off';
+    if(!isEdit&&COUPONS[key]){toast('Code "'+key+'" already exists');return;}
+    COUPONS[key]={type:type,val:val,label:label};
+    saveAll();
+    renderDiscounts();
+    closeModal();
+    toast((isEdit?'Updated':'Created')+': '+key+' — '+label+' ✓');
+  });
+}
+
+function deleteDiscount(key){
+  confirmModal('Delete discount code <strong>'+key+'</strong>?',function(){
+    if(COUPON===COUPONS[key]){COUPON=null;}
+    delete COUPONS[key];
+    saveAll();renderDiscounts();updTot();
+    toast('Discount code deleted');
+  });
+}
 
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
@@ -2675,6 +2948,24 @@ document.addEventListener('click',function(e){
   if(act==='lst-plus') {changeLST(1);return;}
   if(act==='lst-save') {saveLST();return;}
   if(act==='open-eod')  {openEOD();return;}
+  if(act==='open-add-disc'){openAddDiscModal();return;}
+  if(act==='apply-disc-code'){
+    var inp=document.getElementById('disc-apply-inp');
+    var code=inp?inp.value.trim().toUpperCase():'';
+    if(code&&COUPONS[code]){COUPON=COUPONS[code];updTot();renderDiscounts();toast('Applied: '+COUPON.label+' \u2713');if(inp)inp.value='';}
+    else toast('Invalid code: '+code,'warn');
+    return;
+  }
+  if(act==='clear-coupon'){COUPON=null;updTot();renderDiscounts();toast('Discount removed');return;}
+  /* Discount list actions */
+  var dapply=btn.getAttribute('data-disc-apply');
+  if(dapply!==null){COUPON=COUPONS[dapply];updTot();renderDiscounts();toast('Applied: '+COUPON.label+' \u2713');return;}
+  var dedit=btn.getAttribute('data-disc-edit');
+  if(dedit!==null){openAddDiscModal(dedit);return;}
+  var ddel=btn.getAttribute('data-disc-del');
+  if(ddel!==null){deleteDiscount(ddel);return;}
+  if(act==='open-disc')   {openDiscountModal();return;}
+  if(act==='clear-disc')  {clearDiscount();return;}
   if(act==='open-scanner'){openCameraScanner();return;}
   if(act==='close-scanner'){closeCameraScanner();return;}
 });
