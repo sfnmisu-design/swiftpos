@@ -513,6 +513,32 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
   .mbs{flex-wrap:wrap;gap:8px;}
   .mbs button{flex:1;min-width:80px;}
 }
+
+/* Orders */
+.ord-filter{padding:5px 12px;border-radius:20px;border:1.5px solid var(--b);background:var(--bg);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;color:var(--t2);transition:all .15s;}
+.ord-filter.on{background:var(--a);color:#fff;border-color:var(--a);}
+.ord-card{background:var(--s);border:1.5px solid var(--b);border-radius:var(--rl);padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:all .15s;}
+.ord-card:active{transform:scale(.99);}
+.ord-card.pending  {border-left:4px solid #FF9800;}
+.ord-card.confirmed{border-left:4px solid #2196F3;}
+.ord-card.ready    {border-left:4px solid #9C27B0;}
+.ord-card.delivered{border-left:4px solid #4CAF50;}
+.ord-card.cancelled{border-left:4px solid #9E9E9E;opacity:.65;}
+.ord-hd{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;}
+.ord-id{font-size:12px;font-weight:700;font-family:monospace;color:var(--t2);}
+.ord-total{font-size:16px;font-weight:700;color:var(--a);}
+.ord-name{font-size:14px;font-weight:600;margin-bottom:2px;}
+.ord-meta{font-size:11px;color:var(--t3);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+.ord-items{font-size:12px;color:var(--t2);margin-bottom:8px;line-height:1.5;}
+.ord-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;}
+.ord-status.pending  {background:#FFF3E0;color:#E65100;}
+.ord-status.confirmed{background:#E3F2FD;color:#1565C0;}
+.ord-status.ready    {background:#F3E5F5;color:#6A1B9A;}
+.ord-status.delivered{background:#E8F5E9;color:#2E7D32;}
+.ord-status.cancelled{background:#F5F5F5;color:#757575;}
+.ord-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--b);}
+.ord-btn{padding:5px 10px;border-radius:var(--r);border:1px solid var(--b);background:var(--bg);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s;}
+.ord-btn:active{transform:scale(.97);}
 @media print{
   body{height:auto;overflow:visible;}
   .root,.ov,.toast,.mob-nav,.cart-drawer{display:none!important;}
@@ -639,6 +665,7 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
       <div class="t" onclick="openTab('backup')">💾 Backup</div>
       <div class="t" onclick="openTab('branding')">🎨 Brand</div>
       <div class="t" onclick="openTab('discounts')">🏷 Discounts</div>
+      <div class="t" onclick="openTab('orders')">📦 Orders</div>
     </div>
 
     <!-- CATALOG -->
@@ -957,6 +984,32 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
         <div id="disc-list"></div>
       </div>
     </div>
+
+    <!-- ── ONLINE ORDERS ── -->
+    <div class="panel" id="panel-orders">
+      <div class="sec">
+        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>📦 Online Orders</span>
+          <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-add-order">+ New order</button>
+        </div>
+
+        <!-- Stats bar -->
+        <div class="sgd" id="ord-stats" style="margin-bottom:12px;"></div>
+
+        <!-- Filter tabs -->
+        <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;" id="ord-filters">
+          <button class="ord-filter on" data-filter="all">All</button>
+          <button class="ord-filter" data-filter="pending">⏳ Pending</button>
+          <button class="ord-filter" data-filter="confirmed">✅ Confirmed</button>
+          <button class="ord-filter" data-filter="ready">📦 Ready</button>
+          <button class="ord-filter" data-filter="delivered">🚀 Delivered</button>
+          <button class="ord-filter" data-filter="cancelled">❌ Cancelled</button>
+        </div>
+
+        <!-- Order list -->
+        <div id="ord-list"></div>
+      </div>
+    </div>
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
     <div class="cart-hd">
@@ -1032,7 +1085,7 @@ function setSrv(cls,txt){
 /* ════════ PERSIST ════════ */
 async function saveAll(){
   var _now=Date.now();
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,meta:{nid,txn,qn},savedAt:_now};
+  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,meta:{nid,txn,qn},savedAt:_now};
   if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;setSrv('err','● Offline');}}
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
@@ -1074,6 +1127,7 @@ async function loadAll(){
       if(r.storeInfo) STORE=Object.assign({},STORE,r.storeInfo);
       if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
     if(r.coupons&&typeof r.coupons==='object') COUPONS=Object.assign({},COUPONS,r.coupons);
+    if(Array.isArray(r.orders)) ORDERS=[...r.orders];
       if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       console.log('[load] OK:',PRODS.length,'prods',TXS.length,'txs');
       return 'ok';
@@ -1115,6 +1169,7 @@ let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAYM='cash';
+let ORDERS=[];
 let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPITS=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
@@ -1605,18 +1660,21 @@ function openPay(){
     '<div class="mbs"><button id="pay-cancel">Cancel</button><button class="ok" id="okbtn" disabled>Confirm</button></div>'
   );
 
-  var _tip=0;
-  function getTipTotal(){ return +(grand+_tip).toFixed(2); }
+  var _tipVal=0;
+  function getTipTotal(){ return +(grand+_tipVal).toFixed(2); }
   function updateTipDisplay(){
     var el=document.getElementById('pay-total');
-    if(el) el.textContent='$'+getTipTotal().toFixed(2)+(_tip>0?' (incl. $'+_tip.toFixed(2)+' tip)':'');
+    if(el) el.textContent='$'+getTipTotal().toFixed(2)+(_tipVal>0?' (incl. $'+_tipVal.toFixed(2)+' tip)':'');
     calcChg(getTipTotal());
-    /* reattach okbtn */
-    var ok=document.getElementById('okbtn');
-    if(ok) ok.onclick=function(){doPay(getTipTotal(),_tip);};
+    /* update quick amount buttons */
+    var qas=document.getElementById('qas');
+    if(qas) qas.querySelectorAll('.qa').forEach(function(b){
+      var v=parseFloat(b.textContent.replace('$',''));
+      b.onclick=function(){setTend(v,getTipTotal());};
+    });
   }
   function setTipPct(pct){
-    _tip=+(grand*pct/100).toFixed(2);
+    _tipVal=+(grand*pct/100).toFixed(2);
     document.getElementById('tip-custom-wrap').style.display='none';
     updateTipDisplay();
     ['tip-0','tip-10','tip-15','tip-custom'].forEach(function(id){
@@ -1630,7 +1688,11 @@ function openPay(){
   document.getElementById('pm-card').addEventListener('click',function(){selPay('card');});
   document.getElementById('pm-mob').addEventListener('click',function(){selPay('mobile');});
   document.getElementById('pay-cancel').addEventListener('click',closeModal);
-  document.getElementById('okbtn').addEventListener('click',function(){doPay(getTipTotal(),_tip);});
+  /* Single click handler — disable after first click to prevent double-tap */
+  document.getElementById('okbtn').addEventListener('click',function(){
+    this.disabled=true;
+    doPay(getTipTotal(),_tipVal);
+  });
   document.getElementById('tend').addEventListener('input',function(){calcChg(getTipTotal());});
   document.getElementById('tip-0').addEventListener('click',function(){setTipPct(0);});
   document.getElementById('tip-10').addEventListener('click',function(){setTipPct(10);});
@@ -1642,7 +1704,7 @@ function openPay(){
     document.getElementById('tip-custom').style.background='var(--al)';
   });
   document.getElementById('tip-amt').addEventListener('input',function(){
-    _tip=parseFloat(this.value)||0;
+    _tipVal=parseFloat(this.value)||0;
     updateTipDisplay();
   });
 
@@ -2206,7 +2268,7 @@ function toast(msg, type){
 }
 function tick(){document.getElementById('clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts'];
+const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders'];
 const MOB_NAV_ITEMS=['catalog','sales','cart','customers','more'];
 function openTab(name){
   PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
@@ -2222,6 +2284,7 @@ function openTab(name){
   if(name==='sales')renderTx();
   if(name==='backup')renderBkInfo();
   if(name==='discounts')renderDiscounts();
+  if(name==='orders')renderOrders();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
   if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
@@ -2597,7 +2660,7 @@ function openMobMore(){
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="mob-more-grid"></div>'+
     '<button id="mob-more-cl" style="width:100%;padding:13px;border:1.5px solid var(--b);border-radius:12px;background:var(--bg);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;">Close</button>'
   );
-  var items=[['👥 Customers','customers'],['📋 Quotes','quotes'],['⚙ Settings','settings'],['💾 Backup','backup'],['🏷 Discounts','discounts'],['🎨 Brand','branding'],['📅 Daily','daily']];
+  var items=[['👥 Customers','customers'],['📋 Quotes','quotes'],['⚙ Settings','settings'],['💾 Backup','backup'],['📦 Orders','orders'],['🏷 Discounts','discounts'],['🎨 Brand','branding'],['📅 Daily','daily']];
   var grid=document.getElementById('mob-more-grid');
   items.forEach(function(item){
     var b=document.createElement('button');
@@ -2788,6 +2851,268 @@ function deleteDiscount(key){
   });
 }
 
+/* ════════ ONLINE ORDERS ════════ */
+var _ordFilter='all';
+const ORD_STATUS={
+  pending:  {label:'Pending',   emoji:'⏳', next:'confirmed'},
+  confirmed:{label:'Confirmed', emoji:'✅', next:'ready'},
+  ready:    {label:'Ready',     emoji:'📦', next:'delivered'},
+  delivered:{label:'Delivered', emoji:'🚀', next:null},
+  cancelled:{label:'Cancelled', emoji:'❌', next:null}
+};
+
+function genOrdId(){return 'ORD-'+(Date.now()%1000000);}
+
+function renderOrders(){
+  /* Stats */
+  var stats=document.getElementById('ord-stats');
+  if(stats){
+    var pending=ORDERS.filter(function(o){return o.status==='pending';}).length;
+    var confirmed=ORDERS.filter(function(o){return o.status==='confirmed';}).length;
+    var ready=ORDERS.filter(function(o){return o.status==='ready';}).length;
+    var today=new Date().toDateString();
+    var todayRev=ORDERS.filter(function(o){return new Date(o.createdAt).toDateString()===today&&o.status==='delivered';}).reduce(function(s,o){return s+o.total;},0);
+    stats.innerHTML=
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Pending</div><div class="sv" style="color:#E65100;">'+pending+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Confirmed</div><div class="sv" style="color:#1565C0;">'+confirmed+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Ready</div><div class="sv" style="color:#6A1B9A;">'+ready+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Today Revenue</div><div class="sv" style="color:var(--a);">$'+todayRev.toFixed(2)+'</div></div>';
+  }
+
+  /* Filter buttons */
+  document.querySelectorAll('.ord-filter').forEach(function(btn){
+    btn.classList.toggle('on', btn.getAttribute('data-filter')===_ordFilter);
+  });
+
+  /* List */
+  var el=document.getElementById('ord-list');
+  if(!el) return;
+  var list=_ordFilter==='all'?ORDERS:ORDERS.filter(function(o){return o.status===_ordFilter;});
+  list=[...list].sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+
+  if(!list.length){
+    el.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;"><div style="font-size:36px;margin-bottom:8px;">📦</div><div style="font-size:14px;font-weight:600;">No orders'+(  _ordFilter!=='all'?' in this status':' yet')+'</div><div style="font-size:12px;margin-top:4px;">Tap + New order to add one</div></div>';
+    return;
+  }
+
+  el.innerHTML=list.map(function(o){
+    var st=ORD_STATUS[o.status]||ORD_STATUS.pending;
+    var dt=new Date(o.createdAt);
+    var timeStr=dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    var itemsStr=o.items.map(function(i){return i.qty+'× '+i.name;}).join(', ');
+    var nextSt=st.next?ORD_STATUS[st.next]:null;
+    return'<div class="ord-card '+o.status+'" data-ord-id="'+o.id+'">'+
+      '<div class="ord-hd">'+
+        '<div>'+
+          '<div class="ord-id">'+o.id+'</div>'+
+          '<div class="ord-name">'+o.customerName+'</div>'+
+        '</div>'+
+        '<div style="text-align:right;">'+
+          '<div class="ord-total">$'+o.total.toFixed(2)+'</div>'+
+          '<div class="ord-status '+o.status+'">'+st.emoji+' '+st.label+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="ord-meta">'+
+        (o.phone?'📞 '+o.phone:'')+(o.phone&&(o.deliveryType||o.address)?' · ':'')+
+        (o.deliveryType==='delivery'?'🚚 Delivery':'🏪 Pickup')+
+        (o.address?' · '+o.address:'')+
+      '</div>'+
+      '<div class="ord-items">'+itemsStr+'</div>'+
+      (o.notes?'<div style="font-size:12px;color:var(--t3);font-style:italic;margin-bottom:6px;">📝 '+o.notes+'</div>':'')+
+      '<div class="ord-meta">'+timeStr+'</div>'+
+      '<div class="ord-actions">'+
+        (nextSt?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-ord-next="'+o.id+'">'+nextSt.emoji+' Mark '+nextSt.label+'</button>':'')+
+        '<button class="ord-btn" data-ord-edit="'+o.id+'">✏️ Edit</button>'+
+        '<button class="ord-btn" data-ord-whatsapp="'+o.id+'">💬 WhatsApp</button>'+
+        (o.status!=='delivered'&&o.status!=='cancelled'?'<button class="ord-btn" style="color:var(--d);" data-ord-cancel="'+o.id+'">❌ Cancel</button>':'')+
+        (o.status!=='delivered'?'':'<button class="ord-btn" style="color:var(--a);" data-ord-convert="'+o.id+'">🧾 Convert to Sale</button>')+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function openAddOrderModal(editId){
+  var isEdit=!!editId;
+  var ex=isEdit?ORDERS.find(function(o){return o.id===editId;}):{
+    customerName:'',phone:'',address:'',deliveryType:'pickup',notes:'',items:[],total:0,status:'pending'
+  };
+  if(!ex) return;
+
+  var prodOpts=PRODS.map(function(p){
+    return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';
+  }).join('');
+
+  openModal(
+    '<h3>'+(isEdit?'Edit order '+ex.id:'New online order')+'</h3>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+      '<div class="f"><label>Customer name *</label><input type="text" id="oo-name" value="'+(ex.customerName||'')+'" placeholder="Full name"></div>'+
+      '<div class="f"><label>Phone</label><input type="tel" id="oo-phone" value="'+(ex.phone||'')+'" placeholder="+1 555 000 0000" inputmode="tel"></div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+      '<div class="f"><label>Order type</label><select id="oo-type">'+
+        '<option value="pickup"'+(ex.deliveryType==='pickup'?' selected':'')+'>🏪 Pickup</option>'+
+        '<option value="delivery"'+(ex.deliveryType==='delivery'?' selected':'')+'>🚚 Delivery</option>'+
+      '</select></div>'+
+      '<div class="f"><label>Address (if delivery)</label><input type="text" id="oo-addr" value="'+(ex.address||'')+'" placeholder="Street address"></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Notes</label><input type="text" id="oo-notes" value="'+(ex.notes||'')+'" placeholder="Allergy info, special requests…"></div>'+
+    /* Items */
+    '<div class="f" style="margin-bottom:8px;"><label>Add items</label>'+
+      '<div style="display:flex;gap:6px;">'+
+        '<select id="oo-prod" style="flex:1;">'+prodOpts+'</select>'+
+        '<input type="number" id="oo-qty" value="1" min="1" style="width:60px;" inputmode="numeric">'+
+        '<button class="ok" id="oo-add-item" style="padding:8px 12px;">Add</button>'+
+      '</div>'+
+    '</div>'+
+    '<div id="oo-items-wrap" style="margin-bottom:10px;max-height:160px;overflow-y:auto;"></div>'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--b);margin-bottom:10px;">'+
+      '<span style="font-size:13px;font-weight:600;">Order Total</span>'+
+      '<span id="oo-total" style="font-size:18px;font-weight:700;color:var(--a);">$0.00</span>'+
+    '</div>'+
+    '<div class="mbs"><button id="oo-cancel">Cancel</button><button class="ok" id="oo-save">'+(isEdit?'Save changes':'Create order')+'</button></div>'
+  );
+
+  /* Local items list */
+  var items=[...((ex.items)||[])];
+  function renderItems(){
+    var w=document.getElementById('oo-items-wrap');
+    if(!w) return;
+    if(!items.length){w.innerHTML='<div style="color:var(--t3);font-size:12px;padding:8px 0;">No items yet</div>';updateTotal();return;}
+    w.innerHTML=items.map(function(it,i){
+      return'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b);">'+
+        '<span style="flex:1;font-size:13px;">'+it.emoji+' '+it.name+'</span>'+
+        '<div style="display:flex;align-items:center;gap:4px;">'+
+          '<button data-ii="'+i+'" data-iact="minus" style="width:24px;height:24px;border:1px solid var(--b);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;">-</button>'+
+          '<span style="min-width:20px;text-align:center;font-size:13px;font-weight:600;">'+it.qty+'</span>'+
+          '<button data-ii="'+i+'" data-iact="plus"  style="width:24px;height:24px;border:1px solid var(--b);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;">+</button>'+
+        '</div>'+
+        '<span style="font-size:13px;font-weight:600;min-width:48px;text-align:right;">$'+(it.price*it.qty).toFixed(2)+'</span>'+
+        '<button data-ii="'+i+'" data-iact="del" style="color:var(--d);background:none;border:none;cursor:pointer;font-size:16px;">🗑</button>'+
+      '</div>';
+    }).join('');
+    updateTotal();
+    /* Attach listeners */
+    w.querySelectorAll('[data-iact]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        var ii=parseInt(this.getAttribute('data-ii'));
+        var act=this.getAttribute('data-iact');
+        if(act==='minus'){ items[ii].qty=Math.max(1,items[ii].qty-1); }
+        else if(act==='plus'){ items[ii].qty++; }
+        else if(act==='del'){ items.splice(ii,1); }
+        renderItems();
+      });
+    });
+  }
+  function updateTotal(){
+    var tot=items.reduce(function(s,i){return s+i.price*i.qty;},0);
+    var el=document.getElementById('oo-total');
+    if(el) el.textContent='$'+tot.toFixed(2);
+  }
+  renderItems();
+
+  document.getElementById('oo-add-item').addEventListener('click',function(){
+    var sel=document.getElementById('oo-prod');
+    var qty=parseInt(document.getElementById('oo-qty').value)||1;
+    var pid=parseInt(sel.value);
+    var p=PRODS.find(function(x){return x.id===pid;});
+    if(!p) return;
+    var ex2=items.find(function(i){return i.id===pid;});
+    if(ex2){ex2.qty+=qty;}
+    else items.push({id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:qty});
+    renderItems();
+  });
+
+  document.getElementById('oo-cancel').addEventListener('click',closeModal);
+  document.getElementById('oo-save').addEventListener('click',function(){
+    var name=document.getElementById('oo-name').value.trim();
+    if(!name){toast('Customer name required');return;}
+    if(!items.length){toast('Add at least one item');return;}
+    var total=items.reduce(function(s,i){return s+i.price*i.qty;},0);
+    var order={
+      id: isEdit?ex.id:genOrdId(),
+      customerName: name,
+      phone: document.getElementById('oo-phone').value.trim(),
+      deliveryType: document.getElementById('oo-type').value,
+      address: document.getElementById('oo-addr').value.trim(),
+      notes: document.getElementById('oo-notes').value.trim(),
+      items: items,
+      total: +total.toFixed(2),
+      status: isEdit?ex.status:'pending',
+      createdAt: isEdit?ex.createdAt:new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    if(isEdit){
+      var idx=ORDERS.findIndex(function(o){return o.id===editId;});
+      if(idx>=0) ORDERS[idx]=order; else ORDERS.unshift(order);
+    } else {
+      ORDERS.unshift(order);
+    }
+    saveAll();renderOrders();closeModal();
+    toast((isEdit?'Order updated':'Order created')+' ✓');
+  });
+}
+
+function advanceOrder(id){
+  var o=ORDERS.find(function(x){return x.id===id;});
+  if(!o||!ORD_STATUS[o.status]||!ORD_STATUS[o.status].next) return;
+  o.status=ORD_STATUS[o.status].next;
+  o.updatedAt=new Date().toISOString();
+  saveAll();renderOrders();
+  toast('Order '+id+' → '+ORD_STATUS[o.status].label+' ✓');
+}
+
+function cancelOrder(id){
+  confirmModal('Cancel order <strong>'+id+'</strong>?',function(){
+    var o=ORDERS.find(function(x){return x.id===id;});
+    if(o){o.status='cancelled';o.updatedAt=new Date().toISOString();saveAll();renderOrders();toast('Order cancelled');}
+  });
+}
+
+function whatsAppOrder(id){
+  var o=ORDERS.find(function(x){return x.id===id;});
+  if(!o) return;
+  var st=ORD_STATUS[o.status]||ORD_STATUS.pending;
+  var lines=[
+    '*'+BRAND.name+' — Order Confirmation*',
+    'Order ID: *'+o.id+'*',
+    'Status: '+st.emoji+' '+st.label,
+    '',
+    'Hi '+o.customerName+',',
+    (o.deliveryType==='delivery'?'Your delivery order is confirmed.':'Your pickup order is ready/confirmed.'),
+    '',
+    '*Items:*',
+  ];
+  o.items.forEach(function(it){ lines.push(it.emoji+' '+it.name+' × '+it.qty+'  $'+(it.price*it.qty).toFixed(2)); });
+  lines.push('');
+  lines.push('*Total: $'+o.total.toFixed(2)+'*');
+  if(o.address) lines.push('Delivery to: '+o.address);
+  if(o.notes)   lines.push('Notes: '+o.notes);
+  lines.push('');
+  lines.push('Thank you for ordering from '+BRAND.name+'!');
+  var phone=o.phone?o.phone.replace(/\D/g,''):'';
+  var msg=encodeURIComponent(lines.join('\n'));
+  window.open('https://wa.me/'+(phone?phone:'')+'?text='+msg,'_blank');
+}
+
+function convertOrderToSale(id){
+  var o=ORDERS.find(function(x){return x.id===id;});
+  if(!o) return;
+  /* Load order items into cart */
+  CART={};
+  o.items.forEach(function(it){CART[it.id]=it.qty;});
+  /* Apply customer if they exist */
+  var cust=CUSTS.find(function(c){return c.name===o.customerName;});
+  COUPON=null;
+  openTab('catalog');
+  renderCart();updTot();updCartBadge();
+  if(cust){
+    var cs=document.getElementById('cart-cust');
+    if(cs) cs.value=cust.id;
+  }
+  toast('Order loaded to cart — proceed to checkout ✓');
+}
+
+
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
   try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
@@ -2949,6 +3274,21 @@ document.addEventListener('click',function(e){
   if(act==='lst-save') {saveLST();return;}
   if(act==='open-eod')  {openEOD();return;}
   if(act==='open-add-disc'){openAddDiscModal();return;}
+  if(act==='open-add-order'){openAddOrderModal();return;}
+  /* Order filter pills */
+  var ordFilter=e.target.closest('.ord-filter');
+  if(ordFilter){_ordFilter=ordFilter.getAttribute('data-filter');renderOrders();return;}
+  /* Order card actions */
+  var ordNext=e.target.closest('[data-ord-next]');
+  if(ordNext){advanceOrder(ordNext.getAttribute('data-ord-next'));return;}
+  var ordEdit=e.target.closest('[data-ord-edit]');
+  if(ordEdit){openAddOrderModal(ordEdit.getAttribute('data-ord-edit'));return;}
+  var ordWa=e.target.closest('[data-ord-whatsapp]');
+  if(ordWa){whatsAppOrder(ordWa.getAttribute('data-ord-whatsapp'));return;}
+  var ordCancel=e.target.closest('[data-ord-cancel]');
+  if(ordCancel){cancelOrder(ordCancel.getAttribute('data-ord-cancel'));return;}
+  var ordConvert=e.target.closest('[data-ord-convert]');
+  if(ordConvert){convertOrderToSale(ordConvert.getAttribute('data-ord-convert'));return;}
   if(act==='apply-disc-code'){
     var inp=document.getElementById('disc-apply-inp');
     var code=inp?inp.value.trim().toUpperCase():'';
