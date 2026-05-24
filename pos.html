@@ -1780,38 +1780,73 @@ async function doPay(total,tip){
 }
 
 /* ════════ RECEIPT ════════ */
-function rcptHTML(tx,p=false){
-  const dt=new Date(tx.timestamp);
-  const ds=dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-  const ts=dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-  const ff=p?'sans-serif':'monospace';const bc=p?'#ccc':'var(--b)';
-  const cust=tx.customerId?CUSTS.find(c=>c.id===tx.customerId):null;
-  const irows=tx.items.map(i=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:#666;">${i.emoji} ${i.name}${(i.size&&i.unit)?' <em style="font-size:10px;">('+i.size+i.unit+')</em>':''} ×${i.qty}${i.vatExempt?' <em style="font-size:9px;color:#D85A30;">(Exempt)</em>':''}</span><span style="font-weight:700;">$${i.line.toFixed(2)}</span></div>`).join('');
-  const chg=tx.payMethod==='cash'?`<div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;background:#E1F5EE;border-radius:5px;padding:5px 7px;margin-top:5px;color:#0F6E56;"><span>💵 Change due</span><span>$${tx.change.toFixed(2)}</span></div>`:'';
-  return`<div style="text-align:center;padding-bottom:10px;border-bottom:2px dashed ${bc};margin-bottom:10px;">
-    <div style="font-size:16px;font-weight:700;font-family:${ff};">${BRAND.name}</div>
-    <div style="font-size:10px;color:#888;font-family:${ff};margin-top:1px;">${BRAND.sub}</div>
-    ${STORE.address?`<div style="font-size:10px;color:#888;font-family:${ff};">${STORE.address}</div>`:''}
-    <div style="font-size:10px;color:#888;margin-top:6px;">${ds} at ${ts}</div>
-    <div style="font-size:10px;color:#888;">Receipt #${tx.id}</div>
-    ${cust?`<div style="font-size:10px;color:#888;">Customer: ${cust.name}</div>`:''}
-  </div>
-  <div style="padding-bottom:9px;border-bottom:1px dashed ${bc};margin-bottom:9px;">${irows}</div>
-  <div style="padding-bottom:9px;border-bottom:2px dashed ${bc};margin-bottom:9px;">
-    <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#888;"><span>Subtotal</span><span>$${tx.subtotal.toFixed(2)}</span></div>
-    ${tx.discount>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#BA7517;"><span>Discount</span><span>-$${tx.discount.toFixed(2)}</span></div>`:''}
-    ${tx.tip>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#1D9E75;"><span>Tip</span><span>+$${tx.tip.toFixed(2)}</span></div>`:''}
-    <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#888;"><span>${tx.vatLabel||'VAT'} (${tx.vatRate||VAT.rate}%)</span><span>$${tx.tax.toFixed(2)}</span></div>
-    <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:5px;"><span>TOTAL</span><span>$${tx.total.toFixed(2)}</span></div>
-    ${tx.payMethod==='cash'?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#888;"><span>Tendered</span><span>$${tx.tendered.toFixed(2)}</span></div>`:''}
-    ${chg}
-  </div>
-  <div style="text-align:center;font-size:10px;color:#888;line-height:1.7;font-family:${ff};">Payment: ${tx.payMethod.toUpperCase()}<br>Thank you for shopping at ${BRAND.name}!</div>`;
+function rcptHTML(tx, forPrint){
+  var dt=new Date(tx.timestamp);
+  var ds=dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  var ts=dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  var cust=tx.customerId?CUSTS.find(function(c){return c.id===tx.customerId;}):null;
+  var accent=BRAND.color||'#1D9E75';
+  var isRefund=tx.payMethod==='refund';
+
+  var itemRows=tx.items.map(function(i){
+    return'<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;">'+
+      '<div style="flex:1;padding-right:8px;">'+
+        '<span style="font-size:14px;margin-right:4px;">'+i.emoji+'</span>'+
+        '<span style="font-size:13px;font-weight:500;">'+i.name+'</span>'+
+        (i.size&&i.unit?'<span style="font-size:10px;color:#999;margin-left:4px;">('+i.size+i.unit+')</span>':'')+
+        (i.vatExempt?'<span style="font-size:9px;color:#E65100;margin-left:4px;background:#FFF3E0;padding:1px 4px;border-radius:4px;">Exempt</span>':'')+
+        '<div style="font-size:11px;color:#999;margin-top:1px;">'+i.qty+' × $'+i.price.toFixed(2)+'</div>'+
+      '</div>'+
+      '<div style="font-size:13px;font-weight:700;white-space:nowrap;">$'+i.line.toFixed(2)+'</div>'+
+    '</div>';
+  }).join('');
+
+  var payBadge={cash:'💵 Cash',card:'💳 Card',mobile:'📱 Mobile',refund:'↩ Refund'}[tx.payMethod]||tx.payMethod.toUpperCase();
+
+  return'<div style="font-family:system-ui,-apple-system,sans-serif;max-width:340px;margin:0 auto;background:#fff;">'+
+    /* Header */
+    '<div style="background:'+accent+';border-radius:12px 12px 0 0;padding:18px 16px 14px;text-align:center;color:#fff;">'+
+      '<div style="font-size:22px;font-weight:800;letter-spacing:-.3px;">'+BRAND.name+'</div>'+
+      (BRAND.sub?'<div style="font-size:11px;opacity:.85;margin-top:1px;">'+BRAND.sub+'</div>':'')+
+      (STORE.address?'<div style="font-size:10px;opacity:.75;margin-top:4px;">'+STORE.address+'</div>':'')+
+      (STORE.phone?'<div style="font-size:10px;opacity:.75;">'+STORE.phone+'</div>':'')+
+    '</div>'+
+    /* Receipt ID bar */
+    '<div style="background:'+accent+'22;border:1.5px solid '+accent+'44;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:12px;">'+
+      '<div>'+
+        '<span style="font-weight:700;color:'+accent+';font-family:monospace;">'+tx.id+'</span>'+
+        (isRefund?'<span style="margin-left:6px;background:#FCEBEB;color:#A32D2D;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;">REFUND</span>':'')+
+      '</div>'+
+      '<div style="color:#666;text-align:right;"><div>'+ds+'</div><div>'+ts+'</div></div>'+
+    '</div>'+
+    /* Customer */
+    (cust?'<div style="padding:8px 14px;background:#FAFAFA;font-size:12px;color:#666;border-bottom:1px solid #f0f0f0;">👤 '+cust.name+'</div>':'')+
+    /* Items */
+    '<div style="padding:4px 14px 0;">'+ itemRows +'</div>'+
+    /* Totals */
+    '<div style="margin:0 14px;padding:10px 0;border-top:2px dashed #ddd;">'+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:#888;padding:2px 0;"><span>Subtotal</span><span>$'+tx.subtotal.toFixed(2)+'</span></div>'+
+      (tx.discount>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:#BA7517;padding:2px 0;"><span>Discount</span><span>-$'+tx.discount.toFixed(2)+'</span></div>':'')+
+      (tx.tip>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:'+accent+';padding:2px 0;"><span>Tip</span><span>+$'+tx.tip.toFixed(2)+'</span></div>':'')+
+      '<div style="display:flex;justify-content:space-between;font-size:12px;color:#888;padding:2px 0;"><span>'+(tx.vatLabel||'VAT')+' ('+(tx.vatRate||VAT.rate)+'%)</span><span>$'+tx.tax.toFixed(2)+'</span></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;padding:8px 0 4px;color:#111;"><span>TOTAL</span><span style="color:'+accent+';">$'+tx.total.toFixed(2)+'</span></div>'+
+    '</div>'+
+    /* Payment */
+    '<div style="margin:0 14px 14px;padding:10px 12px;background:#F8F8F8;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">'+
+      '<span style="font-size:12px;font-weight:600;">'+payBadge+'</span>'+
+      (tx.payMethod==='cash'?'<div style="text-align:right;font-size:12px;color:#666;"><div>Tendered: $'+tx.tendered.toFixed(2)+'</div><div style="font-weight:700;color:'+accent+';">Change: $'+tx.change.toFixed(2)+'</div></div>':'')+
+    '</div>'+
+    /* Footer */
+    '<div style="text-align:center;padding:10px 14px 16px;border-top:2px dashed #ddd;margin:0 14px;">'+
+      '<div style="font-size:11px;color:#999;line-height:1.7;">'+(STORE.footer||'Thank you for your business!')+'</div>'+
+    '</div>'+
+  '</div>';
 }
+
 function showReceipt(tx){
   window._ptx=tx;
   openModal(
-    '<div style="font-family:monospace;">'+rcptHTML(tx)+'</div>'+
+    '<div style="max-height:65vh;overflow-y:auto;margin:-4px -4px 0;border-radius:12px 12px 0 0;overflow-x:hidden;">'+rcptHTML(tx)+'</div>'+
     '<div class="mbs" style="margin-top:14px;flex-wrap:wrap;gap:8px;">'+
       '<button class="ok" id="rcpt-close">✓ Done</button>'+
       '<button id="rcpt-refund" style="color:var(--d);border-color:var(--d);">↩ Refund</button>'+
@@ -1961,26 +1996,120 @@ function openQuoteModal(q){
   const cust=q.customerId?CUSTS.find(c=>c.id===q.customerId):null;
   const dt=new Date(q.timestamp);
   const expires=new Date(dt.getTime()+30*24*60*60*1000);
-  const irows=q.items.map(i=>`<tr><td>${i.emoji} ${i.name}${(i.size&&i.unit)?' <em style="font-size:10px;color:#666;">('+i.size+i.unit+')</em>':''}${i.vatExempt?' <span style="font-size:9px;color:var(--d);">(Exempt)</span>':''}</td><td style="text-align:center;">${i.qty}</td><td style="text-align:right;">$${i.price.toFixed(2)}</td><td style="text-align:right;">$${i.line.toFixed(2)}</td></tr>`).join('');
-  const qdoc=`<div class="qdoc">
-    <div class="qdoc-hd">
-      <div><div class="qdoc-store">${BRAND.name}</div><div class="qdoc-sub">${BRAND.sub}</div>${STORE.address?`<div class="qdoc-sub">${STORE.address}</div>`:''}${STORE.phone?`<div class="qdoc-sub">📞 ${STORE.phone}</div>`:''}${STORE.email?`<div class="qdoc-sub">✉ ${STORE.email}</div>`:''}${STORE.reg?`<div class="qdoc-sub">${STORE.reg}</div>`:''}</div>
-      <div class="qdoc-meta"><div class="qdoc-num">QUOTATION</div><div>#${q.id}</div><div style="margin-top:5px;">Date: ${dt.toLocaleDateString()}</div><div>Valid: ${expires.toLocaleDateString()}</div></div>
+  const accent=BRAND.color||'#1D9E75';
+
+  const irows=q.items.map(i=>`
+    <tr>
+      <td style="padding:8px 6px;">
+        <span style="font-size:16px;">${i.emoji}</span>
+        <strong style="font-size:13px;">${i.name}</strong>
+        ${(i.size&&i.unit)?`<span style="font-size:10px;color:#999;"> (${i.size}${i.unit})</span>`:''}
+        ${i.vatExempt?`<span style="font-size:9px;color:#E65100;background:#FFF3E0;padding:1px 4px;border-radius:4px;margin-left:4px;">Exempt</span>`:''}
+      </td>
+      <td style="text-align:center;font-size:13px;padding:8px 6px;">${i.qty}</td>
+      <td style="text-align:right;font-size:13px;padding:8px 6px;">$${i.price.toFixed(2)}</td>
+      <td style="text-align:right;font-size:13px;font-weight:700;padding:8px 6px;">$${i.line.toFixed(2)}</td>
+    </tr>`).join('');
+
+  const qdoc=`<div style="font-family:system-ui,-apple-system,sans-serif;max-width:540px;margin:0 auto;background:#fff;">
+
+    <!-- Header -->
+    <div style="background:${accent};padding:20px;border-radius:12px 12px 0 0;color:#fff;display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <div style="font-size:22px;font-weight:800;">${BRAND.name}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:2px;">${BRAND.sub||''}</div>
+        ${STORE.address?`<div style="font-size:11px;opacity:.75;margin-top:6px;">${STORE.address}</div>`:''}
+        ${STORE.phone?`<div style="font-size:11px;opacity:.75;">📞 ${STORE.phone}</div>`:''}
+        ${STORE.email?`<div style="font-size:11px;opacity:.75;">✉ ${STORE.email}</div>`:''}
+        ${STORE.reg?`<div style="font-size:11px;opacity:.75;">${STORE.reg}</div>`:''}
+      </div>
+      <div style="text-align:right;background:rgba(255,255,255,.15);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:600;opacity:.8;letter-spacing:1px;">QUOTATION</div>
+        <div style="font-size:18px;font-weight:800;font-family:monospace;">#${q.id}</div>
+        <div style="font-size:11px;opacity:.8;margin-top:4px;">Date: ${dt.toLocaleDateString()}</div>
+        <div style="font-size:11px;opacity:.8;">Valid until: ${expires.toLocaleDateString()}</div>
+      </div>
     </div>
-    ${cust?`<div class="qdoc-to"><strong>Bill to:</strong><br>${cust.name}${cust.company?'<br>'+cust.company:''}<br>${cust.phone?cust.phone+'<br>':''}${cust.email?cust.email+'<br>':''}${cust.address||''}</div>`:''}
-    <table class="qdoc-tbl"><thead><tr><th>Item</th><th style="text-align:center;">Qty</th><th style="text-align:right;">Unit</th><th style="text-align:right;">Total</th></tr></thead><tbody>${irows}</tbody></table>
-    <div class="qdoc-tots">
-      <div class="qdoc-trow"><span>Subtotal</span><span>$${q.subtotal.toFixed(2)}</span></div>
-      ${q.discount>0?`<div class="qdoc-trow" style="color:var(--w);"><span>Discount</span><span>-$${q.discount.toFixed(2)}</span></div>`:''}
-      <div class="qdoc-trow"><span>${q.vatLabel||'VAT'} (${q.vatRate||VAT.rate}%)</span><span>$${q.tax.toFixed(2)}</span></div>
-      <div class="qdoc-trow grand"><span>TOTAL</span><span>$${q.total.toFixed(2)}</span></div>
+
+    <!-- Bill to -->
+    ${cust?`<div style="padding:14px 18px;background:#F8F8F8;border-bottom:1px solid #eee;">
+      <div style="font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Bill to</div>
+      <div style="font-size:14px;font-weight:600;">${cust.name}</div>
+      ${cust.company?`<div style="font-size:12px;color:#666;">${cust.company}</div>`:''}
+      ${cust.phone?`<div style="font-size:12px;color:#666;">📞 ${cust.phone}</div>`:''}
+      ${cust.email?`<div style="font-size:12px;color:#666;">✉ ${cust.email}</div>`:''}
+      ${cust.address?`<div style="font-size:12px;color:#666;">${cust.address}</div>`:''}
+    </div>`:''}
+
+    <!-- Items table -->
+    <div style="padding:4px 0;">
+      <table style="width:100%;border-collapse:collapse;font-family:inherit;">
+        <thead>
+          <tr style="background:#F8F8F8;">
+            <th style="text-align:left;padding:8px 18px;font-size:11px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Item</th>
+            <th style="text-align:center;padding:8px 6px;font-size:11px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Qty</th>
+            <th style="text-align:right;padding:8px 6px;font-size:11px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Unit</th>
+            <th style="text-align:right;padding:8px 18px 8px 6px;font-size:11px;color:#999;font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Total</th>
+          </tr>
+        </thead>
+        <tbody style="border-top:1px solid #eee;">${irows}</tbody>
+      </table>
     </div>
-    ${STORE.footer?`<div class="qdoc-notes">${STORE.footer}</div>`:''}
-    <div class="qdoc-footer">Thank you for considering ${BRAND.name}</div>
+
+    <!-- Totals -->
+    <div style="margin:0 18px;padding:12px 0;border-top:2px dashed #ddd;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#888;padding:3px 0;"><span>Subtotal</span><span>$${q.subtotal.toFixed(2)}</span></div>
+      ${q.discount>0?`<div style="display:flex;justify-content:space-between;font-size:13px;color:#BA7517;padding:3px 0;"><span>Discount</span><span>-$${q.discount.toFixed(2)}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#888;padding:3px 0;"><span>${q.vatLabel||'VAT'} (${q.vatRate||VAT.rate}%)</span><span>$${q.tax.toFixed(2)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:20px;font-weight:800;padding:10px 0 4px;color:#111;border-top:1px solid #eee;margin-top:4px;">
+        <span>TOTAL</span><span style="color:${accent};">$${q.total.toFixed(2)}</span>
+      </div>
+    </div>
+
+    <!-- Status banner -->
+    ${q.status==='open'?`<div style="margin:0 18px 12px;padding:8px 12px;background:${accent}18;border:1.5px solid ${accent}44;border-radius:8px;text-align:center;font-size:12px;font-weight:600;color:${accent};">✅ Quote is open — valid until ${expires.toLocaleDateString()}</div>`:'<div style="margin:0 18px 12px;padding:8px 12px;background:#F5F5F5;border:1.5px solid #DDD;border-radius:8px;text-align:center;font-size:12px;color:#999;">This quote has been converted to a sale</div>'}
+
+    <!-- Footer -->
+    <div style="padding:10px 18px 18px;border-top:1px dashed #ddd;text-align:center;font-size:11px;color:#aaa;line-height:1.6;">
+      ${STORE.footer||'Thank you for your business. Quote valid for 30 days.'}
+    </div>
   </div>`;
+
   window._pq=qdoc;
-  openModal(`${qdoc}<div class="mbs" style="margin-top:14px;"><button id="qdoc-close">Close</button>${q.status==='open'?`<button class="warn-btn" data-qid="${q.id}" data-act="conv-q2">✓ Convert</button>`:''}<button class="ok" onclick="printQuote()">🖨 Print</button></div>`);
+  openModal(
+    '<div style="max-height:70vh;overflow-y:auto;margin:-4px -4px 0;border-radius:12px 12px 0 0;overflow-x:hidden;">'+qdoc+'</div>'+
+    '<div class="mbs" style="margin-top:12px;flex-wrap:wrap;gap:8px;">'+
+      '<button id="qdoc-close">Close</button>'+
+      '<button id="qdoc-wa" style="background:#25D366;border-color:#25D366;color:#fff;">💬 WhatsApp</button>'+
+      (q.status==='open'?`<button class="ok" data-qid="${q.id}" data-act="conv-q2" id="qdoc-conv">✓ Convert to Sale</button>`:'<button disabled style="opacity:.5;">Already converted</button>')+
+      '<button id="qdoc-print">🖨 Print</button>'+
+    '</div>'
+  );
+  document.getElementById('qdoc-close').addEventListener('click',closeModal);
+  document.getElementById('qdoc-print').addEventListener('click',function(){printQuote();setTimeout(closeModal,400);});
+  var qwa=document.getElementById('qdoc-wa');
+  if(qwa) qwa.addEventListener('click',function(){ sendQuoteWhatsApp(q,cust,expires); });
 }
+
+function sendQuoteWhatsApp(q, cust, expires){
+  var lines=['*'+BRAND.name+' — Quotation #'+q.id+'*'];
+  if(STORE.address) lines.push(STORE.address);
+  lines.push('Date: '+new Date(q.timestamp).toLocaleDateString());
+  lines.push('Valid until: '+expires.toLocaleDateString());
+  if(cust) lines.push('For: '+cust.name);
+  lines.push('');
+  lines.push('*Items:*');
+  q.items.forEach(function(i){ lines.push(i.emoji+' '+i.name+(i.size&&i.unit?' ('+i.size+i.unit+')':'')+' ×'+i.qty+'  $'+i.line.toFixed(2)); });
+  lines.push('');
+  if(q.discount>0) lines.push('Discount: -$'+q.discount.toFixed(2));
+  lines.push((q.vatLabel||'VAT')+' ('+q.vatRate+'%): $'+q.tax.toFixed(2));
+  lines.push('*TOTAL: $'+q.total.toFixed(2)+'*');
+  lines.push('');
+  lines.push(STORE.footer||'Thank you for your business!');
+  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):'';
+  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+}
+
 function printQuote(){if(!window._pq)return;document.getElementById('pra').innerHTML=`<div style="font-family:sans-serif;">${window._pq}</div>`;window.print();}
 async function convertQuote(qid){
   const q=QUOTES.find(x=>x.id===qid);if(!q||q.status!=='open'){toast('Already converted');return;}
