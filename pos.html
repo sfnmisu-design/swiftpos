@@ -578,12 +578,12 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
   backdrop-filter:blur(8px);
   border:2px solid rgba(255,255,255,.25);
   display:flex;align-items:center;justify-content:center;
-  font-size:38px;font-weight:800;color:#fff;
+  font-size:26px;font-weight:800;color:#fff;
   margin-bottom:20px;
   animation:splashPop .6s .1s cubic-bezier(.34,1.56,.64,1) both;
 }
 .splash-name{
-  font-size:32px;font-weight:700;color:#fff;letter-spacing:-.5px;
+  font-size:24px;font-weight:700;color:#FF3B3B;letter-spacing:-.3px;text-align:center;
   animation:splashTitle .5s .4s cubic-bezier(.34,1.2,.64,1) both;
 }
 .splash-tag{
@@ -677,8 +677,8 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
 <body>
 <div id="pra"></div>
 <div id="splash">
-  <div class="splash-icon" id="splash-icon">S</div>
-  <div class="splash-name" id="splash-name">SwiftPOS</div>
+  <div class="splash-icon" id="splash-icon">TG</div>
+  <div class="splash-name" id="splash-name">TechGeek Automotive Paint &amp; Electronic</div>
   <div class="splash-tag" id="splash-tag">Retail Edition</div>
   <div class="splash-progress"><div class="splash-bar"></div></div>
   <div class="splash-status" id="splash-status">Starting up…</div>
@@ -3350,10 +3350,9 @@ function hideSplash(){
 function brandSplash(){
   try{
     var ico=document.getElementById('splash-icon');
-    var nm=document.getElementById('splash-name');
     var tg=document.getElementById('splash-tag');
-    if(ico){ico.textContent=BRAND.letter||'S';ico.style.background='rgba(255,255,255,.15)';}
-    if(nm) nm.textContent=BRAND.name||'SwiftPOS';
+    if(ico){ico.textContent='TG';ico.style.background='rgba(255,255,255,.15)';ico.style.fontSize='26px';}
+    /* Name stays as TechGeek — don't override */
     if(tg) tg.textContent=BRAND.sub||'Retail Edition';
   }catch(e){}
 }
