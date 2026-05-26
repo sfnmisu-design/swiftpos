@@ -539,6 +539,82 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
 .ord-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--b);}
 .ord-btn{padding:5px 10px;border-radius:var(--r);border:1px solid var(--b);background:var(--bg);font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s;}
 .ord-btn:active{transform:scale(.97);}
+
+/* Receipt & Quotation animations */
+@keyframes rcptPopIn{from{opacity:0;transform:scale(.94) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes rcptFadeDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rcptFadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rcptPulse{0%,100%{box-shadow:0 0 0 0 rgba(29,158,117,.35)}60%{box-shadow:0 0 0 8px rgba(29,158,117,0)}}
+.rcpt-animate{animation:rcptPopIn .35s cubic-bezier(.34,1.4,.64,1) both;}
+.rcpt-head{animation:rcptFadeDown .4s .05s both;}
+.rcpt-id{animation:rcptFadeDown .35s .12s both;}
+.rcpt-cust{animation:rcptFadeDown .35s .17s both;}
+.rcpt-item{opacity:0;animation:rcptFadeUp .3s both;}
+.rcpt-tots{animation:rcptFadeUp .35s both;}
+.rcpt-pay{animation:rcptFadeUp .35s both;}
+.rcpt-foot{animation:rcptFadeUp .35s both;}
+.rcpt-done-btn{animation:rcptPulse 1.8s .8s infinite;}
+
+
+/* ── SPLASH SCREEN ── */
+@keyframes splashFadeIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@keyframes splashPop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes splashTitle{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes splashSub{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes splashBar{from{width:0}to{width:100%}}
+@keyframes splashFadeOut{from{opacity:1;pointer-events:auto}to{opacity:0;pointer-events:none}}
+@keyframes splashDot{0%,100%{transform:scale(.6);opacity:.4}50%{transform:scale(1);opacity:1}}
+
+#splash{
+  position:fixed;inset:0;z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#0d2b24 0%,#1D9E75 60%,#0F6E56 100%);
+  padding:20px;
+}
+#splash.out{animation:splashFadeOut .5s cubic-bezier(.4,0,.2,1) forwards;}
+.splash-icon{
+  width:80px;height:80px;border-radius:22px;
+  background:rgba(255,255,255,.15);
+  backdrop-filter:blur(8px);
+  border:2px solid rgba(255,255,255,.25);
+  display:flex;align-items:center;justify-content:center;
+  font-size:38px;font-weight:800;color:#fff;
+  margin-bottom:20px;
+  animation:splashPop .6s .1s cubic-bezier(.34,1.56,.64,1) both;
+}
+.splash-name{
+  font-size:32px;font-weight:700;color:#fff;letter-spacing:-.5px;
+  animation:splashTitle .5s .4s cubic-bezier(.34,1.2,.64,1) both;
+}
+.splash-tag{
+  font-size:13px;color:rgba(255,255,255,.7);margin-top:4px;
+  animation:splashSub .5s .55s both;
+}
+.splash-progress{
+  width:160px;height:3px;background:rgba(255,255,255,.2);
+  border-radius:2px;margin-top:32px;overflow:hidden;
+  animation:splashSub .3s .7s both;
+}
+.splash-bar{
+  height:100%;background:#fff;border-radius:2px;
+  animation:splashBar 2s .75s cubic-bezier(.4,0,.2,1) forwards;
+}
+.splash-status{
+  font-size:11px;color:rgba(255,255,255,.6);margin-top:10px;letter-spacing:.3px;
+  animation:splashSub .3s .8s both;
+  transition:all .3s;
+}
+.splash-dots{display:flex;gap:5px;margin-top:20px;animation:splashSub .3s .9s both;}
+.splash-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.5);}
+.splash-dot:nth-child(1){animation:splashDot 1s .8s infinite;}
+.splash-dot:nth-child(2){animation:splashDot 1s .95s infinite;}
+.splash-dot:nth-child(3){animation:splashDot 1s 1.1s infinite;}
+.splash-copy{
+  position:absolute;bottom:24px;
+  font-size:11px;font-weight:700;color:rgba(255,255,255,.7);letter-spacing:.5px;
+  animation:splashSub .4s 1s both;
+}
+
 @media print{
   body{height:auto;overflow:visible;}
   .root,.ov,.toast,.mob-nav,.cart-drawer{display:none!important;}
@@ -600,6 +676,20 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
 </head>
 <body>
 <div id="pra"></div>
+<div id="splash">
+  <div class="splash-icon" id="splash-icon">S</div>
+  <div class="splash-name" id="splash-name">SwiftPOS</div>
+  <div class="splash-tag" id="splash-tag">Retail Edition</div>
+  <div class="splash-progress"><div class="splash-bar"></div></div>
+  <div class="splash-status" id="splash-status">Starting up…</div>
+  <div class="splash-dots">
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+  </div>
+  <div class="splash-copy">© 2026 SFN · All rights reserved</div>
+</div>
+
 
 <!-- MOBILE CART DRAWER -->
 <div class="cart-drawer" id="cart-drawer">
@@ -1788,8 +1878,9 @@ function rcptHTML(tx, forPrint){
   var accent=BRAND.color||'#1D9E75';
   var isRefund=tx.payMethod==='refund';
 
-  var itemRows=tx.items.map(function(i){
-    return'<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;">'+
+  var itemRows=tx.items.map(function(i,_idx){
+    var delay=(_idx*.08+.3).toFixed(2);
+    return'<div class="rcpt-item" style="display:flex;align-items:flex-start;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;animation-delay:'+delay+'s;">'+
       '<div style="flex:1;padding-right:8px;">'+
         '<span style="font-size:14px;margin-right:4px;">'+i.emoji+'</span>'+
         '<span style="font-size:13px;font-weight:500;">'+i.name+'</span>'+
@@ -1803,16 +1894,16 @@ function rcptHTML(tx, forPrint){
 
   var payBadge={cash:'💵 Cash',card:'💳 Card',mobile:'📱 Mobile',refund:'↩ Refund'}[tx.payMethod]||tx.payMethod.toUpperCase();
 
-  return'<div style="font-family:system-ui,-apple-system,sans-serif;max-width:340px;margin:0 auto;background:#fff;">'+
+  return'<div class="rcpt-animate" style="font-family:system-ui,-apple-system,sans-serif;max-width:340px;margin:0 auto;background:#fff;">'+
     /* Header */
-    '<div style="background:'+accent+';border-radius:12px 12px 0 0;padding:18px 16px 14px;text-align:center;color:#fff;">'+
+    '<div class="rcpt-head" style="background:'+accent+';border-radius:12px 12px 0 0;padding:18px 16px 14px;text-align:center;color:#fff;">'+
       '<div style="font-size:22px;font-weight:800;letter-spacing:-.3px;">'+BRAND.name+'</div>'+
       (BRAND.sub?'<div style="font-size:11px;opacity:.85;margin-top:1px;">'+BRAND.sub+'</div>':'')+
       (STORE.address?'<div style="font-size:10px;opacity:.75;margin-top:4px;">'+STORE.address+'</div>':'')+
       (STORE.phone?'<div style="font-size:10px;opacity:.75;">'+STORE.phone+'</div>':'')+
     '</div>'+
     /* Receipt ID bar */
-    '<div style="background:'+accent+'22;border:1.5px solid '+accent+'44;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:12px;">'+
+    '<div class="rcpt-id" style="background:'+accent+'22;border:1.5px solid '+accent+'44;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:12px;">'+
       '<div>'+
         '<span style="font-weight:700;color:'+accent+';font-family:monospace;">'+tx.id+'</span>'+
         (isRefund?'<span style="margin-left:6px;background:#FCEBEB;color:#A32D2D;padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;">REFUND</span>':'')+
@@ -1824,7 +1915,7 @@ function rcptHTML(tx, forPrint){
     /* Items */
     '<div style="padding:4px 14px 0;">'+ itemRows +'</div>'+
     /* Totals */
-    '<div style="margin:0 14px;padding:10px 0;border-top:2px dashed #ddd;">'+
+    '<div class="rcpt-tots" style="margin:0 14px;padding:10px 0;border-top:2px dashed #ddd;animation-delay:'+( (.3+tx.items.length*.08+.1).toFixed(2) )+'s;">'+
       '<div style="display:flex;justify-content:space-between;font-size:12px;color:#888;padding:2px 0;"><span>Subtotal</span><span>$'+tx.subtotal.toFixed(2)+'</span></div>'+
       (tx.discount>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:#BA7517;padding:2px 0;"><span>Discount</span><span>-$'+tx.discount.toFixed(2)+'</span></div>':'')+
       (tx.tip>0?'<div style="display:flex;justify-content:space-between;font-size:12px;color:'+accent+';padding:2px 0;"><span>Tip</span><span>+$'+tx.tip.toFixed(2)+'</span></div>':'')+
@@ -1832,12 +1923,12 @@ function rcptHTML(tx, forPrint){
       '<div style="display:flex;justify-content:space-between;font-size:18px;font-weight:800;padding:8px 0 4px;color:#111;"><span>TOTAL</span><span style="color:'+accent+';">$'+tx.total.toFixed(2)+'</span></div>'+
     '</div>'+
     /* Payment */
-    '<div style="margin:0 14px 14px;padding:10px 12px;background:#F8F8F8;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">'+
+    '<div class="rcpt-pay" style="margin:0 14px 14px;padding:10px 12px;background:#F8F8F8;border-radius:8px;display:flex;justify-content:space-between;align-items:center;animation-delay:'+( (.3+tx.items.length*.08+.2).toFixed(2) )+'s;">'+
       '<span style="font-size:12px;font-weight:600;">'+payBadge+'</span>'+
       (tx.payMethod==='cash'?'<div style="text-align:right;font-size:12px;color:#666;"><div>Tendered: $'+tx.tendered.toFixed(2)+'</div><div style="font-weight:700;color:'+accent+';">Change: $'+tx.change.toFixed(2)+'</div></div>':'')+
     '</div>'+
     /* Footer */
-    '<div style="text-align:center;padding:10px 14px 16px;border-top:2px dashed #ddd;margin:0 14px;">'+
+    '<div class="rcpt-foot" style="text-align:center;padding:10px 14px 16px;border-top:2px dashed #ddd;margin:0 14px;animation-delay:'+( (.3+tx.items.length*.08+.3).toFixed(2) )+'s;">'+
       '<div style="font-size:11px;color:#999;line-height:1.7;">'+(STORE.footer||'Thank you for your business!')+'</div>'+
     '</div>'+
   '</div>';
@@ -1848,7 +1939,7 @@ function showReceipt(tx){
   openModal(
     '<div style="max-height:65vh;overflow-y:auto;margin:-4px -4px 0;border-radius:12px 12px 0 0;overflow-x:hidden;">'+rcptHTML(tx)+'</div>'+
     '<div class="mbs" style="margin-top:14px;flex-wrap:wrap;gap:8px;">'+
-      '<button class="ok" id="rcpt-close">✓ Done</button>'+
+      '<button class="ok rcpt-done-btn" id="rcpt-close">✓ Done</button>'+
       '<button id="rcpt-refund" style="color:var(--d);border-color:var(--d);">↩ Refund</button>'+
       '<button id="rcpt-wa" style="background:#25D366;border-color:#25D366;color:#fff;">💬 WhatsApp</button>'+
       '<button id="rcpt-print">🖨 Print</button>'+
@@ -2077,7 +2168,7 @@ function openQuoteModal(q){
 
   window._pq=qdoc;
   openModal(
-    '<div style="max-height:70vh;overflow-y:auto;margin:-4px -4px 0;border-radius:12px 12px 0 0;overflow-x:hidden;">'+qdoc+'</div>'+
+    '<div class="rcpt-animate" style="max-height:70vh;overflow-y:auto;margin:-4px -4px 0;border-radius:12px 12px 0 0;overflow-x:hidden;">'+qdoc+'</div>'+
     '<div class="mbs" style="margin-top:12px;flex-wrap:wrap;gap:8px;">'+
       '<button id="qdoc-close">Close</button>'+
       '<button id="qdoc-wa" style="background:#25D366;border-color:#25D366;color:#fff;">💬 WhatsApp</button>'+
@@ -3242,6 +3333,31 @@ function convertOrderToSale(id){
 }
 
 
+
+/* ── SPLASH SCREEN ── */
+function updateSplash(msg){
+  var el=document.getElementById('splash-status');
+  if(el) el.textContent=msg;
+}
+function hideSplash(){
+  var s=document.getElementById('splash');
+  if(!s) return;
+  s.classList.add('out');
+  setTimeout(function(){ s.style.display='none'; },500);
+  var f=document.getElementById('app-footer');
+  if(f) f.style.display='block';
+}
+function brandSplash(){
+  try{
+    var ico=document.getElementById('splash-icon');
+    var nm=document.getElementById('splash-name');
+    var tg=document.getElementById('splash-tag');
+    if(ico){ico.textContent=BRAND.letter||'S';ico.style.background='rgba(255,255,255,.15)';}
+    if(nm) nm.textContent=BRAND.name||'SwiftPOS';
+    if(tg) tg.textContent=BRAND.sub||'Retail Edition';
+  }catch(e){}
+}
+
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
   try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
@@ -3250,15 +3366,15 @@ async function init(){
   tick();setInterval(tick,60000);
   initMobile();
 
-  setSrv('chk','Connecting…');
+  setSrv('chk','Connecting…');updateSplash('Connecting to server…');
   var attempt=0;
   while(true){
-    if(attempt===3) setSrv('chk','Waking server…');
+    if(attempt===3){setSrv('chk','Waking server…');updateSplash('Waking up server…');}
     if(await pingSrv()) break;
     attempt++;
     await new Promise(function(r){setTimeout(r,3000);});
   }
-  setSrv('chk','Loading…');
+  setSrv('chk','Loading…');updateSplash('Loading your data…');
   var loadStatus=await loadAll();
   applyBrand();
   populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();
@@ -3268,7 +3384,7 @@ async function init(){
     await saveAll();
     toast('Welcome to SwiftPOS!');
   }
-  setSrv('ok','● Connected');
+  setSrv('ok','● Connected');updateSplash('Ready!');setTimeout(hideSplash,400);
   /* DO NOT call saveAll() here — would overwrite server with local state */
   setInterval(saveAll,60000);
   setInterval(pingSrv,25000);
@@ -3469,6 +3585,10 @@ document.addEventListener('click',function(e){
     </div>
     <button class="paybtn" id="mob-paybtn" onclick="openPay();closeMobCart()" disabled style="margin:4px 13px 13px;">Charge $0.00</button>
   </div>
+</div>
+
+<div id="app-footer" style="display:none;text-align:center;padding:8px;font-size:11px;font-weight:700;color:var(--t2);border-top:1px solid var(--b);background:var(--s);flex-shrink:0;letter-spacing:.3px;">
+  © 2026 SFN · All rights reserved
 </div>
 </body>
 </html>
