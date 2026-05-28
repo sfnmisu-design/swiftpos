@@ -3351,6 +3351,7 @@ function renderLayaway(){
           (l.status==='active'?'<button class="ord-btn" data-lwy-wa="'+l.id+'">💬 WhatsApp</button>':'')+
           (l.status==='active'&&remaining<=0?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-lwy-complete="'+l.id+'">✅ Mark Complete</button>':'')+
           (l.status==='active'?'<button class="ord-btn" style="color:var(--d);" data-lwy-cancel="'+l.id+'">❌ Cancel</button>':'')+
+          '<button class="ord-btn" style="color:var(--d);border-color:var(--d);" data-lwy-delete="'+l.id+'">🗑 Delete</button>'+
         '</div>'+
       '</div>'+
     '</div>';
@@ -3607,6 +3608,21 @@ function cancelLayaway(id){
   });
 }
 
+function deleteLayaway(id){
+  var l=LAYAWAYS.find(function(x){return x.id===id;});
+  var name=l?l.customerName:id;
+  confirmModal(
+    'Permanently delete layaway <strong>'+id+'</strong> for <strong>'+name+'</strong>?<br>'+
+    '<span style="font-size:12px;color:var(--d);">This will remove the plan and all payment history. Cannot be undone.</span>',
+    function(){
+      LAYAWAYS=LAYAWAYS.filter(function(x){return x.id!==id;});
+      saveAll();
+      renderLayaway();
+      toast('Layaway deleted');
+    }
+  );
+}
+
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
   try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
@@ -3707,6 +3723,27 @@ document.addEventListener('click',function(e){
   // data-act router
   // Low-stock banner -> go to addprod
   if(e.target.closest('[data-act="go-addprod"]')){openTab('addprod');return;}
+  /* Layaway filter pills */
+  var lwyFilter=e.target.closest('[data-lwy-filter]');
+  if(lwyFilter){_lwyFilter=lwyFilter.getAttribute('data-lwy-filter');renderLayaway();return;}
+  /* Order filter pills */
+  var ordFilter=e.target.closest('.ord-filter');
+  if(ordFilter){_ordFilter=ordFilter.getAttribute('data-filter');renderOrders();return;}
+  /* Layaway card actions */
+  var lwyPay=e.target.closest('[data-lwy-pay]');
+  if(lwyPay){openAddPaymentModal(lwyPay.getAttribute('data-lwy-pay'));return;}
+  var lwyEdit=e.target.closest('[data-lwy-edit]');
+  if(lwyEdit){openAddLayawayModal(lwyEdit.getAttribute('data-lwy-edit'));return;}
+  var lwyHist=e.target.closest('[data-lwy-hist]');
+  if(lwyHist){openPaymentHistory(lwyHist.getAttribute('data-lwy-hist'));return;}
+  var lwyWa=e.target.closest('[data-lwy-wa]');
+  if(lwyWa){whatsAppLayaway(lwyWa.getAttribute('data-lwy-wa'));return;}
+  var lwyComp=e.target.closest('[data-lwy-complete]');
+  if(lwyComp){completeLayaway(lwyComp.getAttribute('data-lwy-complete'));return;}
+  var lwyCancel=e.target.closest('[data-lwy-cancel]');
+  if(lwyCancel){cancelLayaway(lwyCancel.getAttribute('data-lwy-cancel'));return;}
+  var lwyDelete=e.target.closest('[data-lwy-delete]');
+  if(lwyDelete){deleteLayaway(lwyDelete.getAttribute('data-lwy-delete'));return;}
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
@@ -3770,25 +3807,6 @@ document.addEventListener('click',function(e){
   if(act==='open-add-disc'){openAddDiscModal();return;}
   if(act==='open-add-order'){openAddOrderModal();return;}
   if(act==='open-add-layaway'){openAddLayawayModal();return;}
-  /* Layaway filter pills */
-  var lwyFilter=e.target.closest('[data-lwy-filter]');
-  if(lwyFilter){_lwyFilter=lwyFilter.getAttribute('data-lwy-filter');renderLayaway();return;}
-  /* Layaway card actions */
-  var lwyPay=e.target.closest('[data-lwy-pay]');
-  if(lwyPay){openAddPaymentModal(lwyPay.getAttribute('data-lwy-pay'));return;}
-  var lwyEdit=e.target.closest('[data-lwy-edit]');
-  if(lwyEdit){openAddLayawayModal(lwyEdit.getAttribute('data-lwy-edit'));return;}
-  var lwyHist=e.target.closest('[data-lwy-hist]');
-  if(lwyHist){openPaymentHistory(lwyHist.getAttribute('data-lwy-hist'));return;}
-  var lwyWa=e.target.closest('[data-lwy-wa]');
-  if(lwyWa){whatsAppLayaway(lwyWa.getAttribute('data-lwy-wa'));return;}
-  var lwyComp=e.target.closest('[data-lwy-complete]');
-  if(lwyComp){completeLayaway(lwyComp.getAttribute('data-lwy-complete'));return;}
-  var lwyCancel=e.target.closest('[data-lwy-cancel]');
-  if(lwyCancel){cancelLayaway(lwyCancel.getAttribute('data-lwy-cancel'));return;}
-  /* Order filter pills */
-  var ordFilter=e.target.closest('.ord-filter');
-  if(ordFilter){_ordFilter=ordFilter.getAttribute('data-filter');renderOrders();return;}
   /* Order card actions */
   var ordNext=e.target.closest('[data-ord-next]');
   if(ordNext){advanceOrder(ordNext.getAttribute('data-ord-next'));return;}
