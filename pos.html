@@ -612,6 +612,7 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
       <div class="t" onclick="openTab('branding')">🎨 Brand</div>
       <div class="t" onclick="openTab('discounts')">🏷 Discounts</div>
       <div class="t" onclick="openTab('orders')">📦 Orders</div>
+      <div class="t" onclick="openTab('layaway')">💳 Layaway</div>
     </div>
 
     <!-- CATALOG -->
@@ -956,6 +957,30 @@ gap:7px;padding:7px 14px;border-bottom:1px solid var(--b);}
         <div id="ord-list"></div>
       </div>
     </div>
+
+    <!-- ── LAYAWAY ── -->
+    <div class="panel" id="panel-layaway">
+      <div class="sec">
+        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>💳 Layaway Plans</span>
+          <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-add-layaway">+ New plan</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="sgd" id="lwy-stats" style="margin-bottom:12px;"></div>
+
+        <!-- Filter -->
+        <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;">
+          <button class="ord-filter on" data-lwy-filter="all">All</button>
+          <button class="ord-filter" data-lwy-filter="active">🟢 Active</button>
+          <button class="ord-filter" data-lwy-filter="completed">✅ Completed</button>
+          <button class="ord-filter" data-lwy-filter="defaulted">⚠️ Overdue</button>
+          <button class="ord-filter" data-lwy-filter="cancelled">❌ Cancelled</button>
+        </div>
+
+        <div id="lwy-list"></div>
+      </div>
+    </div>
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
     <div class="cart-hd">
@@ -1031,7 +1056,7 @@ function setSrv(cls,txt){
 /* ════════ PERSIST ════════ */
 async function saveAll(){
   var _now=Date.now();
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,meta:{nid,txn,qn},savedAt:_now};
+  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,meta:{nid,txn,qn},savedAt:_now};
   if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;setSrv('err','● Offline');}}
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
@@ -1074,6 +1099,7 @@ async function loadAll(){
       if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
     if(r.coupons&&typeof r.coupons==='object') COUPONS=Object.assign({},COUPONS,r.coupons);
     if(Array.isArray(r.orders)) ORDERS=[...r.orders];
+    if(Array.isArray(r.layaways)) LAYAWAYS=[...r.layaways];
       if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       console.log('[load] OK:',PRODS.length,'prods',TXS.length,'txs');
       return 'ok';
@@ -1116,6 +1142,7 @@ let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAYM='cash';
 let ORDERS=[];
+let LAYAWAYS=[];
 let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPITS=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
@@ -2344,7 +2371,7 @@ function toast(msg, type){
 }
 function tick(){document.getElementById('clk').textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders'];
+const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway'];
 const MOB_NAV_ITEMS=['catalog','sales','cart','customers','more'];
 function openTab(name){
   PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
@@ -2361,6 +2388,7 @@ function openTab(name){
   if(name==='backup')renderBkInfo();
   if(name==='discounts')renderDiscounts();
   if(name==='orders')renderOrders();
+  if(name==='layaway')renderLayaway();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
   if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
@@ -2736,7 +2764,7 @@ function openMobMore(){
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;" id="mob-more-grid"></div>'+
     '<button id="mob-more-cl" style="width:100%;padding:13px;border:1.5px solid var(--b);border-radius:12px;background:var(--bg);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;">Close</button>'
   );
-  var items=[['👥 Customers','customers'],['📋 Quotes','quotes'],['⚙ Settings','settings'],['💾 Backup','backup'],['📦 Orders','orders'],['🏷 Discounts','discounts'],['🎨 Brand','branding'],['📅 Daily','daily']];
+  var items=[['👥 Customers','customers'],['📋 Quotes','quotes'],['⚙ Settings','settings'],['💾 Backup','backup'],['📦 Orders','orders'],['💳 Layaway','layaway'],['🏷 Discounts','discounts'],['🎨 Brand','branding'],['📅 Daily','daily']];
   var grid=document.getElementById('mob-more-grid');
   items.forEach(function(item){
     var b=document.createElement('button');
@@ -3213,6 +3241,372 @@ function brandSplash(){
   }catch(e){}
 }
 
+
+/* ════════ LAYAWAY ════════ */
+var _lwyFilter='all';
+
+function genLwyId(){ return 'LWY-'+Date.now().toString(36).toUpperCase().slice(-5); }
+
+function getLwyStatus(l){
+  if(l.status==='cancelled') return {label:'Cancelled',color:'#9E9E9E',bg:'#F5F5F5',emoji:'❌'};
+  if(l.status==='completed') return {label:'Completed',color:'#2E7D32',bg:'#E8F5E9',emoji:'✅'};
+  var pct=l.paidAmount/l.totalAmount*100;
+  // Check if overdue
+  var today=new Date(); today.setHours(0,0,0,0);
+  var due=l.dueDate?new Date(l.dueDate):null;
+  if(due&&due<today&&l.status==='active') return {label:'Overdue',color:'#B45309',bg:'#FEF3C7',emoji:'⚠️'};
+  return {label:'Active',color:'#1D9E75',bg:'#E1F5EE',emoji:'🟢'};
+}
+
+function renderLayaway(){
+  // Stats
+  var el=document.getElementById('lwy-stats');
+  if(el){
+    var active=LAYAWAYS.filter(function(l){return l.status==='active';}).length;
+    var totalOwed=LAYAWAYS.filter(function(l){return l.status==='active';})
+      .reduce(function(s,l){return s+(l.totalAmount-l.paidAmount);},0);
+    var totalCollected=LAYAWAYS.reduce(function(s,l){return s+l.paidAmount;},0);
+    var overdue=LAYAWAYS.filter(function(l){
+      if(l.status!=='active') return false;
+      var due=l.dueDate?new Date(l.dueDate):null;
+      var today=new Date(); today.setHours(0,0,0,0);
+      return due&&due<today;
+    }).length;
+    el.innerHTML=
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Active</div><div class="sv" style="color:#1D9E75;">'+active+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Total owed</div><div class="sv" style="color:var(--d);">$'+totalOwed.toFixed(2)+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Collected</div><div class="sv" style="color:#1D9E75;">$'+totalCollected.toFixed(2)+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Overdue</div><div class="sv" style="color:'+(overdue?'var(--d)':'var(--t3)')+';">'+overdue+'</div></div>';
+  }
+  // Filter buttons
+  document.querySelectorAll('[data-lwy-filter]').forEach(function(btn){
+    btn.classList.toggle('on', btn.getAttribute('data-lwy-filter')===_lwyFilter);
+  });
+  // List
+  var list=document.getElementById('lwy-list');
+  if(!list) return;
+  var items=_lwyFilter==='all'?LAYAWAYS:LAYAWAYS.filter(function(l){
+    if(_lwyFilter==='defaulted'){
+      var due=l.dueDate?new Date(l.dueDate):null;
+      var today=new Date(); today.setHours(0,0,0,0);
+      return l.status==='active'&&due&&due<today;
+    }
+    return l.status===_lwyFilter;
+  });
+  items=[...items].sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+
+  if(!items.length){
+    list.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;"><div style="font-size:36px;margin-bottom:8px;">💳</div><div style="font-size:14px;font-weight:600;">No layaway plans'+(  _lwyFilter!=='all'?' here':' yet')+'</div><div style="font-size:12px;margin-top:4px;">Tap + New plan to get started</div></div>';
+    return;
+  }
+
+  list.innerHTML=items.map(function(l){
+    var st=getLwyStatus(l);
+    var cust=l.customerId?CUSTS.find(function(c){return c.id===l.customerId;}):null;
+    var pct=Math.min(100,Math.round(l.paidAmount/l.totalAmount*100));
+    var remaining=l.totalAmount-l.paidAmount;
+    var dt=new Date(l.createdAt);
+    var due=l.dueDate?new Date(l.dueDate).toLocaleDateString():'No due date';
+    var payments=l.payments||[];
+    return '<div class="card np" style="margin-bottom:10px;border-left:4px solid '+st.color+';">'+
+      '<div style="padding:12px 14px;">'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
+          '<div>'+
+            '<div style="font-size:12px;font-weight:700;font-family:monospace;color:var(--t3);">'+l.id+'</div>'+
+            '<div style="font-size:15px;font-weight:700;margin-top:1px;">'+(l.customerName||'No customer')+'</div>'+
+            (cust&&cust.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+cust.phone+'</div>':'')+
+          '</div>'+
+          '<div style="text-align:right;">'+
+            '<div style="font-size:18px;font-weight:800;color:var(--a);">$'+l.totalAmount.toFixed(2)+'</div>'+
+            '<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+st.bg+';color:'+st.color+';">'+st.emoji+' '+st.label+'</span>'+
+          '</div>'+
+        '</div>'+
+        // Items
+        '<div style="font-size:12px;color:var(--t2);margin-bottom:8px;">'+
+          l.items.map(function(i){return i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'');}).join(', ')+
+        '</div>'+
+        // Progress bar
+        '<div style="margin-bottom:8px;">'+
+          '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--t3);margin-bottom:4px;">'+
+            '<span>Paid: <strong style="color:var(--a);">$'+l.paidAmount.toFixed(2)+'</strong></span>'+
+            '<span>Remaining: <strong style="color:var(--d);">$'+remaining.toFixed(2)+'</strong></span>'+
+          '</div>'+
+          '<div style="height:8px;background:var(--b);border-radius:4px;overflow:hidden;">'+
+            '<div style="height:100%;width:'+pct+'%;background:var(--a);border-radius:4px;transition:width .4s;"></div>'+
+          '</div>'+
+          '<div style="font-size:10px;color:var(--t3);margin-top:2px;text-align:right;">'+pct+'% paid</div>'+
+        '</div>'+
+        // Meta
+        '<div style="display:flex;gap:12px;font-size:11px;color:var(--t3);margin-bottom:10px;flex-wrap:wrap;">'+
+          '<span>📅 Due: <strong>'+due+'</strong></span>'+
+          '<span>💰 Deposit: <strong>$'+l.depositAmount.toFixed(2)+'</strong></span>'+
+          '<span>🔢 '+payments.length+' payment'+(payments.length!==1?'s':'')+'</span>'+
+          (l.notes?'<span>📝 '+l.notes+'</span>':'')+
+        '</div>'+
+        // Actions
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
+          (l.status==='active'?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-lwy-pay="'+l.id+'">💰 Add Payment</button>':'')+
+          '<button class="ord-btn" data-lwy-edit="'+l.id+'">✏️ Edit</button>'+
+          '<button class="ord-btn" data-lwy-hist="'+l.id+'">🕐 History</button>'+
+          (l.status==='active'?'<button class="ord-btn" data-lwy-wa="'+l.id+'">💬 WhatsApp</button>':'')+
+          (l.status==='active'&&remaining<=0?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-lwy-complete="'+l.id+'">✅ Mark Complete</button>':'')+
+          (l.status==='active'?'<button class="ord-btn" style="color:var(--d);" data-lwy-cancel="'+l.id+'">❌ Cancel</button>':'')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function openAddLayawayModal(editId){
+  var isEdit=!!editId;
+  var ex=isEdit?LAYAWAYS.find(function(l){return l.id===editId;}):{
+    customerName:'',customerId:'',items:[],totalAmount:0,depositAmount:0,
+    paidAmount:0,dueDate:'',notes:'',status:'active',payments:[],createdAt:new Date().toISOString()
+  };
+  if(!ex) return;
+
+  var custOpts='<option value="">No customer</option>'+CUSTS.map(function(c){
+    return'<option value="'+c.id+'"'+(ex.customerId===c.id?' selected':'')+'>'+c.name+(c.phone?' — '+c.phone:'')+'</option>';
+  }).join('');
+
+  var prodOpts=PRODS.map(function(p){
+    return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';
+  }).join('');
+
+  var defaultDue=ex.dueDate||'';
+  if(!defaultDue){
+    var d=new Date(); d.setDate(d.getDate()+90);
+    defaultDue=d.toISOString().slice(0,10);
+  }
+
+  openModal(
+    '<h3>'+(isEdit?'Edit Layaway '+ex.id:'New Layaway Plan')+'</h3>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+      '<div class="f"><label>Customer</label><select id="lwy-cust" onchange="var c=CUSTS.find(x=>x.id===this.value);document.getElementById(\'lwy-cname\').value=c?c.name:\'\' ">'+custOpts+'</select></div>'+
+      '<div class="f"><label>Name (if no account)</label><input type="text" id="lwy-cname" value="'+(ex.customerName||'')+'" placeholder="Customer name"></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Add items to plan</label>'+
+      '<div style="display:flex;gap:6px;">'+
+        '<select id="lwy-prod" style="flex:1;">'+prodOpts+'</select>'+
+        '<input type="number" id="lwy-qty" value="1" min="1" style="width:56px;" inputmode="numeric">'+
+        '<button class="ok" id="lwy-add-item" style="padding:8px 12px;">Add</button>'+
+      '</div>'+
+    '</div>'+
+    '<div id="lwy-items-wrap" style="margin-bottom:10px;max-height:130px;overflow-y:auto;"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">'+
+      '<div class="f"><label>Total amount</label><input type="number" id="lwy-total" value="'+(ex.totalAmount||0)+'" min="0" step="0.01" inputmode="decimal"></div>'+
+      '<div class="f"><label>Deposit paid</label><input type="number" id="lwy-deposit" value="'+(ex.depositAmount||0)+'" min="0" step="0.01" inputmode="decimal"></div>'+
+      '<div class="f"><label>Due date</label><input type="date" id="lwy-due" value="'+defaultDue+'"></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label>Notes</label><input type="text" id="lwy-notes" value="'+(ex.notes||'')+'" placeholder="Item description, special instructions…"></div>'+
+    '<div class="mbs"><button id="lwy-cancel">Cancel</button><button class="ok" id="lwy-save">'+(isEdit?'Save changes':'Create plan')+'</button></div>'
+  );
+
+  var items=[...(ex.items||[])];
+  function calcTotal(){ return items.reduce(function(s,i){return s+i.price*i.qty;},0); }
+  function renderLwyItems(){
+    var w=document.getElementById('lwy-items-wrap');
+    if(!w) return;
+    if(!items.length){w.innerHTML='<div style="font-size:12px;color:var(--t3);padding:6px 0;">No items — add from catalog or enter total manually</div>';return;}
+    w.innerHTML=items.map(function(it,i){
+      return'<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--b);">'+
+        '<span style="font-size:16px;">'+it.emoji+'</span>'+
+        '<div style="flex:1;font-size:12px;font-weight:500;">'+it.name+' ×'+it.qty+'</div>'+
+        '<div style="font-size:13px;font-weight:700;color:var(--a);">$'+(it.price*it.qty).toFixed(2)+'</div>'+
+        '<button data-lwy-del-item="'+i+'" style="color:var(--d);background:none;border:none;cursor:pointer;font-size:14px;">🗑</button>'+
+      '</div>';
+    }).join('');
+    // Update total field
+    var tf=document.getElementById('lwy-total');
+    if(tf) tf.value=calcTotal().toFixed(2);
+    // Attach delete listeners
+    w.querySelectorAll('[data-lwy-del-item]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        items.splice(parseInt(this.getAttribute('data-lwy-del-item')),1);
+        renderLwyItems();
+      });
+    });
+  }
+  renderLwyItems();
+
+  // Prefill customer name when customer selected
+  document.getElementById('lwy-cust').addEventListener('change',function(){
+    var c=CUSTS.find(function(x){return x.id===this.value;}.bind(this));
+    document.getElementById('lwy-cname').value=c?c.name:'';
+  });
+
+  document.getElementById('lwy-add-item').addEventListener('click',function(){
+    var sel=document.getElementById('lwy-prod');
+    var qty=parseInt(document.getElementById('lwy-qty').value)||1;
+    var pid=parseInt(sel.value);
+    var p=PRODS.find(function(x){return x.id===pid;});
+    if(!p) return;
+    var ex2=items.find(function(i){return i.id===pid;});
+    if(ex2) ex2.qty+=qty;
+    else items.push({id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:qty});
+    renderLwyItems();
+  });
+
+  document.getElementById('lwy-cancel').addEventListener('click',closeModal);
+  document.getElementById('lwy-save').addEventListener('click',function(){
+    var cname=document.getElementById('lwy-cname').value.trim();
+    var custId=document.getElementById('lwy-cust').value;
+    var total=parseFloat(document.getElementById('lwy-total').value)||0;
+    var deposit=parseFloat(document.getElementById('lwy-deposit').value)||0;
+    if(!cname&&!custId){toast('Enter customer name or select a customer');return;}
+    if(total<=0){toast('Enter a total amount');return;}
+    if(deposit>total){toast('Deposit cannot exceed total');return;}
+
+    var plan={
+      id: isEdit?ex.id:genLwyId(),
+      customerName: cname||(CUSTS.find(function(c){return c.id===custId;})||{}).name||'',
+      customerId: custId||null,
+      items: items,
+      totalAmount: total,
+      depositAmount: deposit,
+      paidAmount: isEdit?ex.paidAmount:deposit,
+      dueDate: document.getElementById('lwy-due').value,
+      notes: document.getElementById('lwy-notes').value.trim(),
+      status: isEdit?ex.status:'active',
+      payments: isEdit?ex.payments:[],
+      createdAt: isEdit?ex.createdAt:new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    // Record deposit as first payment if new plan with deposit
+    if(!isEdit&&deposit>0){
+      plan.payments=[{date:new Date().toISOString(),amount:deposit,note:'Deposit'}];
+    }
+    if(isEdit){
+      var idx=LAYAWAYS.findIndex(function(l){return l.id===editId;});
+      if(idx>=0) LAYAWAYS[idx]=plan; else LAYAWAYS.unshift(plan);
+    } else {
+      LAYAWAYS.unshift(plan);
+    }
+    saveAll();renderLayaway();closeModal();
+    toast((isEdit?'Plan updated':'Layaway plan created')+' ✓');
+  });
+}
+
+function openAddPaymentModal(id){
+  var l=LAYAWAYS.find(function(x){return x.id===id;});
+  if(!l) return;
+  var remaining=+(l.totalAmount-l.paidAmount).toFixed(2);
+  openModal(
+    '<h3>Add Payment — '+l.id+'</h3>'+
+    '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);">'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;">'+
+        '<span>Customer:</span><strong>'+l.customerName+'</strong>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;">'+
+        '<span>Balance due:</span><strong style="color:var(--d);">$'+remaining.toFixed(2)+'</strong>'+
+      '</div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Payment amount</label>'+
+      '<input type="number" id="lwy-pay-amt" value="'+remaining+'" min="0.01" max="'+remaining+'" step="0.01" inputmode="decimal">'+
+      '<div style="display:flex;gap:6px;margin-top:6px;">'+
+        '<button class="qa" id="lwy-pay-full">Pay full $'+remaining.toFixed(2)+'</button>'+
+        '<button class="qa" id="lwy-pay-half">Half $'+(remaining/2).toFixed(2)+'</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label>Note (optional)</label>'+
+      '<input type="text" id="lwy-pay-note" placeholder="e.g. Cash payment, Bank transfer…">'+
+    '</div>'+
+    '<div class="mbs"><button id="lwy-pay-cancel">Cancel</button><button class="ok" id="lwy-pay-save">Record Payment</button></div>'
+  );
+  document.getElementById('lwy-pay-full').addEventListener('click',function(){document.getElementById('lwy-pay-amt').value=remaining;});
+  document.getElementById('lwy-pay-half').addEventListener('click',function(){document.getElementById('lwy-pay-amt').value=(remaining/2).toFixed(2);});
+  document.getElementById('lwy-pay-cancel').addEventListener('click',closeModal);
+  document.getElementById('lwy-pay-save').addEventListener('click',function(){
+    var amt=parseFloat(document.getElementById('lwy-pay-amt').value)||0;
+    if(amt<=0){toast('Enter a valid payment amount');return;}
+    if(amt>remaining){toast('Payment exceeds balance due ($'+remaining.toFixed(2)+')');return;}
+    var note=document.getElementById('lwy-pay-note').value.trim();
+    l.paidAmount=+(l.paidAmount+amt).toFixed(2);
+    l.payments=l.payments||[];
+    l.payments.push({date:new Date().toISOString(),amount:amt,note:note||'Payment'});
+    l.updatedAt=new Date().toISOString();
+    if(l.paidAmount>=l.totalAmount){l.status='completed';toast('🎉 Layaway fully paid! Plan completed.');}
+    else toast('Payment of $'+amt.toFixed(2)+' recorded ✓');
+    saveAll();renderLayaway();closeModal();
+  });
+}
+
+function openPaymentHistory(id){
+  var l=LAYAWAYS.find(function(x){return x.id===id;});
+  if(!l) return;
+  var payments=l.payments||[];
+  openModal(
+    '<h3>Payment History — '+l.id+'</h3>'+
+    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Customer: <strong>'+l.customerName+'</strong></div>'+
+    (payments.length?
+      '<div class="card np" style="margin-bottom:10px;">'+
+        payments.map(function(p,i){
+          var dt=new Date(p.date);
+          return'<div style="display:flex;align-items:center;padding:8px 12px;'+(i<payments.length-1?'border-bottom:1px solid var(--b)':'')+';font-size:12px;">'+
+            '<div style="flex:1;">'+
+              '<div style="font-weight:600;">'+(p.note||'Payment')+'</div>'+
+              '<div style="color:var(--t3);">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div>'+
+            '</div>'+
+            '<div style="font-weight:800;color:var(--a);font-size:14px;">$'+p.amount.toFixed(2)+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-top:1px solid var(--b);">'+
+        '<span>Total paid:</span><strong style="color:var(--a);">$'+l.paidAmount.toFixed(2)+'</strong>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;">'+
+        '<span>Remaining:</span><strong style="color:var(--d);">$'+(l.totalAmount-l.paidAmount).toFixed(2)+'</strong>'+
+      '</div>'
+    :'<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;">No payments recorded yet</div>')+
+    '<div class="mbs"><button id="lwy-hist-cl" class="ok">Close</button></div>'
+  );
+  document.getElementById('lwy-hist-cl').addEventListener('click',closeModal);
+}
+
+function whatsAppLayaway(id){
+  var l=LAYAWAYS.find(function(x){return x.id===id;});
+  if(!l) return;
+  var cust=l.customerId?CUSTS.find(function(c){return c.id===l.customerId;}):null;
+  var remaining=+(l.totalAmount-l.paidAmount).toFixed(2);
+  var pct=Math.round(l.paidAmount/l.totalAmount*100);
+  var lines=[
+    '*'+BRAND.name+' — Layaway Plan*',
+    'Plan ID: *'+l.id+'*',
+    '',
+    'Hi '+l.customerName+',',
+    'Here is your layaway plan update:',
+    '',
+    '*Items:*',
+  ];
+  l.items.forEach(function(i){ lines.push(i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'')); });
+  lines.push('');
+  lines.push('Total: $'+l.totalAmount.toFixed(2));
+  lines.push('Paid: $'+l.paidAmount.toFixed(2)+' ('+pct+'%)');
+  lines.push('*Balance due: $'+remaining.toFixed(2)+'*');
+  if(l.dueDate) lines.push('Due date: '+new Date(l.dueDate).toLocaleDateString());
+  lines.push('');
+  lines.push('Please contact us to make a payment.');
+  lines.push('Thank you, '+BRAND.name+'!');
+  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):'';
+  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+}
+
+function completeLayaway(id){
+  var l=LAYAWAYS.find(function(x){return x.id===id;});
+  if(!l) return;
+  confirmModal('Mark layaway <strong>'+l.id+'</strong> as completed?',function(){
+    l.status='completed';l.updatedAt=new Date().toISOString();
+    saveAll();renderLayaway();toast('Layaway marked as completed ✓');
+  });
+}
+
+function cancelLayaway(id){
+  confirmModal('Cancel layaway plan <strong>'+id+'</strong>?<br><span style="font-size:12px;color:var(--t3);">This cannot be undone. Payments are not automatically refunded.</span>',function(){
+    var l=LAYAWAYS.find(function(x){return x.id===id;});
+    if(l){l.status='cancelled';l.updatedAt=new Date().toISOString();saveAll();renderLayaway();toast('Layaway cancelled');}
+  });
+}
+
 async function init(){
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
   try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
@@ -3375,6 +3769,23 @@ document.addEventListener('click',function(e){
   if(act==='open-eod')  {openEOD();return;}
   if(act==='open-add-disc'){openAddDiscModal();return;}
   if(act==='open-add-order'){openAddOrderModal();return;}
+  if(act==='open-add-layaway'){openAddLayawayModal();return;}
+  /* Layaway filter pills */
+  var lwyFilter=e.target.closest('[data-lwy-filter]');
+  if(lwyFilter){_lwyFilter=lwyFilter.getAttribute('data-lwy-filter');renderLayaway();return;}
+  /* Layaway card actions */
+  var lwyPay=e.target.closest('[data-lwy-pay]');
+  if(lwyPay){openAddPaymentModal(lwyPay.getAttribute('data-lwy-pay'));return;}
+  var lwyEdit=e.target.closest('[data-lwy-edit]');
+  if(lwyEdit){openAddLayawayModal(lwyEdit.getAttribute('data-lwy-edit'));return;}
+  var lwyHist=e.target.closest('[data-lwy-hist]');
+  if(lwyHist){openPaymentHistory(lwyHist.getAttribute('data-lwy-hist'));return;}
+  var lwyWa=e.target.closest('[data-lwy-wa]');
+  if(lwyWa){whatsAppLayaway(lwyWa.getAttribute('data-lwy-wa'));return;}
+  var lwyComp=e.target.closest('[data-lwy-complete]');
+  if(lwyComp){completeLayaway(lwyComp.getAttribute('data-lwy-complete'));return;}
+  var lwyCancel=e.target.closest('[data-lwy-cancel]');
+  if(lwyCancel){cancelLayaway(lwyCancel.getAttribute('data-lwy-cancel'));return;}
   /* Order filter pills */
   var ordFilter=e.target.closest('.ord-filter');
   if(ordFilter){_ordFilter=ordFilter.getAttribute('data-filter');renderOrders();return;}
