@@ -533,6 +533,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="t" onclick="openTab('discounts')">🏷 Discounts</div>
       <div class="t" onclick="openTab('orders')">📦 Orders</div>
       <div class="t" onclick="openTab('layaway')">💳 Layaway</div>
+      <div class="t" onclick="openTab('walkin')">🛠 Custom Orders</div>
     </div>
 
     <!-- CATALOG -->
@@ -901,6 +902,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div id="lwy-list"></div>
       </div>
     </div>
+
+    <!-- ── WALK-IN / CUSTOM ORDERS ── -->
+    <div class="panel" id="panel-walkin">
+      <div class="sec">
+        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>🛠 Custom Orders</span>
+          <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-add-walkin">+ New custom order</button>
+        </div>
+        <div class="sgd" id="wk-stats" style="margin-bottom:12px;"></div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;">
+          <button class="ord-filter on" data-wk-filter="all">All</button>
+          <button class="ord-filter" data-wk-filter="requested">📝 Requested</button>
+          <button class="ord-filter" data-wk-filter="ordered">📦 Ordered</button>
+          <button class="ord-filter" data-wk-filter="ready">✅ Ready</button>
+          <button class="ord-filter" data-wk-filter="collected">🚀 Collected</button>
+          <button class="ord-filter" data-wk-filter="cancelled">❌ Cancelled</button>
+        </div>
+        <div id="wk-list"></div>
+      </div>
+    </div>
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
     <div class="cart-hd">
@@ -977,7 +998,7 @@ function setSrv(cls,txt){
 async function saveAll(){
   try{
   var _now=Date.now();
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,meta:{nid,txn,qn},savedAt:_now};
+  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,meta:{nid,txn,qn},savedAt:_now};
   if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;try{setSrv('err','● Offline');}catch(e2){}}}
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
@@ -990,6 +1011,7 @@ async function saveAll(){
     localStorage.setItem('sp_q',JSON.stringify(QUOTES));
     localStorage.setItem('sp_m',JSON.stringify({nid,txn,qn}));
     localStorage.setItem('sp_ti',JSON.stringify(TOPITS));
+    localStorage.setItem('sp_wk',JSON.stringify(WALKINS));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
   }catch(e){}
@@ -1028,6 +1050,7 @@ async function loadAll(){
     if(r.coupons&&typeof r.coupons==='object') COUPONS=Object.assign({},COUPONS,r.coupons);
     if(Array.isArray(r.orders)) ORDERS=[...r.orders];
     if(Array.isArray(r.layaways)) LAYAWAYS=[...r.layaways];
+    if(Array.isArray(r.walkins)) WALKINS=[...r.walkins];
       if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       
       return 'ok';
@@ -1044,6 +1067,7 @@ async function loadAll(){
     const q=localStorage.getItem('sp_q');if(q)QUOTES=JSON.parse(q);
     const m=localStorage.getItem('sp_m');if(m){const md=JSON.parse(m);nid=md.nid||nid;txn=md.txn||txn;qn=md.qn||qn;}
     const ti=localStorage.getItem('sp_ti');if(ti)TOPITS=JSON.parse(ti);
+    const wk=localStorage.getItem('sp_wk');if(wk)WALKINS=JSON.parse(wk);
   }catch(e){}
 
   }catch(_e){return;}
@@ -1089,6 +1113,7 @@ let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radiu
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAYM='cash';
 let ORDERS=[];
 let LAYAWAYS=[];
+let WALKINS=[];
 let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPITS=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
@@ -2362,7 +2387,7 @@ function toast(msg, type){
 }
 function tick(){var c=document.getElementById('clk');if(c)c.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway'];
+const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway','walkin'];
 const MOB_NAV_ITEMS=['catalog','sales','cart','customers','more'];
 function openTab(name){
   PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
@@ -2379,6 +2404,7 @@ function openTab(name){
   if(name==='discounts')renderDiscounts();
   if(name==='orders')renderOrders();
   if(name==='layaway')renderLayaway();
+  if(name==='walkin')renderWalkin();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
   if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
@@ -2758,7 +2784,7 @@ function openMobMore(){
     ['👥 Customers','customers'],
     ['📋 Quotes','quotes'],
     ['📦 Orders','orders'],
-    ['💳 Layaway','layaway'],
+    ['💳 Layaway','layaway'],['🛠 Custom Orders','walkin'],
     ['🏷 Discounts','discounts'],
     ['📅 Daily','daily'],
     ['📊 Reports','reports'],
@@ -3624,6 +3650,219 @@ function deleteLayaway(id){
   );
 }
 
+
+/* ════════ WALK-IN / CUSTOM ORDERS ════════ */
+var _wkFilter='all';
+const WK_STATUS={
+  requested:{label:'Requested',emoji:'📝',color:'#E65100',bg:'#FFF3E0',next:'ordered'},
+  ordered:  {label:'Ordered',  emoji:'📦',color:'#1565C0',bg:'#E3F2FD',next:'ready'},
+  ready:    {label:'Ready',    emoji:'✅',color:'#6A1B9A',bg:'#F3E5F5',next:'collected'},
+  collected:{label:'Collected',emoji:'🚀',color:'#2E7D32',bg:'#E8F5E9',next:null},
+  cancelled:{label:'Cancelled',emoji:'❌',color:'#9E9E9E',bg:'#F5F5F5',next:null}
+};
+
+function genWkId(){ return 'CO-'+Date.now().toString(36).toUpperCase().slice(-5); }
+
+function renderWalkin(){
+  var stats=document.getElementById('wk-stats');
+  if(stats){
+    var requested=WALKINS.filter(function(w){return w.status==='requested';}).length;
+    var ordered=WALKINS.filter(function(w){return w.status==='ordered';}).length;
+    var ready=WALKINS.filter(function(w){return w.status==='ready';}).length;
+    var owed=WALKINS.filter(function(w){return w.status!=='collected'&&w.status!=='cancelled';})
+      .reduce(function(s,w){return s+Math.max(0,w.price-w.deposit);},0);
+    stats.innerHTML=
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Requested</div><div class="sv" style="color:#E65100;">'+requested+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Ordered</div><div class="sv" style="color:#1565C0;">'+ordered+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Ready</div><div class="sv" style="color:#6A1B9A;">'+ready+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Balance owed</div><div class="sv" style="color:var(--d);">$'+owed.toFixed(2)+'</div></div>';
+  }
+  document.querySelectorAll('[data-wk-filter]').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-wk-filter')===_wkFilter);
+  });
+  var list=document.getElementById('wk-list');
+  if(!list) return;
+  var items=_wkFilter==='all'?WALKINS:WALKINS.filter(function(w){return w.status===_wkFilter;});
+  items=[...items].sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+  if(!items.length){
+    list.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;"><div style="font-size:36px;margin-bottom:8px;">🛠</div><div style="font-size:14px;font-weight:600;">No custom orders'+(_wkFilter!=='all'?' here':' yet')+'</div><div style="font-size:12px;margin-top:4px;">Tap + New custom order to start</div></div>';
+    return;
+  }
+  list.innerHTML=items.map(function(w){
+    var st=WK_STATUS[w.status]||WK_STATUS.requested;
+    var balance=Math.max(0,w.price-w.deposit);
+    var dt=new Date(w.createdAt);
+    var ready=w.readyBy?new Date(w.readyBy):null;
+    var today=new Date(); today.setHours(0,0,0,0);
+    var overdue=ready&&ready<today&&(w.status==='requested'||w.status==='ordered');
+    var nextSt=st.next?WK_STATUS[st.next]:null;
+    return '<div class="card" style="margin-bottom:10px;border-left:4px solid '+st.color+';padding:13px 14px;">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
+        '<div>'+
+          '<div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--t3);">'+w.id+'</div>'+
+          '<div style="font-size:15px;font-weight:700;">'+w.customerName+'</div>'+
+          (w.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+w.phone+'</div>':'')+
+        '</div>'+
+        '<div style="text-align:right;">'+
+          '<div style="font-size:17px;font-weight:800;color:var(--a);">$'+w.price.toFixed(2)+'</div>'+
+          '<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+st.bg+';color:'+st.color+';">'+st.emoji+' '+st.label+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:13px;color:var(--t);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+w.description+'</div>'+
+      '<div style="display:flex;gap:12px;font-size:11px;color:var(--t3);margin-bottom:8px;flex-wrap:wrap;">'+
+        (w.readyBy?'<span style="'+(overdue?'color:var(--d);font-weight:700;':'')+'">📅 Ready by: '+(ready?ready.toLocaleDateString():'-')+(overdue?' (OVERDUE)':'')+'</span>':'')+
+        '<span>💰 Deposit: <strong>$'+w.deposit.toFixed(2)+'</strong></span>'+
+        (balance>0?'<span>Balance: <strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></span>':'<span style="color:#2E7D32;font-weight:700;">PAID IN FULL</span>')+
+      '</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
+        (nextSt?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-wk-next="'+w.id+'">'+nextSt.emoji+' Mark '+nextSt.label+'</button>':'')+
+        '<button class="ord-btn" data-wk-edit="'+w.id+'">✏️ Edit</button>'+
+        '<button class="ord-btn" data-wk-wa="'+w.id+'">💬 WhatsApp</button>'+
+        (w.status==='ready'&&balance>0?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-wk-collect="'+w.id+'">💵 Collect &amp; Complete</button>':'')+
+        (w.status==='ready'&&balance<=0?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-wk-collect="'+w.id+'">🚀 Mark Collected</button>':'')+
+        (w.status!=='collected'&&w.status!=='cancelled'?'<button class="ord-btn" style="color:var(--d);" data-wk-cancel="'+w.id+'">❌ Cancel</button>':'')+
+        '<button class="ord-btn" style="color:var(--d);border-color:var(--d);" data-wk-delete="'+w.id+'">🗑 Delete</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function openAddWalkinModal(editId){
+  var isEdit=!!editId;
+  var ex=isEdit?WALKINS.find(function(w){return w.id===editId;}):{
+    customerName:'',phone:'',customerId:'',description:'',price:0,deposit:0,readyBy:'',status:'requested'
+  };
+  if(!ex) return;
+  var custOpts='<option value="">Walk-in (no account)</option>'+CUSTS.map(function(c){
+    return'<option value="'+c.id+'"'+(ex.customerId===c.id?' selected':'')+'>'+c.name+(c.phone?' — '+c.phone:'')+'</option>';
+  }).join('');
+  var defReady=ex.readyBy||'';
+  if(!defReady){var d=new Date();d.setDate(d.getDate()+7);defReady=d.toISOString().slice(0,10);}
+
+  openModal(
+    '<h3>'+(isEdit?'Edit '+ex.id:'New Custom Order')+'</h3>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'+
+      '<div class="f"><label>Customer</label><select id="wk-cust">'+custOpts+'</select></div>'+
+      '<div class="f"><label>Name *</label><input type="text" id="wk-name" value="'+(ex.customerName||'')+'" placeholder="Customer name"></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Phone</label><input type="tel" id="wk-phone" value="'+(ex.phone||'')+'" placeholder="+592 600 0000" inputmode="tel"></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>What does the customer want? *</label>'+
+      '<textarea id="wk-desc" rows="3" placeholder="e.g. Custom mix metallic blue paint, 2 litres — match sample provided" style="width:100%;font-size:16px;padding:11px;border-radius:12px;border:1.5px solid var(--b);background:var(--bg);font-family:inherit;resize:vertical;">'+(ex.description||'')+'</textarea>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'+
+      '<div class="f"><label>Price quote</label><input type="number" id="wk-price" value="'+(ex.price||0)+'" min="0" step="0.01" inputmode="decimal"></div>'+
+      '<div class="f"><label>Deposit taken</label><input type="number" id="wk-deposit" value="'+(ex.deposit||0)+'" min="0" step="0.01" inputmode="decimal"></div>'+
+      '<div class="f"><label>Ready by</label><input type="date" id="wk-ready" value="'+defReady+'"></div>'+
+    '</div>'+
+    '<div class="mbs"><button id="wk-cancel">Cancel</button><button class="ok" id="wk-save">'+(isEdit?'Save changes':'Create order')+'</button></div>'
+  );
+  document.getElementById('wk-cust').addEventListener('change',function(){
+    var c=CUSTS.find(function(x){return x.id===this.value;}.bind(this));
+    if(c){document.getElementById('wk-name').value=c.name;if(c.phone)document.getElementById('wk-phone').value=c.phone;}
+  });
+  document.getElementById('wk-cancel').addEventListener('click',closeModal);
+  document.getElementById('wk-save').addEventListener('click',function(){
+    var name=document.getElementById('wk-name').value.trim();
+    var desc=document.getElementById('wk-desc').value.trim();
+    var price=parseFloat(document.getElementById('wk-price').value)||0;
+    var deposit=parseFloat(document.getElementById('wk-deposit').value)||0;
+    if(!name){toast('Customer name required');return;}
+    if(!desc){toast('Describe what the customer wants');return;}
+    if(deposit>price){toast('Deposit cannot exceed price');return;}
+    var custId=document.getElementById('wk-cust').value;
+    var order={
+      id:isEdit?ex.id:genWkId(),
+      customerName:name,
+      customerId:custId||null,
+      phone:document.getElementById('wk-phone').value.trim(),
+      description:desc,
+      price:price,
+      deposit:deposit,
+      readyBy:document.getElementById('wk-ready').value,
+      status:isEdit?ex.status:'requested',
+      createdAt:isEdit?ex.createdAt:new Date().toISOString(),
+      updatedAt:new Date().toISOString()
+    };
+    if(isEdit){var i=WALKINS.findIndex(function(w){return w.id===editId;});if(i>=0)WALKINS[i]=order;}
+    else WALKINS.unshift(order);
+    saveAll();renderWalkin();closeModal();
+    toast((isEdit?'Order updated':'Custom order created')+' ✓');
+  });
+}
+
+function advanceWalkin(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  if(!w||!WK_STATUS[w.status]||!WK_STATUS[w.status].next) return;
+  w.status=WK_STATUS[w.status].next;w.updatedAt=new Date().toISOString();
+  saveAll();renderWalkin();
+  toast('Order '+id+' → '+WK_STATUS[w.status].label+' ✓');
+}
+
+function collectWalkin(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  if(!w) return;
+  var balance=Math.max(0,w.price-w.deposit);
+  confirmModal(
+    'Mark <strong>'+w.id+'</strong> as collected?'+(balance>0?'<br><span style="font-size:12px;color:var(--d);">Collect remaining balance of $'+balance.toFixed(2)+' now.</span>':''),
+    function(){
+      w.status='collected';w.deposit=w.price;w.updatedAt=new Date().toISOString();
+      /* Record as a sale */
+      var tx={
+        id:'TXN-'+(++txn),timestamp:new Date().toISOString(),
+        items:[{id:0,name:'Custom Order '+w.id,emoji:'🛠',price:w.price,qty:1,line:w.price,vatExempt:false}],
+        subtotal:w.price,discount:0,tip:0,tax:0,total:w.price,tendered:w.price,change:0,
+        payMethod:'cash',customerId:w.customerId,vatRate:0,vatLabel:VAT.label,vatMode:VAT.mode,note:'Custom order'
+      };
+      TXS.unshift(tx);
+      saveAll();renderWalkin();renderTx();
+      toast('Order collected & recorded as sale ✓');
+    }
+  );
+}
+
+function cancelWalkin(id){
+  confirmModal('Cancel custom order <strong>'+id+'</strong>?',function(){
+    var w=WALKINS.find(function(x){return x.id===id;});
+    if(w){w.status='cancelled';w.updatedAt=new Date().toISOString();saveAll();renderWalkin();toast('Order cancelled');}
+  });
+}
+
+function deleteWalkin(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  confirmModal('Permanently delete <strong>'+id+'</strong>'+(w?' for '+w.customerName:'')+'?<br><span style="font-size:12px;color:var(--d);">Cannot be undone.</span>',function(){
+    WALKINS=WALKINS.filter(function(x){return x.id!==id;});
+    saveAll();renderWalkin();toast('Custom order deleted');
+  });
+}
+
+function whatsAppWalkin(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  if(!w) return;
+  var cust=w.customerId?CUSTS.find(function(c){return c.id===w.customerId;}):null;
+  var st=WK_STATUS[w.status]||WK_STATUS.requested;
+  var balance=Math.max(0,w.price-w.deposit);
+  var lines=[
+    '*'+BRAND.name+' — Custom Order*',
+    'Order: *'+w.id+'*',
+    'Status: '+st.emoji+' '+st.label,
+    '',
+    'Hi '+w.customerName+',',
+    'Update on your custom order:',
+    '',
+    '"'+w.description+'"',
+    '',
+    'Price: $'+w.price.toFixed(2),
+    'Deposit: $'+w.deposit.toFixed(2),
+    (balance>0?'*Balance due: $'+balance.toFixed(2)+'*':'*Paid in full*'),
+    (w.readyBy?'Ready by: '+new Date(w.readyBy).toLocaleDateString():''),
+    '',
+    (w.status==='ready'?'Your order is READY for collection! 🎉':'We will notify you when it is ready.'),
+    'Thank you, '+BRAND.name+'!'
+  ];
+  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):(w.phone?w.phone.replace(/\D/g,''):'');
+  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+}
+
 async function init(){
   try{
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
@@ -3745,6 +3984,22 @@ document.addEventListener('click',function(e){
   // data-act router
   // Low-stock banner -> go to addprod
   if(e.target.closest('[data-act="go-addprod"]')){openTab('addprod');return;}
+  /* Walk-in custom order filter pills */
+  var wkFilter=e.target.closest('[data-wk-filter]');
+  if(wkFilter){_wkFilter=wkFilter.getAttribute('data-wk-filter');renderWalkin();return;}
+  /* Walk-in card actions */
+  var wkNext=e.target.closest('[data-wk-next]');
+  if(wkNext){advanceWalkin(wkNext.getAttribute('data-wk-next'));return;}
+  var wkEdit=e.target.closest('[data-wk-edit]');
+  if(wkEdit){openAddWalkinModal(wkEdit.getAttribute('data-wk-edit'));return;}
+  var wkWa=e.target.closest('[data-wk-wa]');
+  if(wkWa){whatsAppWalkin(wkWa.getAttribute('data-wk-wa'));return;}
+  var wkCollect=e.target.closest('[data-wk-collect]');
+  if(wkCollect){collectWalkin(wkCollect.getAttribute('data-wk-collect'));return;}
+  var wkCancel=e.target.closest('[data-wk-cancel]');
+  if(wkCancel){cancelWalkin(wkCancel.getAttribute('data-wk-cancel'));return;}
+  var wkDelete=e.target.closest('[data-wk-delete]');
+  if(wkDelete){deleteWalkin(wkDelete.getAttribute('data-wk-delete'));return;}
   /* Layaway filter pills */
   var lwyFilter=e.target.closest('[data-lwy-filter]');
   if(lwyFilter){_lwyFilter=lwyFilter.getAttribute('data-lwy-filter');renderLayaway();return;}
@@ -3829,6 +4084,7 @@ document.addEventListener('click',function(e){
   if(act==='open-add-disc'){openAddDiscModal();return;}
   if(act==='open-add-order'){openAddOrderModal();return;}
   if(act==='open-add-layaway'){openAddLayawayModal();return;}
+  if(act==='open-add-walkin'){openAddWalkinModal();return;}
   /* Order card actions */
   var ordNext=e.target.closest('[data-ord-next]');
   if(ordNext){advanceOrder(ordNext.getAttribute('data-ord-next'));return;}
