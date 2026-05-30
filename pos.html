@@ -420,11 +420,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 }
 
 @media print{
-  body{height:auto;overflow:visible;}
+  body{height:auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .root,.ov,.toast,.mob-nav,.cart-drawer{display:none!important;}
   #pra{display:block!important;}
+  /* Force everything bold & black for crisp printing */
+  #pra *{
+    color:#000!important;
+    font-weight:700!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  #pra .rcpt-light{font-weight:600!important;}
 }
-#pra{display:none;padding:16px;max-width:290px;font-family:monospace;font-size:12px;}
+#pra{display:none;padding:16px;max-width:290px;font-family:'Courier New',monospace;font-size:13px;font-weight:700;color:#000;}
 
 /* ══════════════════════════════
    RESPONSIVE BREAKPOINTS
