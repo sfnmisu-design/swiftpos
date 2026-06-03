@@ -1112,6 +1112,7 @@ let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAYM='cash';
+let ITEM_DISC={};
 let ORDERS=[];
 let LAYAWAYS=[];
 let WALKINS=[];
@@ -1451,14 +1452,25 @@ function addCart(id){
   if(isMobile())openCartDrawer();
 }
 function upQ(id,d){CART[id]=(CART[id]||0)+d;if(CART[id]<=0)delete CART[id];renderCart();renderGrid();updCartBadge();updateDiscButtons();}
-function clearCart(){CART={};COUPON=null;MANUAL_DISC=null;document.getElementById('cpn').value='';document.getElementById('cart-cust').value='';document.getElementById('mob-cpn').value='';document.getElementById('mob-cart-cust').value='';renderCart();renderGrid();updCartBadge();}
+function clearCart(){CART={};COUPON=null;MANUAL_DISC=null;ITEM_DISC={};document.getElementById('cpn').value='';document.getElementById('cart-cust').value='';document.getElementById('mob-cpn').value='';document.getElementById('mob-cart-cust').value='';renderCart();renderGrid();updCartBadge();}
 
 function renderCart(){
   const ids=Object.keys(CART);
   const emptyHTML='<div class="cempty"><span class="cempty-ic">🛒</span>No items yet<br><span style="font-size:11px;">Tap a product to add it</span></div>';
   const itemsHTML=ids.length?ids.map(id=>{
     const p=PRODS.find(x=>x.id==id);
-    return`<div class="cit" data-swipe-id="${id}"><div class="cit-delete-bg" data-pid="${id}" data-act="cit-del">🗑</div><div class="cit-inner"><span class="cie">${p.emoji}</span><div class="cin">${p.name}${p.vatExempt?'<span style="font-size:9px;color:var(--d);margin-left:3px;">Exempt</span>':''}</div><div class="qc"><button class="qb" data-pid="${id}" data-act="cit-">−</button><span class="qn">${CART[id]}</span><button class="qb" data-pid="${id}" data-act="cit+">+</button></div><div class="cip">$${(p.price*CART[id]).toFixed(2)}</div></div></div>`;
+    const lineGross=p.price*CART[id];
+    const d=ITEM_DISC[id];
+    let lineNet=lineGross, discTxt='';
+    if(d){
+      const dval=d.type==='pct'?lineGross*d.val/100:Math.min(d.val,lineGross);
+      lineNet=+(lineGross-dval).toFixed(2);
+      discTxt=`<span style="font-size:10px;color:var(--d);font-weight:600;">−$${dval.toFixed(2)}${d.type==='pct'?' ('+d.val+'%)':''}</span>`;
+    }
+    const priceHTML=d
+      ? `<div class="cip" style="text-align:right;"><span style="text-decoration:line-through;color:var(--t3);font-weight:400;font-size:11px;">$${lineGross.toFixed(2)}</span><br>$${lineNet.toFixed(2)}</div>`
+      : `<div class="cip">$${lineGross.toFixed(2)}</div>`;
+    return`<div class="cit" data-swipe-id="${id}"><div class="cit-delete-bg" data-pid="${id}" data-act="cit-del">🗑</div><div class="cit-inner"><span class="cie">${p.emoji}</span><div class="cin">${p.name}${p.vatExempt?'<span style="font-size:9px;color:var(--d);margin-left:3px;">Exempt</span>':''}<br><button class="cit-disc-btn" data-pid="${id}" data-act="cit-disc" style="font-size:10px;color:var(--a);background:none;border:none;padding:2px 0;cursor:pointer;font-family:inherit;">${d?'✏️ '+discTxt.replace(/<[^>]+>/g,''):'🏷 Add discount'}</button></div><div class="qc"><button class="qb" data-pid="${id}" data-act="cit-">−</button><span class="qn">${CART[id]}</span><button class="qb" data-pid="${id}" data-act="cit+">+</button></div>${priceHTML}</div></div>`;
   }).join(''):null;
   const desk=document.getElementById('cartits');
   if(desk)desk.innerHTML=itemsHTML||emptyHTML;
@@ -1466,6 +1478,47 @@ function renderCart(){
   if(mob)mob.innerHTML=itemsHTML||emptyHTML;
   updTot();
   attachSwipe();
+}
+
+function openItemDisc(id){
+  const p=PRODS.find(x=>x.id==id);
+  if(!p) return;
+  const lineGross=p.price*CART[id];
+  const ex=ITEM_DISC[id]||{type:'pct',val:0};
+  openModal(
+    '<h3>Discount — '+p.emoji+' '+p.name+'</h3>'+
+    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Line total: <strong>$'+lineGross.toFixed(2)+'</strong> ('+CART[id]+' × $'+p.price.toFixed(2)+')</div>'+
+    '<div class="pms" style="margin-bottom:10px;">'+
+      '<div class="pm'+(ex.type==='pct'?' on':'')+'" id="id-pct">% Percent</div>'+
+      '<div class="pm'+(ex.type==='fixed'?' on':'')+'" id="id-fixed">$ Amount</div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label id="id-lbl">'+(ex.type==='pct'?'Percent off':'Amount off')+'</label>'+
+      '<div class="cwrap"><em id="id-sym">'+(ex.type==='pct'?'%':'$')+'</em><input type="number" id="id-val" value="'+(ex.val||'')+'" min="0" step="0.01" inputmode="decimal" placeholder="0"></div>'+
+    '</div>'+
+    '<div class="mbs">'+(ITEM_DISC[id]?'<button id="id-remove" style="color:var(--d);">Remove</button>':'')+'<button id="id-cancel">Cancel</button><button class="ok" id="id-save">Apply</button></div>'
+  );
+  var dtype=ex.type;
+  function setType(t){
+    dtype=t;
+    document.getElementById('id-pct').classList.toggle('on',t==='pct');
+    document.getElementById('id-fixed').classList.toggle('on',t==='fixed');
+    document.getElementById('id-sym').textContent=t==='pct'?'%':'$';
+    document.getElementById('id-lbl').textContent=t==='pct'?'Percent off':'Amount off';
+  }
+  document.getElementById('id-pct').addEventListener('click',function(){setType('pct');});
+  document.getElementById('id-fixed').addEventListener('click',function(){setType('fixed');});
+  document.getElementById('id-cancel').addEventListener('click',closeModal);
+  var rm=document.getElementById('id-remove');
+  if(rm) rm.addEventListener('click',function(){delete ITEM_DISC[id];renderCart();closeModal();toast('Item discount removed');});
+  document.getElementById('id-save').addEventListener('click',function(){
+    var val=parseFloat(document.getElementById('id-val').value)||0;
+    if(val<=0){delete ITEM_DISC[id];renderCart();closeModal();toast('No discount applied');return;}
+    if(dtype==='pct'&&val>100){toast('Percent cannot exceed 100');return;}
+    if(dtype==='fixed'&&val>lineGross){toast('Amount cannot exceed line total');return;}
+    ITEM_DISC[id]={type:dtype,val:val};
+    renderCart();closeModal();
+    toast('Discount applied to '+p.name+' ✓');
+  });
 }
 
 function attachSwipe(){
@@ -1508,11 +1561,20 @@ function attachSwipe(){
 }
 
 function getTots(){
-  let sub=0,taxableSub=0,exemptSub=0;
+  let sub=0,taxableSub=0,exemptSub=0,itemDiscTotal=0;
   Object.keys(CART).forEach(id=>{
-    const p=PRODS.find(x=>x.id==id);const line=p.price*CART[id];
-    sub+=line;if(p.vatExempt)exemptSub+=line;else taxableSub+=line;
+    const p=PRODS.find(x=>x.id==id);const lineGross=p.price*CART[id];
+    // Apply per-item discount
+    let lineNet=lineGross;
+    const d=ITEM_DISC[id];
+    if(d){
+      const dv=d.type==='pct'?lineGross*d.val/100:Math.min(d.val,lineGross);
+      lineNet=lineGross-dv;
+      itemDiscTotal+=dv;
+    }
+    sub+=lineNet;if(p.vatExempt)exemptSub+=lineNet;else taxableSub+=lineNet;
   });
+  itemDiscTotal=+itemDiscTotal.toFixed(2);
   let disc=0;
   if(COUPON){disc=COUPON.type==='pct'?sub*COUPON.val/100:Math.min(COUPON.val,sub);}
   else if(MANUAL_DISC){disc=MANUAL_DISC.type==='pct'?sub*MANUAL_DISC.val/100:Math.min(MANUAL_DISC.val,sub);}
@@ -1522,7 +1584,7 @@ function getTots(){
   const{tax}=calcVAT(taxableAfterDisc);
   const grandBase=sub-disc;
   const grand=VAT.mode==='inclusive'?grandBase:grandBase+tax;
-  return{sub,disc,tax:+tax.toFixed(2),grand:+grand.toFixed(2),taxableSub,exemptSub};
+  return{sub,disc,itemDisc:itemDiscTotal,tax:+tax.toFixed(2),grand:+grand.toFixed(2),taxableSub,exemptSub};
 }
 
 function updTot(){
@@ -1702,7 +1764,7 @@ async function doPay(total,tip){
   const change=PAYM==='cash'?Math.max(0,tendered-total):0;
   const txid='TXN-'+(++txn);
   const custId=document.getElementById('cart-cust').value;
-  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(p.price*CART[id]).toFixed(2),vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
+  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
   const{sub,disc,tax,grand}=getTots();
   const tx={id:txid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,tip:tip,tendered,change,payMethod:PAYM,coupon:COUPON?COUPON.label:null,customerId:custId||null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode};
   TXS.unshift(tx);
@@ -1906,7 +1968,7 @@ function saveQuote(){
   if(!Object.keys(CART).length){toast('Add items to cart first');return;}
   const custId=document.getElementById('cart-cust').value;
   const qid='QT-'+(++qn);
-  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(p.price*CART[id]).toFixed(2),vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
+  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
   const{sub,disc,tax,grand}=getTots();
   const q={id:qid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,customerId:custId||null,coupon:COUPON?COUPON.label:null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode,status:'open',notes:''};
   QUOTES.unshift(q);saveAll();closeCartDrawer();
@@ -3460,7 +3522,8 @@ function openAddLayawayModal(editId){
 
   // Prefill customer name when customer selected
   document.getElementById('lwy-cust').addEventListener('change',function(){
-    var c=CUSTS.find(function(x){return x.id===this.value;}.bind(this));
+    var val=this.value;
+    var c=CUSTS.find(function(x){return x.id===val;});
     document.getElementById('lwy-cname').value=c?c.name:'';
   });
 
@@ -3717,6 +3780,8 @@ function renderWalkin(){
       '</div>'+
       '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
         (nextSt?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-wk-next="'+w.id+'">'+nextSt.emoji+' Mark '+nextSt.label+'</button>':'')+
+        (w.status!=='collected'&&w.status!=='cancelled'&&balance>0?'<button class="ord-btn" style="background:var(--ad);color:#fff;border-color:var(--ad);" data-wk-pay="'+w.id+'">💰 Take Payment</button>':'')+
+        '<button class="ord-btn" data-wk-hist="'+w.id+'">🕐 Payments</button>'+
         '<button class="ord-btn" data-wk-edit="'+w.id+'">✏️ Edit</button>'+
         '<button class="ord-btn" data-wk-wa="'+w.id+'">💬 WhatsApp</button>'+
         (w.status==='ready'&&balance>0?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-wk-collect="'+w.id+'">💵 Collect &amp; Complete</button>':'')+
@@ -3758,7 +3823,8 @@ function openAddWalkinModal(editId){
     '<div class="mbs"><button id="wk-cancel">Cancel</button><button class="ok" id="wk-save">'+(isEdit?'Save changes':'Create order')+'</button></div>'
   );
   document.getElementById('wk-cust').addEventListener('change',function(){
-    var c=CUSTS.find(function(x){return x.id===this.value;}.bind(this));
+    var val=this.value;
+    var c=CUSTS.find(function(x){return x.id===val;});
     if(c){document.getElementById('wk-name').value=c.name;if(c.phone)document.getElementById('wk-phone').value=c.phone;}
   });
   document.getElementById('wk-cancel').addEventListener('click',closeModal);
@@ -3782,10 +3848,14 @@ function openAddWalkinModal(editId){
       readyBy:document.getElementById('wk-ready').value,
       status:isEdit?ex.status:'requested',
       createdAt:isEdit?ex.createdAt:new Date().toISOString(),
+      payments:isEdit?(ex.payments||[]):[],
       updatedAt:new Date().toISOString()
     };
     if(isEdit){var i=WALKINS.findIndex(function(w){return w.id===editId;});if(i>=0)WALKINS[i]=order;}
-    else WALKINS.unshift(order);
+    else {
+      if(deposit>0) order.payments=[{date:new Date().toISOString(),amount:deposit,note:'Initial deposit'}];
+      WALKINS.unshift(order);
+    }
     saveAll();renderWalkin();closeModal();
     toast((isEdit?'Order updated':'Custom order created')+' ✓');
   });
@@ -3806,6 +3876,10 @@ function collectWalkin(id){
   confirmModal(
     'Mark <strong>'+w.id+'</strong> as collected?'+(balance>0?'<br><span style="font-size:12px;color:var(--d);">Collect remaining balance of $'+balance.toFixed(2)+' now.</span>':''),
     function(){
+      if(balance>0){
+        w.payments=w.payments||[];
+        w.payments.push({date:new Date().toISOString(),amount:balance,note:'Final balance on collection'});
+      }
       w.status='collected';w.deposit=w.price;w.updatedAt=new Date().toISOString();
       /* Record as a sale */
       var tx={
@@ -3819,6 +3893,72 @@ function collectWalkin(id){
       toast('Order collected & recorded as sale ✓');
     }
   );
+}
+
+function takeWalkinPayment(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  if(!w) return;
+  var balance=+(Math.max(0,w.price-w.deposit)).toFixed(2);
+  openModal(
+    '<h3>Take Payment — '+w.id+'</h3>'+
+    '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);">'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>Customer:</span><strong>'+w.customerName+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Order total:</span><strong>$'+w.price.toFixed(2)+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Paid so far:</span><strong>$'+w.deposit.toFixed(2)+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Balance due:</span><strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Payment amount</label>'+
+      '<input type="number" id="wk-pay-amt" value="'+balance+'" min="0.01" max="'+balance+'" step="0.01" inputmode="decimal">'+
+      '<div style="display:flex;gap:6px;margin-top:6px;">'+
+        '<button class="qa" id="wk-pay-full">Pay full $'+balance.toFixed(2)+'</button>'+
+        '<button class="qa" id="wk-pay-half">Half $'+(balance/2).toFixed(2)+'</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label>Note (optional)</label><input type="text" id="wk-pay-note" placeholder="e.g. Cash, Bank transfer…"></div>'+
+    '<div class="mbs"><button id="wk-pay-cancel">Cancel</button><button class="ok" id="wk-pay-save">Record Payment</button></div>'
+  );
+  document.getElementById('wk-pay-full').addEventListener('click',function(){document.getElementById('wk-pay-amt').value=balance;});
+  document.getElementById('wk-pay-half').addEventListener('click',function(){document.getElementById('wk-pay-amt').value=(balance/2).toFixed(2);});
+  document.getElementById('wk-pay-cancel').addEventListener('click',closeModal);
+  document.getElementById('wk-pay-save').addEventListener('click',function(){
+    var amt=parseFloat(document.getElementById('wk-pay-amt').value)||0;
+    if(amt<=0){toast('Enter a valid amount');return;}
+    if(amt>balance){toast('Payment exceeds balance due ($'+balance.toFixed(2)+')');return;}
+    var note=document.getElementById('wk-pay-note').value.trim();
+    w.deposit=+(w.deposit+amt).toFixed(2);
+    w.payments=w.payments||[];
+    w.payments.push({date:new Date().toISOString(),amount:amt,note:note||'Payment'});
+    w.updatedAt=new Date().toISOString();
+    saveAll();renderWalkin();closeModal();
+    var nb=Math.max(0,w.price-w.deposit);
+    toast(nb<=0?'Payment recorded — paid in full ✓':'Payment of $'+amt.toFixed(2)+' recorded ✓');
+  });
+}
+
+function walkinPaymentHistory(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  if(!w) return;
+  var payments=w.payments||[];
+  openModal(
+    '<h3>Payments — '+w.id+'</h3>'+
+    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Customer: <strong>'+w.customerName+'</strong></div>'+
+    (payments.length?
+      '<div class="card np" style="margin-bottom:10px;">'+
+        payments.map(function(p,i){
+          var dt=new Date(p.date);
+          return'<div style="display:flex;align-items:center;padding:8px 12px;'+(i<payments.length-1?'border-bottom:1px solid var(--b)':'')+';font-size:12px;">'+
+            '<div style="flex:1;"><div style="font-weight:600;">'+(p.note||'Payment')+'</div>'+
+            '<div style="color:var(--t3);">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'+
+            '<div style="font-weight:800;color:var(--a);font-size:14px;">$'+p.amount.toFixed(2)+'</div>'+
+          '</div>';
+        }).join('')+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px;border-top:1px solid var(--b);"><span>Total paid:</span><strong style="color:var(--a);">$'+w.deposit.toFixed(2)+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;"><span>Balance:</span><strong style="color:var(--d);">$'+Math.max(0,w.price-w.deposit).toFixed(2)+'</strong></div>'
+    :'<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;">No payments recorded yet</div>')+
+    '<div class="mbs"><button id="wk-hist-cl" class="ok">Close</button></div>'
+  );
+  document.getElementById('wk-hist-cl').addEventListener('click',closeModal);
 }
 
 function cancelWalkin(id){
@@ -3991,6 +4131,10 @@ document.addEventListener('click',function(e){
   /* Walk-in card actions */
   var wkNext=e.target.closest('[data-wk-next]');
   if(wkNext){advanceWalkin(wkNext.getAttribute('data-wk-next'));return;}
+  var wkPay=e.target.closest('[data-wk-pay]');
+  if(wkPay){takeWalkinPayment(wkPay.getAttribute('data-wk-pay'));return;}
+  var wkHist=e.target.closest('[data-wk-hist]');
+  if(wkHist){walkinPaymentHistory(wkHist.getAttribute('data-wk-hist'));return;}
   var wkEdit=e.target.closest('[data-wk-edit]');
   if(wkEdit){openAddWalkinModal(wkEdit.getAttribute('data-wk-edit'));return;}
   var wkWa=e.target.closest('[data-wk-wa]');
@@ -4037,7 +4181,8 @@ document.addEventListener('click',function(e){
     if(act==='mqty+')     {upQ(pidN,1);renderMobCart();return;}
     if(act==='cit-')      {upQ(pidN,-1);renderCart();return;}
     if(act==='cit+')      {upQ(pidN,1);renderCart();return;}
-    if(act==='cit-del')   {delete CART[pidN];renderCart();return;}
+    if(act==='cit-del')   {delete CART[pidN];delete ITEM_DISC[pidN];renderCart();return;}
+    if(act==='cit-disc')  {openItemDisc(pidN);return;}
   }
   // Category management
   var ci=btn.getAttribute('data-catidx');
