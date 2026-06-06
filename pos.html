@@ -325,6 +325,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 @keyframes badgePop{0%{transform:scale(1)}40%{transform:scale(1.6)}70%{transform:scale(.9)}100%{transform:scale(1)}}
 @keyframes cartFabPop{0%{transform:scale(1)}40%{transform:scale(1.15)}70%{transform:scale(.95)}100%{transform:scale(1)}}
 @keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ── SPLASH SCREEN + ANIMATED LOGO ── */
+#splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,var(--ad) 0%,var(--a) 55%,#1BB587 100%);color:#fff;transition:opacity .5s ease,visibility .5s;padding:24px;}
+#splash.hide{opacity:0;visibility:hidden;pointer-events:none;}
+.splash-icon{width:92px;height:92px;border-radius:24px;background:rgba(255,255,255,.16);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800;letter-spacing:-1px;color:#fff;
+  box-shadow:0 12px 40px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.3);position:relative;overflow:hidden;
+  animation:logoIn .9s cubic-bezier(.34,1.56,.64,1) both, logoFloat 3s ease-in-out 1s infinite;}
+.splash-icon::after{content:'';position:absolute;top:0;left:-120%;width:60%;height:100%;
+  background:linear-gradient(110deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);
+  animation:logoShine 2.8s ease-in-out 1.1s infinite;}
+@keyframes logoIn{0%{transform:scale(.3) rotate(-12deg);opacity:0}60%{opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes logoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes logoShine{0%{left:-120%}55%,100%{left:130%}}
+.splash-name{font-size:21px;font-weight:800;letter-spacing:-.3px;margin-top:20px;text-align:center;max-width:300px;line-height:1.25;
+  animation:fadeUp .6s ease .4s both;}
+.splash-tag{font-size:12px;font-weight:600;opacity:.85;margin-top:5px;letter-spacing:.5px;text-transform:uppercase;
+  animation:fadeUp .6s ease .55s both;}
+.splash-progress{width:160px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);margin-top:24px;overflow:hidden;
+  animation:fadeUp .6s ease .7s both;}
+.splash-bar{height:100%;width:40%;border-radius:3px;background:#fff;animation:barSlide 1.4s ease-in-out infinite;}
+@keyframes barSlide{0%{margin-left:-40%}100%{margin-left:100%}}
+.splash-status{font-size:12px;opacity:.8;margin-top:14px;font-weight:500;animation:fadeUp .6s ease .85s both;}
+.splash-dots{display:flex;gap:7px;margin-top:14px;animation:fadeUp .6s ease 1s both;}
+.splash-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.6);animation:dotBounce 1.2s ease-in-out infinite;}
+.splash-dot:nth-child(2){animation-delay:.18s}.splash-dot:nth-child(3){animation-delay:.36s}
+@keyframes dotBounce{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-8px);opacity:1}}
+.splash-copy{position:absolute;bottom:28px;font-size:11px;font-weight:700;opacity:.8;letter-spacing:.3px;animation:fadeUp .6s ease 1.2s both;}
+@keyframes fadeUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* Subtle shine on topbar logo */
+.logo-ic{position:relative;overflow:hidden;}
+.logo-ic::after{content:'';position:absolute;top:0;left:-130%;width:55%;height:100%;
+  background:linear-gradient(110deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-20deg);
+  animation:logoShine 6s ease-in-out 2s infinite;}
+
 .skeleton{background:linear-gradient(90deg,var(--b) 25%,var(--bg) 50%,var(--b) 75%);background-size:800px 100%;animation:shimmer 1.5s infinite;border-radius:var(--r);}
 .mob-cart-badge.pop{animation:badgePop .35s cubic-bezier(.36,.07,.19,.97);}
 .mob-cart-btn.pop{animation:cartFabPop .35s cubic-bezier(.36,.07,.19,.97);}
@@ -3369,7 +3406,7 @@ function updateSplash(msg){
 function hideSplash(){
   var s=document.getElementById('splash');
   if(!s) return;
-  s.classList.add('out');
+  s.classList.add('hide');
   setTimeout(function(){ s.style.display='none'; },500);
   var f=document.getElementById('app-footer');
   if(f) f.style.display='block';
