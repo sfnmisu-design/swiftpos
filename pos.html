@@ -1013,6 +1013,8 @@ async function saveAll(){
     localStorage.setItem('sp_m',JSON.stringify({nid,txn,qn}));
     localStorage.setItem('sp_ti',JSON.stringify(TOPITS));
     localStorage.setItem('sp_wk',JSON.stringify(WALKINS));
+    localStorage.setItem('sp_ord',JSON.stringify(ORDERS));
+    localStorage.setItem('sp_lwy',JSON.stringify(LAYAWAYS));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
   }catch(e){}
@@ -1069,6 +1071,8 @@ async function loadAll(){
     const m=localStorage.getItem('sp_m');if(m){const md=JSON.parse(m);nid=md.nid||nid;txn=md.txn||txn;qn=md.qn||qn;}
     const ti=localStorage.getItem('sp_ti');if(ti)TOPITS=JSON.parse(ti);
     const wk=localStorage.getItem('sp_wk');if(wk)WALKINS=JSON.parse(wk);
+    const ord=localStorage.getItem('sp_ord');if(ord)ORDERS=JSON.parse(ord);
+    const lwy=localStorage.getItem('sp_lwy');if(lwy)LAYAWAYS=JSON.parse(lwy);
   }catch(e){}
 
   }catch(_e){return;}
@@ -2418,7 +2422,7 @@ async function factoryReset(){
   try{
 
   /* confirm for wipe — handled inline */;
-  TXS=[];QUOTES=[];['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv'].forEach(k=>localStorage.removeItem(k));
+  TXS=[];QUOTES=[];['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv','sp_wk','sp_ord','sp_lwy','sp_lst'].forEach(k=>localStorage.removeItem(k));
   renderReports();renderBkInfo();toast('All data cleared');
 
   }catch(_e){return;}
@@ -3185,8 +3189,9 @@ function openAddOrderModal(editId){
     '<div class="f" style="margin-bottom:8px;"><label>Notes</label><input type="text" id="oo-notes" value="'+(ex.notes||'')+'" placeholder="Allergy info, special requests…"></div>'+
     /* Items */
     '<div class="f" style="margin-bottom:8px;"><label>Add items</label>'+
+      '<input type="text" id="oo-search" placeholder="🔍 Search products…" style="width:100%;margin-bottom:6px;font-size:14px;padding:8px 10px;border-radius:10px;border:1.5px solid var(--b);background:var(--bg);">'+
       '<div style="display:flex;gap:6px;">'+
-        '<select id="oo-prod" style="flex:1;">'+prodOpts+'</select>'+
+        '<select id="oo-prod" style="flex:1;" size="1">'+prodOpts+'</select>'+
         '<input type="number" id="oo-qty" value="1" min="1" style="width:60px;" inputmode="numeric">'+
         '<button class="ok" id="oo-add-item" style="padding:8px 12px;">Add</button>'+
       '</div>'+
@@ -3236,6 +3241,21 @@ function openAddOrderModal(editId){
     if(el) el.textContent='$'+tot.toFixed(2);
   }
   renderItems();
+
+  /* Live search filter for product dropdown */
+  var ooSearch=document.getElementById('oo-search');
+  if(ooSearch){
+    ooSearch.addEventListener('input',function(){
+      var q=this.value.toLowerCase().trim();
+      var matches=PRODS.filter(function(p){
+        return !q || p.name.toLowerCase().indexOf(q)>=0 || (p.sku&&p.sku.toLowerCase().indexOf(q)>=0);
+      });
+      var sel=document.getElementById('oo-prod');
+      sel.innerHTML=matches.length
+        ? matches.map(function(p){return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';}).join('')
+        : '<option value="">No products found</option>';
+    });
+  }
 
   document.getElementById('oo-add-item').addEventListener('click',function(){
     var sel=document.getElementById('oo-prod');
@@ -3510,8 +3530,9 @@ function openAddLayawayModal(editId){
       '<div class="f"><label>Name (if no account)</label><input type="text" id="lwy-cname" value="'+(ex.customerName||'')+'" placeholder="Customer name"></div>'+
     '</div>'+
     '<div class="f" style="margin-bottom:8px;"><label>Add items to plan</label>'+
+      '<input type="text" id="lwy-search" placeholder="🔍 Search products…" style="width:100%;margin-bottom:6px;font-size:14px;padding:8px 10px;border-radius:10px;border:1.5px solid var(--b);background:var(--bg);">'+
       '<div style="display:flex;gap:6px;">'+
-        '<select id="lwy-prod" style="flex:1;">'+prodOpts+'</select>'+
+        '<select id="lwy-prod" style="flex:1;" size="1">'+prodOpts+'</select>'+
         '<input type="number" id="lwy-qty" value="1" min="1" style="width:56px;" inputmode="numeric">'+
         '<button class="ok" id="lwy-add-item" style="padding:8px 12px;">Add</button>'+
       '</div>'+
@@ -3559,6 +3580,21 @@ function openAddLayawayModal(editId){
     var c=CUSTS.find(function(x){return x.id===val;});
     document.getElementById('lwy-cname').value=c?c.name:'';
   });
+
+  /* Live search filter for layaway product dropdown */
+  var lwySearch=document.getElementById('lwy-search');
+  if(lwySearch){
+    lwySearch.addEventListener('input',function(){
+      var q=this.value.toLowerCase().trim();
+      var matches=PRODS.filter(function(p){
+        return !q || p.name.toLowerCase().indexOf(q)>=0 || (p.sku&&p.sku.toLowerCase().indexOf(q)>=0);
+      });
+      var sel=document.getElementById('lwy-prod');
+      sel.innerHTML=matches.length
+        ? matches.map(function(p){return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';}).join('')
+        : '<option value="">No products found</option>';
+    });
+  }
 
   document.getElementById('lwy-add-item').addEventListener('click',function(){
     var sel=document.getElementById('lwy-prod');
