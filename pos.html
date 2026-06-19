@@ -470,7 +470,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   }
   #pra .rcpt-light{font-weight:600!important;}
 }
-#pra{display:none;padding:16px;max-width:290px;font-family:'Courier New',monospace;font-size:13px;font-weight:700;color:#000;}
+#pra{display:none;padding:8px 10px;max-width:320px;margin:0 auto;font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:#000;}
 
 /* ══════════════════════════════
    RESPONSIVE BREAKPOINTS
@@ -1833,6 +1833,75 @@ function rcptHTML(tx, forPrint){
   var cust=tx.customerId?CUSTS.find(function(c){return c.id===tx.customerId;}):null;
   var accent=BRAND.color||'#1D9E75';
   var isRefund=tx.payMethod==='refund';
+
+  /* ── PRINT-OPTIMIZED RECEIPT (thermal/standard printers) ── */
+  if(forPrint){
+    var W=42; // monospace columns
+    function rep(ch,n){return new Array(Math.max(0,n)+1).join(ch);}
+    function ctr(s){var pad=Math.max(0,Math.floor((W-s.length)/2));return rep(' ',pad)+s;}
+    function lr(l,r){var sp=Math.max(1,W-l.length-r.length);return l+rep(' ',sp)+r;}
+    var pdt=dt.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
+    var pcount=tx.items.reduce(function(s,i){return s+i.qty;},0);
+    var totalItemDisc=tx.items.reduce(function(s,i){return s+(i.itemDisc||0);},0);
+    var L=[];
+    L.push('<div style="font-family:\'Courier New\',monospace;font-size:12px;font-weight:700;color:#000;line-height:1.45;white-space:pre;">');
+    var body='';
+    // Header
+    body+=ctr(BRAND.name.toUpperCase())+'\n';
+    if(BRAND.sub) body+=ctr(BRAND.sub)+'\n';
+    if(STORE.address) body+=ctr(STORE.address)+'\n';
+    if(STORE.phone) body+=ctr('Tel: '+STORE.phone)+'\n';
+    if(STORE.reg) body+=ctr('Reg# '+STORE.reg)+'\n';
+    body+=rep('=',W)+'\n';
+    // Meta
+    body+=lr('Receipt:',tx.id)+'\n';
+    body+=lr('Date:',pdt+' '+ts)+'\n';
+    if(cust) body+=lr('Customer:',cust.name)+'\n';
+    if(isRefund) body+=ctr('*** REFUND ***')+'\n';
+    body+=rep('-',W)+'\n';
+    // Column header
+    body+=lr('ITEM','AMOUNT')+'\n';
+    body+=rep('-',W)+'\n';
+    // Items
+    tx.items.forEach(function(i){
+      var nm=i.name.length>W?i.name.slice(0,W):i.name;
+      body+=nm+'\n';
+      var qline='  '+i.qty+' x $'+i.price.toFixed(2);
+      if(i.itemDisc&&i.itemDisc>0) qline+=' ('+(i.itemDiscType==='pct'?i.itemDiscVal+'%':'-$'+i.itemDisc.toFixed(2))+')';
+      body+=lr(qline,'$'+i.line.toFixed(2))+'\n';
+    });
+    body+=rep('-',W)+'\n';
+    // Totals
+    body+=lr('Subtotal ('+pcount+'):','$'+(tx.subtotal+totalItemDisc).toFixed(2))+'\n';
+    if(totalItemDisc>0) body+=lr('Item discounts:','-$'+totalItemDisc.toFixed(2))+'\n';
+    if(tx.discount>0) body+=lr((tx.coupon||'Discount')+':','-$'+tx.discount.toFixed(2))+'\n';
+    if(tx.tip>0) body+=lr('Tip:','+$'+tx.tip.toFixed(2))+'\n';
+    body+=lr((tx.vatLabel||'VAT')+' ('+(tx.vatRate||VAT.rate)+'%):','$'+tx.tax.toFixed(2))+'\n';
+    body+=rep('=',W)+'\n';
+    body+=lr('TOTAL:','$'+tx.total.toFixed(2))+'\n';
+    body+=rep('=',W)+'\n';
+    if(totalItemDisc+tx.discount>0) body+=ctr('You saved $'+(totalItemDisc+tx.discount).toFixed(2)+'!')+'\n';
+    // Payment
+    body+=lr('Payment:',tx.payMethod.toUpperCase())+'\n';
+    if(tx.payMethod==='cash'){
+      body+=lr('Tendered:','$'+tx.tendered.toFixed(2))+'\n';
+      body+=lr('Change:','$'+tx.change.toFixed(2))+'\n';
+    }
+    body+=rep('-',W)+'\n';
+    body+=ctr(STORE.footer||'Thank you for your business!')+'\n';
+    if(STORE.returnPolicy){
+      // wrap return policy to width
+      var words=STORE.returnPolicy.split(' '),line='';
+      body+='\n';
+      words.forEach(function(w){
+        if((line+w).length>W){body+=ctr(line.trim())+'\n';line=w+' ';}
+        else line+=w+' ';
+      });
+      if(line.trim()) body+=ctr(line.trim())+'\n';
+    }
+    body+='\n'+ctr(tx.id)+'\n';
+    return L.join('')+body+'</div>';
+  }
 
   var itemRows=tx.items.map(function(i,_idx){
     var delay=(_idx*.08+.3).toFixed(2);
