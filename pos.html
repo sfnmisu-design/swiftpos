@@ -4362,6 +4362,13 @@ document.addEventListener('click',function(e){
   if(lwyCancel){cancelLayaway(lwyCancel.getAttribute('data-lwy-cancel'));return;}
   var lwyDelete=e.target.closest('[data-lwy-delete]');
   if(lwyDelete){deleteLayaway(lwyDelete.getAttribute('data-lwy-delete'));return;}
+  /* Transaction reprint / send / view */
+  var txReprint=e.target.closest('[data-tx-reprint]');
+  if(txReprint){var trp=TXS.find(x=>x.id===txReprint.getAttribute('data-tx-reprint'));if(trp){window._ptx=trp;document.getElementById('pra').innerHTML=rcptHTML(trp,true);setTimeout(function(){window.print();},100);}return;}
+  var txWaB=e.target.closest('[data-tx-wa]');
+  if(txWaB){var twb=TXS.find(x=>x.id===txWaB.getAttribute('data-tx-wa'));if(twb)sendWhatsApp(twb);return;}
+  var txelB=e.target.closest('[data-txid]');
+  if(txelB){viewTx(txelB.getAttribute('data-txid'));return;}
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
@@ -4409,13 +4416,6 @@ document.addEventListener('click',function(e){
     if(act==='conv-q'||act==='conv-q2')  {convertQuote(qid);return;}
     if(act==='del-q')     {deleteQuote(qid);return;}
   }
-  // Transactions
-  var txReprint=e.target.closest('[data-tx-reprint]');
-  if(txReprint){var t=TXS.find(x=>x.id===txReprint.getAttribute('data-tx-reprint'));if(t){window._ptx=t;document.getElementById('pra').innerHTML=rcptHTML(t,true);window.print();}return;}
-  var txWa=e.target.closest('[data-tx-wa]');
-  if(txWa){var tw=TXS.find(x=>x.id===txWa.getAttribute('data-tx-wa'));if(tw)sendWhatsApp(tw);return;}
-  var txel=e.target.closest('[data-txid]');
-  if(txel){viewTx(txel.getAttribute('data-txid'));return;}
   // addCat button in modal
   if(act==='addcat-ok'||btn.id==='addcat-ok'){addCat();return;}
   // Open add cat modal
