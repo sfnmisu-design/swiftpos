@@ -2117,6 +2117,10 @@ function renderTx(){
       <div class="txt"><span class="txid">${tx.id}</span><span class="txam">$${tx.total.toFixed(2)}</span></div>
       <div class="txm">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}<span class="pmb" style="${isRefund?'background:#FCEBEB;color:#A32D2D':wasRefunded?'background:#F1EFE8;color:#5F5E5A':''}">${isRefund?'↩ REFUND':tx.payMethod}</span>${wasRefunded?'<span class="pmb" style="background:#F1EFE8;color:#888">refunded</span>':''}${cust?`<span class="pmb" style="background:#EEF5FF;color:#2468B0;">👤 ${cust.name}</span>`:''}</div>
       <div class="txits">${its}</div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button class="ord-btn" data-tx-reprint="${tx.id}" style="font-size:12px;">🖨 Reprint</button>
+        <button class="ord-btn" data-tx-wa="${tx.id}" style="font-size:12px;background:#25D366;border-color:#25D366;color:#fff;">💬 Send</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -4406,6 +4410,10 @@ document.addEventListener('click',function(e){
     if(act==='del-q')     {deleteQuote(qid);return;}
   }
   // Transactions
+  var txReprint=e.target.closest('[data-tx-reprint]');
+  if(txReprint){var t=TXS.find(x=>x.id===txReprint.getAttribute('data-tx-reprint'));if(t){window._ptx=t;document.getElementById('pra').innerHTML=rcptHTML(t,true);window.print();}return;}
+  var txWa=e.target.closest('[data-tx-wa]');
+  if(txWa){var tw=TXS.find(x=>x.id===txWa.getAttribute('data-tx-wa'));if(tw)sendWhatsApp(tw);return;}
   var txel=e.target.closest('[data-txid]');
   if(txel){viewTx(txel.getAttribute('data-txid'));return;}
   // addCat button in modal
