@@ -54,12 +54,34 @@ async function dbGetAll() {
 async function dbSetAll(obj) {
   if (!sb || !dbReady) return false;
   try {
+    // ── Concurrency-safe merge for list collections ──
+    // When multiple devices save at once, union records by id instead of
+    // blindly overwriting, so concurrent additions are never lost.
+    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations'];
+    const current = await dbGetAll();
+    mergeKeys.forEach(k => {
+      if (Array.isArray(obj[k]) && Array.isArray(current[k])) {
+        const byId = {};
+        // Start with existing server records
+        current[k].forEach(r => { if (r && r.id!=null) byId[r.id]=r; });
+        // Overlay incoming records (newer wins for same id; new ids added)
+        obj[k].forEach(r => { if (r && r.id!=null) byId[r.id]=r; });
+        // Rebuild as array, newest first by timestamp/createdAt if present
+        const merged = Object.values(byId);
+        merged.sort((a,b) => {
+          const ta = new Date(a.timestamp||a.createdAt||0).getTime();
+          const tb = new Date(b.timestamp||b.createdAt||0).getTime();
+          return tb - ta;
+        });
+        obj[k] = merged;
+      }
+    });
     const rows = Object.entries(obj).filter(([,v]) => v!=null).map(([key,value]) => ({ key, value, updated_at:new Date().toISOString() }));
     if (!rows.length) return true;
     const { error } = await sb.from('posdata').upsert(rows, { onConflict:'key' });
     if (error) { console.error('[DB] save error:', error.message); return false; }
     return true;
-  } catch(e) { return false; }
+  } catch(e) { console.error('[DB] merge save error:', e.message); return false; }
 }
 
 async function dbGet(key) {
@@ -144,7 +166,8 @@ async function start() {
       try {
         const tx=await getBody(req);
         const all=(await dbGet('transactions'))||[];
-        all.unshift(tx); await dbSet('transactions',all);
+        // Dedupe: don't add if this id already exists (concurrency-safe)
+        if (!all.some(t => t && t.id===tx.id)) { all.unshift(tx); await dbSet('transactions',all); }
         return sendJ(res,200,{ok:true});
       } catch(e) { return sendJ(res,400,{ok:false,error:e.message}); }
     }

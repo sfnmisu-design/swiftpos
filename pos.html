@@ -1037,6 +1037,8 @@ function setSrv(cls,txt){
 async function saveAll(){
   try{
   var _now=Date.now();
+  _lastSaveTime=_now;        /* claim this timestamp immediately so sync won't overwrite */
+  _saving=true;              /* lock: tells the sync loop to skip overwriting us */
   const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,meta:{nid,txn,qn},savedAt:_now};
   if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;try{setSrv('err','● Offline');}catch(e2){}}}
   try{
@@ -1055,7 +1057,8 @@ async function saveAll(){
     localStorage.setItem('sp_lwy',JSON.stringify(LAYAWAYS));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
-  }catch(e){}
+  _saving=false;             /* release lock */
+  }catch(e){ _saving=false; }
 }
 async function saveTx(tx){
   try{
@@ -1159,6 +1162,7 @@ let ORDERS=[];
 let LAYAWAYS=[];
 let WALKINS=[];
 let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
+let _saving=false;   /* true while a local save is in progress */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
 let TOPITS=[...PRODS].slice(0,6).map(p=>({name:p.name,emoji:p.emoji,sold:Math.floor(Math.random()*30+5)})).sort((a,b)=>b.sold-a.sold);
 
@@ -1818,6 +1822,9 @@ async function doPay(total,tip){
     if(p) p.stock=Math.max(0, (p.stock||0) - it.qty);
   });
   if(custId){const cu=CUSTS.find(c=>c.id===custId);if(cu){cu.spent+=grand;cu.visits++;}}
+  /* Append this sale individually (concurrency-safe) so it's never lost,
+     then saveAll (server merges) for products/customers/meta */
+  if(srvOk){try{await api('/data/transaction','POST',tx);}catch(e){}}
   await saveAll();
   window._ptx=tx;showReceipt(tx);clearCart();
   renderGrid();renderPtbl();renderLSBanner();
@@ -2374,7 +2381,7 @@ async function addProd(){
   const unit=document.getElementById('np-unit').value||null;
   if(!n){toast('Name required');return;}if(!pr||pr<=0){toast('Enter a valid price');return;}if(!cat){toast('Select or type a category');return;}
   if(cn&&!CATS.find(c=>c.name===cn)){CATS.push({name:cn,emoji:'📦',color:'#888780'});populateCatDropdown();renderCatMgmt();renderCats();}
-  PRODS.push({id:nid++,name:n,price:pr,cat,emoji:ESEL,stock:st,sku:sk,vatExempt,size:sz,unit:unit});
+  PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000),name:n,price:pr,cat,emoji:ESEL,stock:st,sku:sk,vatExempt,size:sz,unit:unit});
   TOPITS.push({name:n,emoji:ESEL,sold:0});
   ['np-n','np-p','np-cn','np-s','np-sk','np-sz'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('np-unit').value='';
@@ -4233,10 +4240,12 @@ async function init(){
   setInterval(function(){pingSrv().catch(function(){});},25000);
   setInterval(function(){
     if(!srvOk) return;
+    if(_saving) return;   /* don't overwrite while a local save is in flight */
     (async function(){
     try{
       var r=await Promise.race([api('/data/all'),new Promise(function(res){setTimeout(res,10000)})]);
       if(!r||r.error||r._db===false||r.products===undefined) return;
+      if(_saving) return;  /* re-check: a save may have started during the fetch */
 
       /* Get server's save timestamp */
       var serverSavedAt = (r.meta && r.meta.savedAt) ? r.meta.savedAt : 0;
