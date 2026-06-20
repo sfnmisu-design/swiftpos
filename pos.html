@@ -457,20 +457,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 }
 
 @media print{
-  @page{margin:8mm;}
-  body{height:auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @page{margin:6mm;}
+  body{height:auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff;}
   .root,.ov,.toast,.mob-nav,.cart-drawer{display:none!important;}
   #pra{display:block!important;}
-  /* Force everything bold & black for crisp printing */
-  #pra *{
+  /* Force everything heavy & solid black for crisp, dark printing */
+  #pra,#pra *{
     color:#000!important;
-    font-weight:700!important;
-    -webkit-print-color-adjust:exact;
-    print-color-adjust:exact;
+    font-weight:900!important;
+    -webkit-print-color-adjust:exact!important;
+    print-color-adjust:exact!important;
+    text-rendering:geometricPrecision;
   }
-  #pra .rcpt-light{font-weight:600!important;}
+  /* Faux-bold thickening: tiny text-shadow makes thin printer output darker */
+  #pra pre{ text-shadow:0 0 .4px #000, .3px 0 .4px #000 !important; }
 }
-#pra{display:none;padding:8px 10px;max-width:320px;margin:0 auto;font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:#000;}
+#pra{display:none;padding:8px 12px;max-width:340px;margin:0 auto;font-family:'Courier New',monospace;font-size:13px;font-weight:900;color:#000;}
 
 /* ══════════════════════════════
    RESPONSIVE BREAKPOINTS
@@ -1851,22 +1853,22 @@ function rcptHTML(tx, forPrint){
     var pcount=tx.items.reduce(function(s,i){return s+i.qty;},0);
     var totalItemDisc=tx.items.reduce(function(s,i){return s+(i.itemDisc||0);},0);
     var L=[];
-    L.push('<div style="font-family:\'Courier New\',monospace;font-size:12px;font-weight:700;color:#000;line-height:1.45;white-space:pre;">');
     var body='';
-    // Header
-    body+=ctr(BRAND.name.toUpperCase())+'\n';
-    if(BRAND.sub) body+=ctr(BRAND.sub)+'\n';
-    if(STORE.address) body+=ctr(STORE.address)+'\n';
-    if(STORE.phone) body+=ctr('Tel: '+STORE.phone)+'\n';
-    if(STORE.reg) body+=ctr('Reg# '+STORE.reg)+'\n';
-    body+=rep('=',W)+'\n';
+    // Big bold store name (separate larger line, outside the pre)
+    var head='<div style="text-align:center;font-family:\'Arial Black\',\'Helvetica\',sans-serif;font-weight:900;color:#000;margin-bottom:2px;">'+
+      '<div style="font-size:20px;letter-spacing:.5px;line-height:1.1;">'+BRAND.name.toUpperCase()+'</div>'+
+      (BRAND.sub?'<div style="font-size:11px;font-weight:700;margin-top:2px;">'+BRAND.sub+'</div>':'')+
+      (STORE.address?'<div style="font-size:11px;font-weight:700;margin-top:3px;">'+STORE.address+'</div>':'')+
+      (STORE.phone?'<div style="font-size:11px;font-weight:700;">Tel: '+STORE.phone+'</div>':'')+
+      (STORE.reg?'<div style="font-size:10px;font-weight:700;">Reg# '+STORE.reg+'</div>':'')+
+    '</div>';
     // Meta
+    body+=rep('=',W)+'\n';
     body+=lr('Receipt:',tx.id)+'\n';
     body+=lr('Date:',pdt+' '+ts)+'\n';
     if(cust) body+=lr('Customer:',cust.name)+'\n';
     if(isRefund) body+=ctr('*** REFUND ***')+'\n';
     body+=rep('-',W)+'\n';
-    // Column header
     body+=lr('ITEM','AMOUNT')+'\n';
     body+=rep('-',W)+'\n';
     // Items
@@ -1884,30 +1886,33 @@ function rcptHTML(tx, forPrint){
     if(tx.discount>0) body+=lr((tx.coupon||'Discount')+':','-$'+tx.discount.toFixed(2))+'\n';
     if(tx.tip>0) body+=lr('Tip:','+$'+tx.tip.toFixed(2))+'\n';
     body+=lr((tx.vatLabel||'VAT')+' ('+(tx.vatRate||VAT.rate)+'%):','$'+tx.tax.toFixed(2))+'\n';
-    body+=rep('=',W)+'\n';
-    body+=lr('TOTAL:','$'+tx.total.toFixed(2))+'\n';
-    body+=rep('=',W)+'\n';
-    if(totalItemDisc+tx.discount>0) body+=ctr('You saved $'+(totalItemDisc+tx.discount).toFixed(2)+'!')+'\n';
-    // Payment
-    body+=lr('Payment:',tx.payMethod.toUpperCase())+'\n';
+    // Big total line (rendered larger below the pre block)
+    var totalLine='<div style="font-family:\'Arial Black\',sans-serif;font-weight:900;color:#000;font-size:18px;display:flex;justify-content:space-between;border-top:3px solid #000;border-bottom:3px solid #000;padding:5px 0;margin:3px 0;"><span>TOTAL</span><span>$'+tx.total.toFixed(2)+'</span></div>';
+    var body2='';
+    if(totalItemDisc+tx.discount>0) body2+=ctr('*** You saved $'+(totalItemDisc+tx.discount).toFixed(2)+'! ***')+'\n';
+    body2+=lr('Payment:',tx.payMethod.toUpperCase())+'\n';
     if(tx.payMethod==='cash'){
-      body+=lr('Tendered:','$'+tx.tendered.toFixed(2))+'\n';
-      body+=lr('Change:','$'+tx.change.toFixed(2))+'\n';
+      body2+=lr('Tendered:','$'+tx.tendered.toFixed(2))+'\n';
+      body2+=lr('Change:','$'+tx.change.toFixed(2))+'\n';
     }
-    body+=rep('-',W)+'\n';
-    body+=ctr(STORE.footer||'Thank you for your business!')+'\n';
+    body2+=rep('-',W)+'\n';
+    body2+=ctr((STORE.footer||'Thank you for your business!'))+'\n';
     if(STORE.returnPolicy){
-      // wrap return policy to width
       var words=STORE.returnPolicy.split(' '),line='';
-      body+='\n';
+      body2+='\n';
       words.forEach(function(w){
-        if((line+w).length>W){body+=ctr(line.trim())+'\n';line=w+' ';}
+        if((line+w).length>W){body2+=ctr(line.trim())+'\n';line=w+' ';}
         else line+=w+' ';
       });
-      if(line.trim()) body+=ctr(line.trim())+'\n';
+      if(line.trim()) body2+=ctr(line.trim())+'\n';
     }
-    body+='\n'+ctr(tx.id)+'\n';
-    return L.join('')+body+'</div>';
+    body2+='\n'+ctr(tx.id)+'\n';
+    return '<div style="max-width:340px;margin:0 auto;color:#000;">'+
+      head+
+      '<pre style="font-family:\'Courier New\',monospace;font-size:13px;font-weight:900;color:#000;line-height:1.5;white-space:pre;margin:0;">'+body+'</pre>'+
+      totalLine+
+      '<pre style="font-family:\'Courier New\',monospace;font-size:13px;font-weight:900;color:#000;line-height:1.5;white-space:pre;margin:0;">'+body2+'</pre>'+
+    '</div>';
   }
 
   var itemRows=tx.items.map(function(i,_idx){
