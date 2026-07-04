@@ -4181,26 +4181,60 @@ function whatsAppWalkin(id){
   var cust=w.customerId?CUSTS.find(function(c){return c.id===w.customerId;}):null;
   var st=WK_STATUS[w.status]||WK_STATUS.requested;
   var balance=Math.max(0,w.price-w.deposit);
-  var lines=[
-    '*'+BRAND.name+' — Custom Order*',
-    'Order: *'+w.id+'*',
-    'Status: '+st.emoji+' '+st.label,
-    '',
-    'Hi '+w.customerName+',',
-    'Update on your custom order:',
-    '',
-    '"'+w.description+'"',
-    '',
-    'Price: $'+w.price.toFixed(2),
-    'Deposit: $'+w.deposit.toFixed(2),
-    (balance>0?'*Balance due: $'+balance.toFixed(2)+'*':'*Paid in full*'),
-    (w.readyBy?'Ready by: '+new Date(w.readyBy).toLocaleDateString():''),
-    '',
-    (w.status==='ready'?'Your order is READY for collection! 🎉':'We will notify you when it is ready.'),
-    'Thank you, '+BRAND.name+'!'
-  ];
+  var L=[];
+  L.push('🛠️ *'+BRAND.name+'*');
+  if(BRAND.sub) L.push('_'+BRAND.sub+'_');
+  L.push('━━━━━━━━━━━━━━');
+  L.push('');
+  L.push('Hi *'+w.customerName+'*! 👋');
+  L.push('');
+
+  if(w.status==='ready'){
+    L.push('🎉🎉🎉');
+    L.push('*YOUR ORDER IS READY!*');
+    L.push('*✅ READY TO COLLECT ✅*');
+    L.push('🎉🎉🎉');
+    L.push('');
+    L.push('Please come by to pick it up. 🏬');
+  } else if(w.status==='ordered'){
+    L.push('📦 Good news! Your order has been placed and is on the way.');
+  } else if(w.status==='requested'){
+    L.push('📝 We have received your custom order request.');
+  } else if(w.status==='collected'){
+    L.push('✅ Thank you for collecting your order!');
+  } else {
+    L.push('Here is an update on your order:');
+  }
+  L.push('');
+  L.push('📋 *Order Details*');
+  L.push('━━━━━━━━━━━━━━');
+  L.push('🔖 Order No: *'+w.id+'*');
+  L.push('📌 Status: '+st.emoji+' *'+st.label+'*');
+  L.push('🛍️ Item:');
+  L.push('   _'+w.description+'_');
+  L.push('');
+  L.push('💵 *Payment*');
+  L.push('━━━━━━━━━━━━━━');
+  L.push('Total:  $'+w.price.toFixed(2));
+  L.push('Paid:   $'+w.deposit.toFixed(2));
+  if(balance>0){
+    L.push('*⚠️ Balance Due:  $'+balance.toFixed(2)+'*');
+    if(w.status==='ready') L.push('_(payable on collection)_');
+  } else {
+    L.push('*✅ PAID IN FULL*');
+  }
+  if(w.readyBy){
+    L.push('');
+    L.push('📅 Ready by: *'+new Date(w.readyBy).toLocaleDateString()+'*');
+  }
+  L.push('');
+  L.push('━━━━━━━━━━━━━━');
+  if(STORE.address) L.push('📍 '+STORE.address);
+  if(STORE.phone) L.push('📞 '+STORE.phone);
+  L.push('');
+  L.push('Thank you for choosing *'+BRAND.name+'*! 💚');
   var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):(w.phone?w.phone.replace(/\D/g,''):'');
-  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(L.join('\n')),'_blank');
 }
 
 async function init(){
