@@ -65,14 +65,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ══ PRODUCT GRID ══ */
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px;padding:12px 14px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
-.pc{background:var(--s);border:1px solid var(--b);border-radius:var(--rl);padding:11px;cursor:pointer;transition:all .12s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;}
+.pc{background:var(--s);border:1px solid var(--b);border-radius:var(--rl);padding:11px;cursor:pointer;transition:transform .12s,box-shadow .12s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.pc:hover{box-shadow:0 3px 10px rgba(0,0,0,.08);}
+.pc:active{transform:scale(.97);}
+.pc-catbar{position:absolute;top:0;left:0;right:0;height:4px;background:var(--cat);opacity:.9;}
+.pc-incart{border-color:var(--a);box-shadow:0 0 0 1.5px var(--a),0 2px 8px rgba(29,158,117,.18);}
+.pc-out{opacity:.55;cursor:not-allowed;}
+.pc-out .pp,.pc-out .pe{filter:grayscale(.6);}
+.pc-ribbon{position:absolute;top:9px;left:-24px;transform:rotate(-40deg);background:var(--d);color:#fff;font-size:8px;font-weight:800;letter-spacing:.5px;padding:2px 26px;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.pe{font-size:26px;margin-bottom:6px;margin-top:2px;display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;line-height:1;}
+.pn{font-size:12px;font-weight:600;margin-bottom:3px;line-height:1.3;color:var(--t);}
+.pp{font-size:17px;color:var(--a);font-weight:800;letter-spacing:-.4px;}
+.pst{font-size:10px;color:var(--t3);margin-top:2px;font-weight:500;}
+.pst.lo{color:var(--w);font-weight:700;}
+.pst.out{color:var(--d);font-weight:800;letter-spacing:.3px;}
 .pc:hover{border-color:var(--a);background:var(--al);transform:translateY(-1px);box-shadow:0 3px 10px rgba(29,158,117,.1);}
 .pc:active{transform:scale(.95);background:var(--al);}
-.pe{font-size:26px;margin-bottom:6px;display:block;line-height:1;}
-.pn{font-size:12px;font-weight:500;margin-bottom:3px;line-height:1.3;}
-.pp{font-size:13px;color:var(--a);font-weight:600;}
-.pst{font-size:10px;color:var(--t3);margin-top:2px;}
-.pst.lo{color:var(--d);}
 .bq{position:absolute;top:6px;right:6px;background:var(--a);color:#fff;width:17px;height:17px;border-radius:50%;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;}
 
 /* ══ SECTION / CARDS / FORMS ══ */
@@ -409,7 +417,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .pgrid{grid-template-columns:repeat(2,1fr);gap:8px;padding:8px 8px 90px;}
   .pc{border-radius:14px;padding:14px 8px 12px;min-height:108px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;}
   .pc:active{transform:scale(.96);}
-  .pe{font-size:32px;line-height:1;margin-bottom:2px;}
+  .pe{font-size:30px;line-height:1;margin-bottom:2px;width:56px;height:56px;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;}
+  .pp{font-size:17px;font-weight:800;color:var(--a);margin-top:2px;letter-spacing:-.4px;}
   .pn{font-size:12px;font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
   .pp{font-size:15px;font-weight:700;color:var(--a);margin-top:2px;}
   .pst{font-size:10px;color:var(--t3);}
@@ -1487,8 +1496,27 @@ function renderGrid(){renderLSBanner();
   const f=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)));
   if(!f.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:36px;font-size:13px;">'+(PRODS.length===0&&!srvOk?'<div style="margin-bottom:8px;font-size:20px;">🔄</div>Connecting to server…':'No products found')+'</div>';return;}
   g.innerHTML=f.map(p=>{
-    const q=CART[p.id]||0,lo=p.stock<=10;
-    return`<div class="pc" data-pid="${p.id}" data-act="add">${q?`<div class="bq">${q}</div>`:''}<span class="pe">${p.emoji}</span><div class="pn">${p.name}${p.vatExempt?'<span style="font-size:9px;background:#FCEBEB;color:var(--d);padding:1px 4px;border-radius:9px;margin-left:4px;font-weight:600;">Exempt</span>':''}</div><div class="pp">$${p.price.toFixed(2)}</div><div class="pst${lo?' lo':''}">${lo?'⚠ ':''}${p.stock} in stock</div>${(p.size&&p.unit)?`<div style="font-size:9px;color:var(--t3);margin-top:1px;">${p.size}${p.unit}</div>`:''}</div>`;
+    const q=CART[p.id]||0;
+    const stock=p.stock||0;
+    const out=stock<=0;
+    const lo=!out&&stock<=(LOW_STOCK_THRESHOLD||10);
+    const catObj=CATS.find(c=>c.name===p.cat);
+    const catColor=catObj?catObj.color:'#888780';
+    // Stock badge
+    let stockBadge;
+    if(out) stockBadge=`<div class="pst out">SOLD OUT</div>`;
+    else if(lo) stockBadge=`<div class="pst lo">⚠ ${stock} left</div>`;
+    else stockBadge=`<div class="pst">${stock} in stock</div>`;
+    return`<div class="pc${out?' pc-out':''}${q?' pc-incart':''}" data-pid="${p.id}"${out?'':' data-act="add"'} style="--cat:${catColor};">`+
+      `<div class="pc-catbar"></div>`+
+      (q?`<div class="bq">${q}</div>`:'')+
+      (out?`<div class="pc-ribbon">SOLD OUT</div>`:'')+
+      `<span class="pe" style="background:${catColor}18;">${p.emoji}</span>`+
+      `<div class="pn">${p.name}${p.vatExempt?'<span style="font-size:9px;background:#FCEBEB;color:var(--d);padding:1px 4px;border-radius:9px;margin-left:4px;font-weight:600;">Exempt</span>':''}</div>`+
+      `<div class="pp">$${p.price.toFixed(2)}</div>`+
+      stockBadge+
+      ((p.size&&p.unit)?`<div style="font-size:9px;color:var(--t3);margin-top:1px;">${p.size}${p.unit}</div>`:'')+
+    `</div>`;
   }).join('');
 }
 
