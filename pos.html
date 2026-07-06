@@ -73,8 +73,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .pc-out{opacity:.55;cursor:not-allowed;}
 .pc-out .pp,.pc-out .pe{filter:grayscale(.6);}
 .pc-ribbon{position:absolute;top:12px;left:-2px;background:var(--d);color:#fff;font-size:8px;font-weight:800;letter-spacing:.5px;padding:2px 8px;border-radius:0 4px 4px 0;box-shadow:0 1px 3px rgba(0,0,0,.2);z-index:2;}
-.pe{font-size:28px;margin-bottom:8px;margin-top:4px;display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:16px;line-height:1;flex-shrink:0;}
-.pn{font-size:12px;font-weight:600;margin-bottom:4px;line-height:1.3;color:var(--t);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.pe{font-size:26px;margin-bottom:6px;margin-top:2px;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;line-height:1;flex-shrink:0;}
+.pn{font-size:12.5px;font-weight:600;margin:2px 0 4px;line-height:1.3;color:var(--t);max-width:100%;word-break:break-word;display:block;min-height:1.3em;}
 .pp{font-size:18px;color:var(--a);font-weight:800;letter-spacing:-.4px;white-space:nowrap;}
 .pst{font-size:10px;color:var(--t3);margin-top:3px;font-weight:500;}
 .pst.lo{color:var(--w);font-weight:700;}
@@ -1149,14 +1149,14 @@ let nid=1,txn=1000,qn=100;
 let PRODS=[];
 
 let CATS=[
-  {name:'Produce',emoji:'🥦',color:'#639922'},{name:'Dairy',emoji:'🥛',color:'#378ADD'},
-  {name:'Bakery',emoji:'🍞',color:'#BA7517'},{name:'Pantry',emoji:'🫙',color:'#7F77DD'},
-  {name:'Snacks',emoji:'🍫',color:'#D4537E'},{name:'Drinks',emoji:'🥤',color:'#1D9E75'},
-  {name:'Meat',emoji:'🍗',color:'#D85A30'},
+  {name:'Electronic',emoji:'💻',color:'#378ADD'},{name:'Toys',emoji:'🎮',color:'#D4537E'},
+  {name:'Automotive Product',emoji:'🚗',color:'#D85A30'},{name:'Parts',emoji:'⚙️',color:'#7F77DD'},
+  {name:'Paint',emoji:'🎨',color:'#639922'},{name:'Gift items',emoji:'🎁',color:'#BA7517'},
+  {name:'Accessories',emoji:'🔌',color:'#1D9E75'},
 ];
 let COUPONS={SAVE10:{type:'pct',val:10,label:'10% off'},SAVE5:{type:'fixed',val:5,label:'$5 off'},HALFOFF:{type:'pct',val:50,label:'50% off'},VIP20:{type:'pct',val:20,label:'20% off'}};
 const BCOLS=[{h:'#1D9E75',n:'Green'},{h:'#378ADD',n:'Blue'},{h:'#D85A30',n:'Terracotta'},{h:'#7F77DD',n:'Lavender'},{h:'#BA7517',n:'Amber'},{h:'#D4537E',n:'Rose'},{h:'#639922',n:'Lime'},{h:'#E24B4A',n:'Red'}];
-const EMJS=['🛒','🍎','🥛','🍞','🥚','🍝','🫙','🍦','🥑','🧀','🍫','🍊','💧','🍗','🐟','🥜','🍅','🍌','🧈','🥥','🥩','🧁','☕','🍵','🥤','🌿','🧴','🧹','💊','📦','🎁','⭐','🔥','🫐','🍓','🥦','🥕'];
+const EMJS=['📦','💻','🖥️','⌨️','🖱️','🖨️','📱','☎️','📷','🎧','🔋','🔌','💡','🔦','📺','📻','🎮','💾','💿','🛠️','🔧','🔩','⚙️','🔨','🪛','🧰','🚗','🚙','🏎️','🛞','🛢️','⛽','🔑','🪫','🎨','🖌️','🖍️','🪣','🧴','🧽','✨','🧯','🔒','🪟','💵','🎁','⭐','🔥','⚡','🏷️','🛒','🧵','📎','✂️','🔗','📏'];
 let CUSTS=[
   {id:'C001',name:'Maria Santos',company:'Santos Ltd',phone:'+1 555 012 3456',email:'maria@email.com',address:'123 Main St',spent:284.50,visits:12},
   {id:'C002',name:'James Chen',company:'',phone:'+1 555 098 7654',email:'james@email.com',address:'',spent:179.20,visits:7},
@@ -1165,7 +1165,7 @@ let TXS=[],QUOTES=[];
 let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
-let CART={},ACAT='All',SQ='',COUPON=null,ESEL='🛒',PAYM='cash';
+let CART={},ACAT='All',SQ='',COUPON=null,ESEL='📦',PAYM='cash';
 let ITEM_DISC={};
 let ORDERS=[];
 let LAYAWAYS=[];
@@ -2421,7 +2421,7 @@ async function addProd(){
   ['np-n','np-p','np-cn','np-s','np-sk','np-sz'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('np-unit').value='';
   document.getElementById('np-c').value='';document.getElementById('np-vat').value='yes';resetNewProdVATToggle();
-  ESEL='🛒';renderEP();var em=document.getElementById('eprev-em');if(em)em.textContent='🛒';
+  ESEL='📦';renderEP();var em=document.getElementById('eprev-em');if(em)em.textContent='📦';
   renderPtbl();renderCats();renderGrid();renderLSBanner();await saveAll();toast('Product added ✓');
 
   }catch(_e){}
