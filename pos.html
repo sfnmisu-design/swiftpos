@@ -65,7 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 /* ══ PRODUCT GRID ══ */
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:9px;padding:12px 14px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
-.pc{background:var(--s);border:1px solid var(--b);border-radius:var(--rl);padding:14px 11px 14px;cursor:pointer;transition:transform .12s,box-shadow .12s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;align-items:center;text-align:center;min-height:150px;justify-content:flex-start;}
+.pc{background:var(--s);border:1px solid var(--b);border-radius:var(--rl);padding:14px 10px 12px;cursor:pointer;transition:transform .12s,box-shadow .12s;position:relative;user-select:none;-webkit-tap-highlight-color:transparent;box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;flex-direction:column;align-items:center;text-align:center;min-height:168px;justify-content:flex-start;}
 .pc:hover{box-shadow:0 3px 10px rgba(0,0,0,.08);}
 .pc:active{transform:scale(.97);}
 .pc-catbar{position:absolute;top:0;left:0;right:0;height:4px;background:var(--cat);opacity:.9;border-radius:var(--rl) var(--rl) 0 0;}
@@ -73,9 +73,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .pc-out{opacity:.55;cursor:not-allowed;}
 .pc-out .pp,.pc-out .pe{filter:grayscale(.6);}
 .pc-ribbon{position:absolute;top:12px;left:-2px;background:var(--d);color:#fff;font-size:8px;font-weight:800;letter-spacing:.5px;padding:2px 8px;border-radius:0 4px 4px 0;box-shadow:0 1px 3px rgba(0,0,0,.2);z-index:2;}
-.pe{font-size:26px;margin-bottom:6px;margin-top:2px;display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:14px;line-height:1;flex-shrink:0;}
-.pn{font-size:12.5px;font-weight:600;margin:2px 0 4px;line-height:1.3;color:var(--t);max-width:100%;word-break:break-word;display:block;min-height:1.3em;}
-.pp{font-size:18px;color:var(--a);font-weight:800;letter-spacing:-.4px;white-space:nowrap;}
+.pe{font-size:24px;margin:2px 0 6px;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;line-height:1;flex-shrink:0;}
+.pn{font-size:11.5px;font-weight:600;margin:0 0 5px;line-height:1.25;color:var(--t);width:100%;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;-webkit-box-align:start;height:2.9em;flex-shrink:0;}
+.pp{font-size:17px;color:var(--a);font-weight:800;letter-spacing:-.4px;white-space:nowrap;margin:0;flex-shrink:0;}
 .pst{font-size:10px;color:var(--t3);margin-top:3px;font-weight:500;}
 .pst.lo{color:var(--w);font-weight:700;}
 .pst.out{color:var(--d);font-weight:800;letter-spacing:.3px;}
@@ -417,7 +417,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .pc:active{transform:scale(.96);}
   .pe{font-size:30px;line-height:1;margin-bottom:2px;width:56px;height:56px;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;}
   .pp{font-size:17px;font-weight:800;color:var(--a);margin-top:2px;letter-spacing:-.4px;}
-  .pn{font-size:12px;font-weight:600;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  .pn{font-size:12px;font-weight:600;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;height:3em;margin-bottom:4px;}
+  .pp{font-size:16px;font-weight:800;color:var(--a);margin:0;letter-spacing:-.3px;}
   .pp{font-size:15px;font-weight:700;color:var(--a);margin-top:2px;}
   .pst{font-size:10px;color:var(--t3);}
 
@@ -1510,8 +1511,8 @@ function renderGrid(){renderLSBanner();
       (q?`<div class="bq">${q}</div>`:'')+
       (out?`<div class="pc-ribbon">SOLD OUT</div>`:'')+
       `<span class="pe" style="background:${catColor}18;">${p.emoji}</span>`+
-      `<div class="pn">${p.name}${p.vatExempt?'<span style="font-size:9px;background:#FCEBEB;color:var(--d);padding:1px 4px;border-radius:9px;margin-left:4px;font-weight:600;">Exempt</span>':''}</div>`+
-      `<div class="pp">$${p.price.toFixed(2)}</div>`+
+      `<div class="pn">${p.name}</div>`+
+      `<div class="pp">$${p.price.toFixed(2)}${p.vatExempt?'<span style="font-size:8px;background:#FCEBEB;color:var(--d);padding:1px 4px;border-radius:9px;margin-left:3px;font-weight:600;vertical-align:middle;">Exempt</span>':''}</div>`+
       stockBadge+
       ((p.size&&p.unit)?`<div style="font-size:9px;color:var(--t3);margin-top:1px;">${p.size}${p.unit}</div>`:'')+
     `</div>`;
