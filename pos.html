@@ -615,7 +615,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="card">
           <div class="fg">
             <div class="fr"><label>Name *</label><input type="text" id="np-n" placeholder="e.g. Organic Honey"></div>
-            <div class="fr"><label>Price *</label><input type="number" id="np-p" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>
+            <div class="fr"><label>Cost price (what you paid)</label><input type="number" id="np-cost" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>
+            <div class="fr"><label>Selling price *</label><input type="number" id="np-p" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>
             <div class="fr"><label>Category *</label><select id="np-c"><option value="">Select…</option></select></div>
             <div class="fr"><label>New category</label><input type="text" id="np-cn" placeholder="Or type a new one"></div>
             <div class="fr"><label>Stock *</label><input type="number" id="np-s" placeholder="0" min="0" inputmode="numeric"></div>
@@ -735,6 +736,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="sgd" id="sgd"></div>
         <div class="cw"><div class="ct">Sales by hour</div><div class="bc" id="bchart"></div></div>
         <div class="cw"><div class="ct">Top products</div><div id="toplist"></div></div>
+        <div class="cw"><div class="ct">💰 Most profitable products</div><div id="profitlist"></div></div>
       </div>
     </div>
 
@@ -1839,7 +1841,7 @@ async function doPay(total,tip){
   const change=PAYM==='cash'?Math.max(0,tendered-total):0;
   const txid='TXN-'+(++txn);
   const custId=document.getElementById('cart-cust').value;
-  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
+  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,cost:p.cost||0,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
   const{sub,disc,tax,grand}=getTots();
   const tx={id:txid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,tip:tip,tendered,change,payMethod:PAYM,coupon:COUPON?COUPON.label:null,customerId:custId||null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode};
   TXS.unshift(tx);
@@ -2162,7 +2164,7 @@ function saveQuote(){
   if(!Object.keys(CART).length){toast('Add items to cart first');return;}
   const custId=document.getElementById('cart-cust').value;
   const qid='QT-'+(++qn);
-  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
+  const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,cost:p.cost||0,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
   const{sub,disc,tax,grand}=getTots();
   const q={id:qid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,customerId:custId||null,coupon:COUPON?COUPON.label:null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode,status:'open',notes:''};
   QUOTES.unshift(q);saveAll();closeCartDrawer();
@@ -2410,6 +2412,7 @@ async function addProd(){
   try{
 
   const n=document.getElementById('np-n').value.trim();const pr=parseFloat(document.getElementById('np-p').value);
+  const cost=parseFloat(document.getElementById('np-cost').value)||0;
   const cn=document.getElementById('np-cn').value.trim();const cat=cn||document.getElementById('np-c').value;
   const st=parseInt(document.getElementById('np-s').value)||0;const sk=document.getElementById('np-sk').value.trim();
   const vatExempt=document.getElementById('np-vat').value!=='yes';
@@ -2417,9 +2420,9 @@ async function addProd(){
   const unit=document.getElementById('np-unit').value||null;
   if(!n){toast('Name required');return;}if(!pr||pr<=0){toast('Enter a valid price');return;}if(!cat){toast('Select or type a category');return;}
   if(cn&&!CATS.find(c=>c.name===cn)){CATS.push({name:cn,emoji:'📦',color:'#888780'});populateCatDropdown();renderCatMgmt();renderCats();}
-  PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000),name:n,price:pr,cat,emoji:ESEL,stock:st,sku:sk,vatExempt,size:sz,unit:unit});
+  PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000),name:n,price:pr,cost:cost,cat,emoji:ESEL,stock:st,sku:sk,vatExempt,size:sz,unit:unit});
   TOPITS.push({name:n,emoji:ESEL,sold:0});
-  ['np-n','np-p','np-cn','np-s','np-sk','np-sz'].forEach(id=>document.getElementById(id).value='');
+  ['np-n','np-p','np-cost','np-cn','np-s','np-sk','np-sz'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('np-unit').value='';
   document.getElementById('np-c').value='';document.getElementById('np-vat').value='yes';resetNewProdVATToggle();
   ESEL='📦';renderEP();var em=document.getElementById('eprev-em');if(em)em.textContent='📦';
@@ -2460,8 +2463,15 @@ function renderReports(){
   var txCount=TXS.filter(function(x){return x.payMethod!=='refund';}).length;
   var avg=txCount?tot/txCount:0;
 
+  // All-time profit
+  var allProfit=TXS.filter(function(x){return x.payMethod!=='refund';}).reduce(function(s,tx){
+    return s+tx.items.reduce(function(a,it){return a+(it.line-(it.cost||0)*it.qty);},0);
+  },0);
+  var allMargin=tot>0?(allProfit/tot*100):0;
+
   sgd.innerHTML=
     '<div class="sc"><div class="sl2">Revenue</div><div class="sv">$'+tot.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="ss">All time</div></div>'+
+    '<div class="sc" style="background:linear-gradient(135deg,var(--al),#fff);border-color:var(--a);"><div class="sl2">💰 Net Profit</div><div class="sv" style="color:var(--a);">$'+allProfit.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="ss">'+allMargin.toFixed(1)+'% margin</div></div>'+
     '<div class="sc"><div class="sl2">Transactions</div><div class="sv">'+txCount+'</div><div class="ss">All time</div></div>'+
     '<div class="sc"><div class="sl2">Avg order</div><div class="sv">$'+avg.toFixed(2)+'</div><div class="ss">Per sale</div></div>'+
     '<div class="sc"><div class="sl2">Products</div><div class="sv">'+PRODS.length+'</div><div class="ss">In catalog</div></div>';
@@ -2472,6 +2482,31 @@ function renderReports(){
   bchart.innerHTML=HRS.map(function(x){
     return'<div class="bcc"><div class="bar" style="height:'+( Math.round((x.v/mv)*62)+4)+'px" title="$'+x.v.toFixed(0)+'"></div><div class="bl">'+(x.h>12?x.h-12+'p':x.h+'a')+'</div></div>';
   }).join('');
+
+  /* Most profitable products (all-time) — render before the early-return guard */
+  (function(){
+    var profByProd={};
+    TXS.filter(function(x){return x.payMethod!=='refund';}).forEach(function(tx){
+      tx.items.forEach(function(it){
+        if(!profByProd[it.name]) profByProd[it.name]={name:it.name,emoji:it.emoji,profit:0,qty:0};
+        profByProd[it.name].profit+=(it.line-(it.cost||0)*it.qty);
+        profByProd[it.name].qty+=it.qty;
+      });
+    });
+    var profList=Object.values(profByProd).sort(function(a,b){return b.profit-a.profit;}).slice(0,6);
+    var pl=document.getElementById('profitlist');
+    if(!pl) return;
+    if(!profList.length){
+      pl.innerHTML='<div style="color:var(--t3);font-size:12px;padding:8px;">No profit data yet</div>';
+      return;
+    }
+    var maxP=Math.max.apply(null,profList.map(function(p){return Math.abs(p.profit);}).concat([1]));
+    pl.innerHTML=profList.map(function(p){
+      var pct=Math.round((Math.abs(p.profit)/maxP)*100);
+      var col=p.profit>=0?'var(--a)':'var(--d)';
+      return'<div class="ti"><span class="tn">'+p.emoji+' '+p.name+' <span style="color:var(--t3);font-size:10px;">('+p.qty+' sold)</span></span><div class="tw"><div class="tb2" style="width:'+pct+'%;background:'+col+';"></div></div><span class="ts" style="color:'+col+';">$'+p.profit.toFixed(0)+'</span></div>';
+    }).join('');
+  })();
 
   /* Top products — guard against empty */
   if(!TOPITS||!TOPITS.length){
@@ -2852,7 +2887,8 @@ function openEditProd(id){
     '<h3>Edit product</h3>'+
     '<div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
       '<div class="f"><label>Name *</label><input type="text" id="ep-n" value="'+p.name.replace(/"/g,'&quot;')+'"></div>'+
-      '<div class="f"><label>Price *</label><input type="number" id="ep-p" inputmode="decimal" value="'+p.price+'" min="0" step="0.01"></div>'+
+      '<div class="f"><label>Cost price (paid)</label><input type="number" id="ep-cost" inputmode="decimal" value="'+(p.cost||0)+'" min="0" step="0.01"></div>'+
+      '<div class="f"><label>Selling price *</label><input type="number" id="ep-p" inputmode="decimal" value="'+p.price+'" min="0" step="0.01"></div>'+
       '<div class="f"><label>Category</label><select id="ep-c">'+catOpts+'</select></div>'+
       '<div class="f"><label>SKU</label><input type="text" id="ep-sk" value="'+(p.sku||'').replace(/"/g,'&quot;')+'"></div>'+
     '<div class="f"><label>Size / Volume</label>'+
@@ -2897,6 +2933,7 @@ function openEditProd(id){
     if(!n){toast('Name required');return;}
     if(!pr||pr<=0){toast('Valid price required');return;}
     p.name=n; p.price=pr;
+    p.cost=parseFloat(document.getElementById('ep-cost').value)||0;
     p.cat=document.getElementById('ep-c').value;
     p.stock=parseInt(document.getElementById('ep-s').value)||0;
     p.sku=document.getElementById('ep-sk').value.trim();
@@ -2916,6 +2953,18 @@ function renderDailyReport(){
   var todayRev=todayTxs.reduce(function(s,tx){return s+tx.total;},0);
   var todayCount=todayTxs.length;
   var todayAvg=todayCount?todayRev/todayCount:0;
+
+  // Profit today (selling line minus cost×qty for each item)
+  function txProfit(tx){
+    if(tx.payMethod==='refund') return 0;
+    return tx.items.reduce(function(s,it){
+      var cost=(it.cost||0)*it.qty;
+      return s+(it.line-cost);
+    },0);
+  }
+  var todayProfit=todayTxs.reduce(function(s,tx){return s+txProfit(tx);},0);
+  var todayCost=todayTxs.reduce(function(s,tx){return s+tx.items.reduce(function(a,it){return a+(it.cost||0)*it.qty;},0);},0);
+  var margin=todayRev>0?(todayProfit/todayRev*100):0;
 
   // Sales by hour today
   var hours={};
@@ -2952,6 +3001,15 @@ function renderDailyReport(){
       '<div class="card" style="text-align:center;padding:12px 8px;"><div style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Today Revenue</div><div style="font-size:22px;font-weight:700;color:var(--a);">$'+todayRev.toFixed(2)+'</div></div>'+
       '<div class="card" style="text-align:center;padding:12px 8px;"><div style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Sales Today</div><div style="font-size:22px;font-weight:700;">'+todayCount+'</div></div>'+
       '<div class="card" style="text-align:center;padding:12px 8px;"><div style="font-size:10px;color:var(--t3);font-weight:700;text-transform:uppercase;margin-bottom:4px;">Avg Order</div><div style="font-size:22px;font-weight:700;">$'+todayAvg.toFixed(2)+'</div></div>'+
+    '</div>'+
+    // Profit row
+    '<div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,var(--al),#fff);border-color:var(--a);">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--ad);text-transform:uppercase;margin-bottom:10px;">💰 Profit Today</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'+
+        '<div><div style="font-size:10px;color:var(--t3);">Cost of goods</div><div style="font-size:17px;font-weight:700;color:var(--d);">$'+todayCost.toFixed(2)+'</div></div>'+
+        '<div style="text-align:center;"><div style="font-size:10px;color:var(--t3);">Net Profit</div><div style="font-size:20px;font-weight:800;color:var(--a);">$'+todayProfit.toFixed(2)+'</div></div>'+
+        '<div style="text-align:right;"><div style="font-size:10px;color:var(--t3);">Margin</div><div style="font-size:17px;font-weight:700;color:'+(margin>=0?'var(--a)':'var(--d)')+';">'+margin.toFixed(1)+'%</div></div>'+
+      '</div>'+
     '</div>'+
     // 7-day summary
     '<div class="card" style="margin-bottom:14px;">'+
