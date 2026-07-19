@@ -678,8 +678,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <button class="sbtn" data-act="add-prod">Add to catalog</button>
         </div>
         <div class="stitle">Catalog <span id="pcount" style="color:var(--t3);font-weight:400;text-transform:none;font-size:11px;margin-left:2px;"></span></div>
+        <!-- Toolbar: sort / filter / CSV -->
+        <div class="card np" style="padding:10px 12px;margin-bottom:8px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <input type="text" id="pt-search" placeholder="🔍 Filter catalog…" style="flex:1;min-width:150px;font-size:14px;padding:7px 10px;border-radius:9px;border:1.5px solid var(--b);background:var(--bg);">
+            <select id="pt-sort" style="font-size:13px;padding:7px 8px;border-radius:9px;border:1.5px solid var(--b);background:var(--bg);">
+              <option value="name">Sort: Name</option>
+              <option value="price-hi">Price high→low</option>
+              <option value="price-lo">Price low→high</option>
+              <option value="stock-lo">Stock low→high</option>
+              <option value="stock-hi">Stock high→low</option>
+              <option value="cat">Category</option>
+              <option value="new">Newest</option>
+            </select>
+            <select id="pt-stockf" style="font-size:13px;padding:7px 8px;border-radius:9px;border:1.5px solid var(--b);background:var(--bg);">
+              <option value="all">All stock</option>
+              <option value="low">Low stock</option>
+              <option value="out">Out of stock</option>
+              <option value="in">In stock</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center;">
+            <button class="ord-btn" data-act="pt-selall">☑️ Select all</button>
+            <button class="ord-btn" data-act="pt-bulk" style="background:var(--a);color:#fff;border-color:var(--a);">⚙️ Bulk edit (<span id="pt-selcount">0</span>)</button>
+            <span style="flex:1;"></span>
+            <button class="ord-btn" data-act="pt-export">⬇️ Export CSV</button>
+            <button class="ord-btn" data-act="pt-import">⬆️ Import CSV</button>
+            <input type="file" id="pt-file" accept=".csv,text/csv" style="display:none;">
+          </div>
+        </div>
         <div class="card np">
-          <table class="tbl"><thead><tr><th></th><th>Name</th><th>Cat</th><th>Price</th><th>Stock</th><th>VAT</th><th></th></tr></thead>
+          <table class="tbl"><thead><tr><th style="width:26px;"></th><th></th><th>Name</th><th>Cat</th><th>Cost</th><th>Price</th><th>Stock</th><th>VAT</th><th></th></tr></thead>
           <tbody id="ptbody"></tbody></table>
         </div>
       </div>
@@ -2504,17 +2533,313 @@ async function delProd(id){
 
   }catch(_e){}
 }
+let PT_SEL={};        /* selected product ids for bulk edit */
+let PT_SORT='name', PT_STOCKF='all', PT_SEARCH='';
+
+function ptFiltered(){
+  var q=PT_SEARCH.toLowerCase().trim();
+  var list=PRODS.filter(function(p){
+    if(q && p.name.toLowerCase().indexOf(q)<0 && !(p.sku&&p.sku.toLowerCase().indexOf(q)>=0) && (p.cat||'').toLowerCase().indexOf(q)<0) return false;
+    var st=p.stock||0;
+    if(PT_STOCKF==='low')  return st>0 && st<=(LOW_STOCK_THRESHOLD||10);
+    if(PT_STOCKF==='out')  return st<=0;
+    if(PT_STOCKF==='in')   return st>0;
+    return true;
+  });
+  var s=PT_SORT;
+  list.sort(function(a,b){
+    if(s==='price-hi') return b.price-a.price;
+    if(s==='price-lo') return a.price-b.price;
+    if(s==='stock-lo') return (a.stock||0)-(b.stock||0);
+    if(s==='stock-hi') return (b.stock||0)-(a.stock||0);
+    if(s==='cat')      return (a.cat||'').localeCompare(b.cat||'')||a.name.localeCompare(b.name);
+    if(s==='new')      return (b.id||0)-(a.id||0);
+    return a.name.localeCompare(b.name);
+  });
+  return list;
+}
+
 function renderPtbl(){
-  var _pc=document.getElementById('pcount');if(_pc)_pc.textContent='('+PRODS.length+' items)';
-  var _pb=document.getElementById('ptbody');if(_pb)_pb.innerHTML=PRODS.map(p=>`<tr>
-    <td style="font-size:17px;">${p.emoji}</td>
-    <td style="font-weight:500;">${p.name}${(p.size&&p.unit)?`<span style="font-size:10px;color:var(--a);background:var(--al);padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">${p.size}${p.unit}</span>`:''} ${p.sku?`<br><span style="font-size:10px;color:var(--t3)">SKU:${p.sku}</span>`:''}</td>
-    <td style="color:var(--t2);">${p.cat}</td>
-    <td style="font-weight:700;color:var(--a);">$${p.price.toFixed(2)}</td>
-    <td><span class="sbadge ${p.stock<=10?'sl':'sg'}">${p.stock}</span></td>
-    <td><span class="sbadge ${p.vatExempt?'sl':'sg'}" style="cursor:pointer;" data-pid="${p.id}" data-act="vat" title="Click to toggle">${p.vatExempt?'Exempt':'VAT'}</span></td>
-    <td style="white-space:nowrap;"><button class="icon-btn" style="color:#378ADD;margin-right:3px;" data-pid="${p.id}" data-act="edit-prod">✏️</button><button class="icon-btn del" data-pid="${p.id}" data-act="del-prod">🗑</button></td>
-  </tr>`).join('');
+  var list=ptFiltered();
+  var _pc=document.getElementById('pcount');
+  if(_pc) _pc.textContent='('+list.length+(list.length!==PRODS.length?' of '+PRODS.length:'')+' items)';
+  var sc=document.getElementById('pt-selcount');
+  if(sc) sc.textContent=Object.keys(PT_SEL).length;
+  var _pb=document.getElementById('ptbody');
+  if(!_pb) return;
+  if(!list.length){
+    _pb.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--t3);padding:18px;font-size:12px;">No products match</td></tr>';
+    return;
+  }
+  var lowT=LOW_STOCK_THRESHOLD||10;
+  _pb.innerHTML=list.map(function(p){
+    var st=p.stock||0;
+    var cls=st<=0?'sl':(st<=lowT?'sl':'sg');
+    var margin=(p.cost&&p.price)?(((p.price-p.cost)/p.price)*100):null;
+    return '<tr'+(PT_SEL[p.id]?' style="background:var(--al);"':'')+'>'+
+      '<td><input type="checkbox" class="pt-cb" data-cbid="'+p.id+'"'+(PT_SEL[p.id]?' checked':'')+' style="width:16px;height:16px;cursor:pointer;"></td>'+
+      '<td style="font-size:17px;">'+p.emoji+'</td>'+
+      '<td style="font-weight:500;">'+p.name+
+        ((p.size&&p.unit)?'<span style="font-size:10px;color:var(--a);background:var(--al);padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">'+p.size+p.unit+'</span>':'')+
+        (p.sku?'<br><span style="font-size:10px;color:var(--t3)">SKU:'+p.sku+'</span>':'')+
+      '</td>'+
+      '<td style="color:var(--t2);">'+(p.cat||'')+'</td>'+
+      '<td style="color:var(--t3);font-size:12px;">'+(p.cost?'$'+p.cost.toFixed(2):'—')+'</td>'+
+      '<td style="font-weight:700;color:var(--a);">$'+p.price.toFixed(2)+
+        (margin!==null?'<br><span style="font-size:9px;color:'+(margin>=0?'var(--a)':'var(--d)')+';font-weight:600;">'+margin.toFixed(0)+'% margin</span>':'')+
+      '</td>'+
+      '<td><span class="sbadge '+cls+'" style="cursor:pointer;" data-pid="'+p.id+'" data-act="adj-stock" title="Adjust stock">'+st+'</span></td>'+
+      '<td><span class="sbadge '+(p.vatExempt?'sl':'sg')+'" style="cursor:pointer;" data-pid="'+p.id+'" data-act="vat" title="Click to toggle">'+(p.vatExempt?'Exempt':'VAT')+'</span></td>'+
+      '<td style="white-space:nowrap;">'+
+        '<button class="icon-btn" style="color:#378ADD;margin-right:2px;" data-pid="'+p.id+'" data-act="edit-prod" title="Edit">✏️</button>'+
+        '<button class="icon-btn" style="color:var(--t2);margin-right:2px;" data-pid="'+p.id+'" data-act="dup-prod" title="Duplicate">⧉</button>'+
+        '<button class="icon-btn del" data-pid="'+p.id+'" data-act="del-prod" title="Delete">🗑</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+  _pb.querySelectorAll('.pt-cb').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var id=this.getAttribute('data-cbid');
+      if(this.checked) PT_SEL[id]=true; else delete PT_SEL[id];
+      renderPtbl();
+    });
+  });
+}
+
+/* ════════ PRODUCT TOOLS ════════ */
+
+function dupProduct(id){
+  var p=PRODS.find(function(x){return x.id==id;});
+  if(!p) return;
+  var copy=JSON.parse(JSON.stringify(p));
+  copy.id=Date.now()*1000+Math.floor(Math.random()*1000);
+  copy.name=p.name+' (copy)';
+  copy.sku='';
+  PRODS.push(copy);
+  TOPITS.push({name:copy.name,emoji:copy.emoji,sold:0});
+  saveAll();renderPtbl();renderGrid();
+  toast('Duplicated — edit the copy ✓');
+  setTimeout(function(){openEditProd(copy.id);},250);
+}
+
+function openStockAdjust(id){
+  var p=PRODS.find(function(x){return x.id==id;});
+  if(!p) return;
+  openModal(
+    '<h3>Adjust stock — '+p.emoji+' '+p.name+'</h3>'+
+    '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);display:flex;justify-content:space-between;font-size:13px;">'+
+      '<span>Current stock:</span><strong style="font-size:16px;">'+(p.stock||0)+'</strong>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>New stock count</label>'+
+      '<input type="number" id="sa-qty" value="'+(p.stock||0)+'" min="0" inputmode="numeric">'+
+      '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">'+
+        '<button class="qa" data-sa-delta="-1">−1</button>'+
+        '<button class="qa" data-sa-delta="1">+1</button>'+
+        '<button class="qa" data-sa-delta="5">+5</button>'+
+        '<button class="qa" data-sa-delta="10">+10</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label>Reason *</label>'+
+      '<select id="sa-reason">'+
+        '<option value="">Select a reason…</option>'+
+        '<option value="Restock / delivery">📦 Restock / delivery</option>'+
+        '<option value="Stock count correction">🔢 Stock count correction</option>'+
+        '<option value="Damaged">💥 Damaged</option>'+
+        '<option value="Lost / theft">🚨 Lost / theft</option>'+
+        '<option value="Expired">⏳ Expired</option>'+
+        '<option value="Customer return">↩️ Customer return</option>'+
+        '<option value="Returned to supplier">🚚 Returned to supplier</option>'+
+        '<option value="Other">✏️ Other</option>'+
+      '</select>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label>Note (optional)</label><input type="text" id="sa-note" placeholder="Extra detail…"></div>'+
+    ((p.stockLog&&p.stockLog.length)?
+      '<div style="max-height:120px;overflow-y:auto;margin-bottom:10px;border-top:1px solid var(--b);padding-top:8px;">'+
+      '<div style="font-size:10px;color:var(--t3);text-transform:uppercase;font-weight:700;margin-bottom:5px;">Recent adjustments</div>'+
+      p.stockLog.slice(-5).reverse().map(function(l){
+        var d=new Date(l.date);
+        var sign=l.delta>0?'+':'';
+        return'<div style="font-size:11px;padding:4px 0;display:flex;justify-content:space-between;gap:8px;"><span style="color:var(--t2);">'+l.reason+(l.note?' — '+l.note:'')+'</span><span style="white-space:nowrap;"><strong style="color:'+(l.delta>0?'var(--a)':'var(--d)')+';">'+sign+l.delta+'</strong> <span style="color:var(--t3);">'+d.toLocaleDateString()+'</span></span></div>';
+      }).join('')+'</div>':'')+
+    '<div class="mbs"><button id="sa-cancel">Cancel</button><button class="ok" id="sa-save">Save</button></div>'
+  );
+  document.querySelectorAll('[data-sa-delta]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var f=document.getElementById('sa-qty');
+      f.value=Math.max(0,(parseInt(f.value)||0)+parseInt(this.getAttribute('data-sa-delta')));
+    });
+  });
+  document.getElementById('sa-cancel').addEventListener('click',closeModal);
+  document.getElementById('sa-save').addEventListener('click',function(){
+    var nq=parseInt(document.getElementById('sa-qty').value);
+    if(isNaN(nq)||nq<0){toast('Enter a valid stock count');return;}
+    var reason=document.getElementById('sa-reason').value;
+    var old=p.stock||0;
+    if(nq===old){closeModal();toast('No change');return;}
+    if(!reason){toast('Please select a reason');return;}
+    var note=document.getElementById('sa-note').value.trim();
+    p.stockLog=p.stockLog||[];
+    p.stockLog.push({date:new Date().toISOString(),from:old,to:nq,delta:nq-old,reason:reason,note:note});
+    if(p.stockLog.length>50) p.stockLog=p.stockLog.slice(-50);
+    p.stock=nq;
+    saveAll();renderPtbl();renderGrid();renderLSBanner();closeModal();
+    toast('Stock updated: '+old+' → '+nq+' ✓');
+  });
+}
+
+function openBulkEdit(){
+  var ids=Object.keys(PT_SEL);
+  if(!ids.length){toast('Select some products first');return;}
+  var sel=PRODS.filter(function(p){return PT_SEL[p.id];});
+  openModal(
+    '<h3>Bulk edit — '+sel.length+' product'+(sel.length!==1?'s':'')+'</h3>'+
+    '<div style="max-height:90px;overflow-y:auto;margin-bottom:12px;padding:8px 10px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--t2);">'+
+      sel.map(function(p){return p.emoji+' '+p.name;}).join('<br>')+
+    '</div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Change category</label>'+
+      '<select id="be-cat"><option value="">— leave unchanged —</option>'+
+      CATS.map(function(c){return'<option value="'+c.name+'">'+c.emoji+' '+c.name+'</option>';}).join('')+
+      '</select></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Adjust price</label>'+
+      '<div style="display:flex;gap:6px;">'+
+        '<select id="be-pmode" style="flex:1;"><option value="">— leave unchanged —</option><option value="pct">Increase by %</option><option value="pctd">Decrease by %</option><option value="set">Set exact price</option></select>'+
+        '<input type="number" id="be-pval" placeholder="0" min="0" step="0.01" style="width:90px;" inputmode="decimal">'+
+      '</div></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>VAT status</label>'+
+      '<select id="be-vat"><option value="">— leave unchanged —</option><option value="yes">Apply VAT</option><option value="no">Mark exempt</option></select></div>'+
+    '<div class="f" style="margin-bottom:12px;"><label>Set stock (all selected)</label>'+
+      '<input type="number" id="be-stock" placeholder="Leave blank to skip" min="0" inputmode="numeric"></div>'+
+    '<div class="mbs"><button id="be-del" style="color:var(--d);">🗑 Delete all</button><button id="be-cancel">Cancel</button><button class="ok" id="be-save">Apply</button></div>'
+  );
+  document.getElementById('be-cancel').addEventListener('click',closeModal);
+  document.getElementById('be-del').addEventListener('click',function(){
+    closeModal();
+    setTimeout(function(){
+      confirmModal('Delete <strong>'+sel.length+'</strong> product'+(sel.length!==1?'s':'')+'? This cannot be undone.',function(){
+        PRODS=PRODS.filter(function(p){return !PT_SEL[p.id];});
+        PT_SEL={};
+        saveAll();renderPtbl();renderGrid();
+        toast(sel.length+' products deleted');
+      });
+    },250);
+  });
+  document.getElementById('be-save').addEventListener('click',function(){
+    var cat=document.getElementById('be-cat').value;
+    var pmode=document.getElementById('be-pmode').value;
+    var pval=parseFloat(document.getElementById('be-pval').value)||0;
+    var vat=document.getElementById('be-vat').value;
+    var stockRaw=document.getElementById('be-stock').value;
+    var changed=0;
+    sel.forEach(function(p){
+      var did=false;
+      if(cat){p.cat=cat;did=true;}
+      if(pmode&&pval>0){
+        if(pmode==='pct')  p.price=+(p.price*(1+pval/100)).toFixed(2);
+        if(pmode==='pctd') p.price=+(p.price*(1-pval/100)).toFixed(2);
+        if(pmode==='set')  p.price=+pval.toFixed(2);
+        did=true;
+      }
+      if(vat){p.vatExempt=(vat==='no');did=true;}
+      if(stockRaw!==''){p.stock=parseInt(stockRaw)||0;did=true;}
+      if(did)changed++;
+    });
+    if(!changed){toast('Nothing to change');return;}
+    PT_SEL={};
+    saveAll();renderPtbl();renderGrid();renderLSBanner();closeModal();
+    toast(changed+' products updated ✓');
+  });
+}
+
+function exportProductsCSV(){
+  var hdr=['name','category','cost','price','stock','sku','emoji','vatExempt','size','unit'];
+  function esc(v){
+    v=(v===null||v===undefined)?'':String(v);
+    return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
+  }
+  var rows=[hdr.join(',')];
+  PRODS.forEach(function(p){
+    rows.push([p.name,p.cat,(p.cost||0),p.price,(p.stock||0),(p.sku||''),p.emoji,(p.vatExempt?'yes':'no'),(p.size||''),(p.unit||'')].map(esc).join(','));
+  });
+  var blob=new Blob(['\ufeff'+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='swiftpos-products-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);document.body.removeChild(a);},500);
+  toast('Exported '+PRODS.length+' products ✓');
+}
+
+function parseCSVLine(line){
+  var out=[],cur='',q=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line[i];
+    if(q){
+      if(ch==='"'&&line[i+1]==='"'){cur+='"';i++;}
+      else if(ch==='"'){q=false;}
+      else cur+=ch;
+    } else {
+      if(ch==='"'){q=true;}
+      else if(ch===','){out.push(cur);cur='';}
+      else cur+=ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function importProductsCSV(text){
+  try{
+    text=text.replace(/^\ufeff/,'');
+    var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+    if(lines.length<2){toast('CSV appears empty');return;}
+    var hdr=parseCSVLine(lines[0]).map(function(h){return h.trim().toLowerCase();});
+    function col(row,names){
+      for(var i=0;i<names.length;i++){
+        var idx=hdr.indexOf(names[i]);
+        if(idx>=0&&row[idx]!==undefined) return row[idx].trim();
+      }
+      return '';
+    }
+    var added=0,updated=0,skipped=0;
+    for(var i=1;i<lines.length;i++){
+      var row=parseCSVLine(lines[i]);
+      var name=col(row,['name','product','product name']);
+      if(!name){skipped++;continue;}
+      var price=parseFloat(col(row,['price','selling price']))||0;
+      if(price<=0){skipped++;continue;}
+      var cat=col(row,['category','cat'])||(CATS[0]?CATS[0].name:'General');
+      var cost=parseFloat(col(row,['cost','cost price']))||0;
+      var stock=parseInt(col(row,['stock','qty','quantity']))||0;
+      var sku=col(row,['sku','barcode','sku / barcode']);
+      var emoji=col(row,['emoji'])||'📦';
+      var vatRaw=col(row,['vatexempt','vat exempt','exempt']).toLowerCase();
+      var vatExempt=(vatRaw==='yes'||vatRaw==='true'||vatRaw==='1');
+      var size=parseFloat(col(row,['size']))||null;
+      var unit=col(row,['unit'])||null;
+      if(cat&&!CATS.find(function(c){return c.name===cat;})){
+        CATS.push({name:cat,emoji:'📦',color:'#888780'});
+      }
+      /* Match existing by SKU first, then exact name */
+      var ex=null;
+      if(sku) ex=PRODS.find(function(p){return p.sku&&p.sku.toLowerCase()===sku.toLowerCase();});
+      if(!ex) ex=PRODS.find(function(p){return p.name.toLowerCase()===name.toLowerCase();});
+      if(ex){
+        ex.price=price; ex.cost=cost; ex.stock=stock; ex.cat=cat;
+        if(sku)ex.sku=sku; if(emoji)ex.emoji=emoji;
+        ex.vatExempt=vatExempt; ex.size=size; ex.unit=unit;
+        updated++;
+      } else {
+        PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000)+i,name:name,price:price,cost:cost,cat:cat,emoji:emoji,stock:stock,sku:sku,vatExempt:vatExempt,size:size,unit:unit});
+        TOPITS.push({name:name,emoji:emoji,sold:0});
+        added++;
+      }
+    }
+    populateCatDropdown();renderCatMgmt();renderCats();
+    saveAll();renderPtbl();renderGrid();renderLSBanner();
+    toast('Imported: '+added+' new, '+updated+' updated'+(skipped?', '+skipped+' skipped':'')+' ✓');
+  }catch(e){
+    toast('Could not read that CSV');
+  }
 }
 
 /* ════════ REPORTS ════════ */
@@ -4552,6 +4877,25 @@ async function init(){
   tick();
   setInterval(function(){try{tick();}catch(e){}},60000);
   initMobile();
+  /* Product catalog toolbar */
+  (function(){
+    var s=document.getElementById('pt-search');
+    if(s) s.addEventListener('input',function(){PT_SEARCH=this.value;renderPtbl();});
+    var so=document.getElementById('pt-sort');
+    if(so) so.addEventListener('change',function(){PT_SORT=this.value;renderPtbl();});
+    var sf=document.getElementById('pt-stockf');
+    if(sf) sf.addEventListener('change',function(){PT_STOCKF=this.value;renderPtbl();});
+    var fi=document.getElementById('pt-file');
+    if(fi) fi.addEventListener('change',function(){
+      var f=this.files&&this.files[0];
+      if(!f) return;
+      var rd=new FileReader();
+      rd.onload=function(ev){importProductsCSV(String(ev.target.result));};
+      rd.onerror=function(){toast('Could not read the file');};
+      rd.readAsText(f);
+      this.value='';
+    });
+  })();
   /* Hide splash quickly — don't wait for server */
   updateSplash('Ready!');
   setTimeout(hideSplash,300);
@@ -4727,6 +5071,8 @@ document.addEventListener('click',function(e){
     if(act==='vat')       {toggleVAT(pidN);return;}
     if(act==='edit-prod') {openEditProd(pidN);return;}
     if(act==='del-prod')  {delProd(pidN);return;}
+    if(act==='dup-prod')  {dupProduct(pidN);return;}
+    if(act==='adj-stock') {openStockAdjust(pidN);return;}
     if(act==='mqty-')     {upQ(pidN,-1);renderMobCart();return;}
     if(act==='mqty+')     {upQ(pidN,1);renderMobCart();return;}
     if(act==='cit-')      {upQ(pidN,-1);renderCart();return;}
@@ -4769,6 +5115,16 @@ document.addEventListener('click',function(e){
   if(act==='open-add-cat'){openAddCatModal();return;}
   // Add product submit
   if(act==='add-prod'){addProd();return;}
+  if(act==='pt-selall'){
+    var vis=ptFiltered();
+    var allSel=vis.length&&vis.every(function(p){return PT_SEL[p.id];});
+    if(allSel){ vis.forEach(function(p){delete PT_SEL[p.id];}); }
+    else { vis.forEach(function(p){PT_SEL[p.id]=true;}); }
+    renderPtbl();return;
+  }
+  if(act==='pt-bulk'){openBulkEdit();return;}
+  if(act==='pt-export'){exportProductsCSV();return;}
+  if(act==='pt-import'){var f=document.getElementById('pt-file');if(f)f.click();return;}
   // Low stock threshold
   if(act==='lst-minus'){changeLST(-1);return;}
   if(act==='lst-plus') {changeLST(1);return;}
