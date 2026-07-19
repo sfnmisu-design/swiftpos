@@ -794,6 +794,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="fr"><label>Store name</label><input type="text" id="st-name" placeholder="Your store name"></div>
           <div class="fr"><label>Address</label><input type="text" id="st-addr" placeholder="Store address"></div>
           <div class="fr"><label>Phone</label><input type="text" id="st-phone" placeholder="Store phone"></div>
+          <div class="fr"><label>WhatsApp country code</label><input type="text" id="st-cc" placeholder="592" inputmode="numeric"></div>
           <div class="fr"><label>Email</label><input type="text" id="st-email" placeholder="Store email"></div>
           <div class="fr"><label>Tax registration number</label><input type="text" id="st-reg" placeholder="e.g. VAT Reg: 123456789"></div>
           <div class="fr"><label>Quote footer</label><textarea id="st-footer" placeholder="Thank you for your business. Quote valid for 30 days."></textarea></div>
@@ -960,6 +961,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-add-walkin">+ New custom order</button>
         </div>
         <div class="sgd" id="wk-stats" style="margin-bottom:12px;"></div>
+        <div id="wk-alerts" style="display:none;gap:8px;margin-bottom:12px;flex-wrap:wrap;"></div>
         <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;">
           <button class="ord-filter on" data-wk-filter="all">All</button>
           <button class="ord-filter" data-wk-filter="requested">📝 Requested</button>
@@ -2093,45 +2095,108 @@ function doRefund(tx){
 }
 
 
+/* Normalize a phone number for wa.me — ensures country code so WhatsApp opens the chat directly */
+function waPhone(raw){
+  if(!raw) return '';
+  var d=String(raw).replace(/\D/g,'');
+  if(!d) return '';
+  var cc=(STORE.countryCode||'592').replace(/\D/g,'');   /* default Guyana */
+  if(d.indexOf('00')===0) d=d.slice(2);                    /* 00 international prefix */
+  if(cc && d.indexOf(cc)===0) return d;                    /* already has country code */
+  while(d.charAt(0)==='0') d=d.slice(1);                   /* strip local trunk zero */
+  if(d.length<=8 && cc) d=cc+d;                            /* local number -> prepend cc */
+  return d;
+}
+
+/* Open WhatsApp via wa.me.
+   Uses a real anchor click rather than window.open, because browsers
+   block window.open when it isn't fired directly from a user gesture. */
+function openWA(phone, text){
+  try{
+    var msg=encodeURIComponent(text||'');
+    var p=(phone||'').replace(/\D/g,'');
+    var url='https://wa.me/'+p+'?text='+msg;
+    var a=document.createElement('a');
+    a.href=url;
+    a.target='_blank';
+    a.rel='noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ try{document.body.removeChild(a);}catch(e){} },100);
+  }catch(e){
+    /* Last resort: navigate this tab */
+    try{ window.location.href='https://wa.me/'+(phone||'').replace(/\D/g,'')+'?text='+encodeURIComponent(text||''); }catch(e2){}
+  }
+}
+
 function sendWhatsApp(tx){
   var dt=new Date(tx.timestamp);
   var cust=tx.customerId?CUSTS.find(function(c){return c.id===tx.customerId;}):null;
   var totalItemDisc=tx.items.reduce(function(s,i){return s+(i.itemDisc||0);},0);
+  var saved=totalItemDisc+(tx.discount||0);
+  var count=tx.items.reduce(function(s,i){return s+i.qty;},0);
+  var DIV='━━━━━━━━━━━━━━━';
+  var payIcon={cash:'💵',card:'💳',mobile:'📱',refund:'↩️'}[tx.payMethod]||'💰';
   var L=[];
+  /* Header */
   L.push('🧾 *'+BRAND.name+'*');
   if(BRAND.sub) L.push('_'+BRAND.sub+'_');
-  if(STORE.address) L.push(STORE.address);
-  if(STORE.phone) L.push('📞 '+STORE.phone);
-  L.push('━━━━━━━━━━━━━━');
-  L.push('Receipt: *'+tx.id+'*');
-  L.push(dt.toLocaleDateString()+' · '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
-  if(cust) L.push('Customer: '+cust.name);
-  L.push('━━━━━━━━━━━━━━');
+  L.push(DIV);
+  L.push('');
+  if(cust) L.push('Hi *'+cust.name+'*! 👋');
+  L.push('🙏 Thank you for your purchase!');
+  L.push('');
+
+  /* Receipt info */
+  L.push('🧾 *Receipt*');
+  L.push(DIV);
+  L.push('🔖 Receipt No: *'+tx.id+'*');
+  L.push('📅 Date: '+dt.toLocaleDateString());
+  L.push('🕐 Time: '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+  L.push('');
+
+  /* Items */
+  L.push('🛒 *Your Items* ('+count+')');
+  L.push(DIV);
   tx.items.forEach(function(it){
-    var nm=it.emoji+' '+it.name+(it.size&&it.unit?' ('+it.size+it.unit+')':'');
-    L.push(nm);
+    L.push((it.emoji||'▪️')+' *'+it.name+'*'+(it.size&&it.unit?' _('+it.size+it.unit+')_':''));
     var detail='   '+it.qty+' × $'+it.price.toFixed(2);
-    if(it.itemDisc&&it.itemDisc>0) detail+=' ('+(it.itemDiscType==='pct'?it.itemDiscVal+'% off':'-$'+it.itemDisc.toFixed(2))+')';
+    if(it.itemDisc&&it.itemDisc>0) detail+='  🏷️ '+(it.itemDiscType==='pct'?it.itemDiscVal+'% off':'-$'+it.itemDisc.toFixed(2));
     detail+='  =  *$'+it.line.toFixed(2)+'*';
     L.push(detail);
   });
-  L.push('━━━━━━━━━━━━━━');
-  L.push('Subtotal:  $'+(tx.subtotal+totalItemDisc).toFixed(2));
-  if(totalItemDisc>0) L.push('Item discounts:  -$'+totalItemDisc.toFixed(2));
-  if(tx.discount>0) L.push((tx.coupon||'Discount')+':  -$'+tx.discount.toFixed(2));
-  if(tx.tip>0) L.push('Tip:  +$'+tx.tip.toFixed(2));
-  L.push((tx.vatLabel||'VAT')+' ('+tx.vatRate+'%):  $'+tx.tax.toFixed(2));
-  L.push('*TOTAL:  $'+tx.total.toFixed(2)+'*');
-  if(totalItemDisc+tx.discount>0) L.push('💚 You saved $'+(totalItemDisc+tx.discount).toFixed(2)+'!');
   L.push('');
-  L.push('Payment: '+tx.payMethod.toUpperCase());
-  if(tx.payMethod==='cash'){ L.push('Tendered: $'+tx.tendered.toFixed(2)); L.push('Change: $'+tx.change.toFixed(2)); }
-  L.push('━━━━━━━━━━━━━━');
-  L.push(STORE.footer||'Thank you for your business!');
-  if(STORE.returnPolicy) L.push('_'+STORE.returnPolicy+'_');
+
+  /* Payment */
+  L.push('💵 *Payment*');
+  L.push(DIV);
+  L.push('🧮 Subtotal:  $'+(tx.subtotal+totalItemDisc).toFixed(2));
+  if(totalItemDisc>0) L.push('🏷️ Item discounts:  -$'+totalItemDisc.toFixed(2));
+  if(tx.discount>0)   L.push('🎟️ '+(tx.coupon||'Discount')+':  -$'+tx.discount.toFixed(2));
+  if(tx.tip>0)        L.push('💝 Tip:  +$'+tx.tip.toFixed(2));
+  L.push('🧾 '+(tx.vatLabel||'VAT')+' ('+tx.vatRate+'%):  $'+tx.tax.toFixed(2));
+  L.push('💰 *TOTAL:  $'+tx.total.toFixed(2)+'*');
+  if(saved>0){
+    L.push('');
+    L.push('🎉 *You saved $'+saved.toFixed(2)+'!* 💚');
+  }
+  L.push('');
+  L.push(payIcon+' Paid by: *'+tx.payMethod.toUpperCase()+'*');
+  if(tx.payMethod==='cash'){
+    L.push('💵 Tendered: $'+tx.tendered.toFixed(2));
+    L.push('💱 Change: *$'+tx.change.toFixed(2)+'*');
+  }
+  L.push('');
+  L.push(DIV);
+  if(STORE.address) L.push('📍 '+STORE.address);
+  if(STORE.phone) L.push('📞 '+STORE.phone);
+  L.push('');
+  L.push('💚 '+(STORE.footer||'Thank you for your business!'));
+  if(STORE.returnPolicy) L.push('↩️ _'+STORE.returnPolicy+'_');
+
   var msg=encodeURIComponent(L.join('\n'));
-  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):'';
-  window.open('https://wa.me/'+phone+'?text='+msg,'_blank');
+  var phone=cust&&cust.phone?waPhone(cust.phone):'';
+  openWA(phone, L.join('\n'));
 }
 function doPrint(){if(!window._ptx)return;document.getElementById('pra').innerHTML=rcptHTML(window._ptx,true);window.print();}
 function viewTx(id){const tx=TXS.find(t=>t.id===id);if(tx){window._ptx=tx;showReceipt(tx);}}
@@ -2307,8 +2372,8 @@ function sendQuoteWhatsApp(q, cust, expires){
   lines.push('*TOTAL: $'+q.total.toFixed(2)+'*');
   lines.push('');
   lines.push(STORE.footer||'Thank you for your business!');
-  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):'';
-  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+  var phone=cust&&cust.phone?waPhone(cust.phone):'';
+  openWA(phone, lines.join('\n'));
 }
 
 function printQuote(){if(!window._pq)return;document.getElementById('pra').innerHTML=`<div style="font-family:sans-serif;">${window._pq}</div>`;window.print();}
@@ -2525,6 +2590,7 @@ function initStoreInfo(){
   document.getElementById('st-name').value=STORE.name||'';document.getElementById('st-addr').value=STORE.address||'';
   document.getElementById('st-phone').value=STORE.phone||'';document.getElementById('st-email').value=STORE.email||'';
   document.getElementById('st-reg').value=STORE.reg||'';document.getElementById('st-footer').value=STORE.footer||'';
+  var _cc=document.getElementById('st-cc');if(_cc)_cc.value=STORE.countryCode||'592';
 }
 async function saveStoreInfo(){
   try{
@@ -2532,6 +2598,7 @@ async function saveStoreInfo(){
   STORE.name=document.getElementById('st-name').value.trim();STORE.address=document.getElementById('st-addr').value.trim();
   STORE.phone=document.getElementById('st-phone').value.trim();STORE.email=document.getElementById('st-email').value.trim();
   STORE.reg=document.getElementById('st-reg').value.trim();STORE.footer=document.getElementById('st-footer').value.trim();
+  var _ccEl=document.getElementById('st-cc');if(_ccEl)STORE.countryCode=(_ccEl.value.trim()||'592').replace(/\D/g,'');
   await saveAll();toast('Store info saved ✓');
 
   }catch(_e){}
@@ -3551,9 +3618,8 @@ function whatsAppOrder(id){
   if(o.notes)   lines.push('Notes: '+o.notes);
   lines.push('');
   lines.push('Thank you for ordering from '+BRAND.name+'!');
-  var phone=o.phone?o.phone.replace(/\D/g,''):'';
-  var msg=encodeURIComponent(lines.join('\n'));
-  window.open('https://wa.me/'+(phone?phone:'')+'?text='+msg,'_blank');
+  var phone=waPhone(o.phone||'');
+  openWA(phone, lines.join('\n'));
 }
 
 function convertOrderToSale(id){
@@ -3963,8 +4029,8 @@ function whatsAppLayaway(id){
   lines.push('');
   lines.push('Please contact us to make a payment.');
   lines.push('Thank you, '+BRAND.name+'!');
-  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):'';
-  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(lines.join('\n')),'_blank');
+  var phone=cust&&cust.phone?waPhone(cust.phone):'';
+  openWA(phone, lines.join('\n'));
 }
 
 function completeLayaway(id){
@@ -4012,11 +4078,23 @@ const WK_STATUS={
 function genWkId(){ return 'CO-'+Date.now().toString(36).toUpperCase().slice(-5); }
 
 function renderWalkin(){
+  var _t0=new Date(); _t0.setHours(0,0,0,0);
+  var _t3=new Date(_t0); _t3.setDate(_t3.getDate()+3);
+  function wkDue(w){
+    if(!w.readyBy) return 'none';
+    if(w.status==='collected'||w.status==='cancelled') return 'none';
+    var r=new Date(w.readyBy); r.setHours(0,0,0,0);
+    if(r<_t0) return 'overdue';
+    if(r<=_t3) return 'soon';
+    return 'ok';
+  }
   var stats=document.getElementById('wk-stats');
   if(stats){
     var requested=WALKINS.filter(function(w){return w.status==='requested';}).length;
     var ordered=WALKINS.filter(function(w){return w.status==='ordered';}).length;
     var ready=WALKINS.filter(function(w){return w.status==='ready';}).length;
+    var overdueN=WALKINS.filter(function(w){return wkDue(w)==='overdue';}).length;
+    var soonN=WALKINS.filter(function(w){return wkDue(w)==='soon';}).length;
     var owed=WALKINS.filter(function(w){return w.status!=='collected'&&w.status!=='cancelled';})
       .reduce(function(s,w){return s+Math.max(0,w.price-w.deposit);},0);
     stats.innerHTML=
@@ -4024,6 +4102,15 @@ function renderWalkin(){
       '<div class="sc" style="padding:10px 8px;"><div class="sl2">Ordered</div><div class="sv" style="color:#1565C0;">'+ordered+'</div></div>'+
       '<div class="sc" style="padding:10px 8px;"><div class="sl2">Ready</div><div class="sv" style="color:#6A1B9A;">'+ready+'</div></div>'+
       '<div class="sc" style="padding:10px 8px;"><div class="sl2">Balance owed</div><div class="sv" style="color:var(--d);">$'+owed.toFixed(2)+'</div></div>';
+    var alertEl=document.getElementById('wk-alerts');
+    if(alertEl){
+      if(overdueN||soonN){
+        alertEl.style.display='flex';
+        alertEl.innerHTML=
+          (overdueN?'<div style="flex:1;background:#FCEBEB;border:1px solid #E8B4B4;color:#A32D2D;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;">🚨 '+overdueN+' OVERDUE order'+(overdueN!==1?'s':'')+'</div>':'')+
+          (soonN?'<div style="flex:1;background:#FFF6E5;border:1px solid #F0D9A8;color:#8A5A00;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;">⏰ '+soonN+' due within 3 days</div>':'');
+      } else { alertEl.style.display='none'; alertEl.innerHTML=''; }
+    }
   }
   document.querySelectorAll('[data-wk-filter]').forEach(function(b){
     b.classList.toggle('on', b.getAttribute('data-wk-filter')===_wkFilter);
@@ -4031,7 +4118,12 @@ function renderWalkin(){
   var list=document.getElementById('wk-list');
   if(!list) return;
   var items=_wkFilter==='all'?WALKINS:WALKINS.filter(function(w){return w.status===_wkFilter;});
-  items=[...items].sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt);});
+  items=[...items].sort(function(a,b){
+    var rank={overdue:0,soon:1,ok:2,none:3};
+    var da=rank[wkDue(a)],db=rank[wkDue(b)];
+    if(da!==db) return da-db;
+    return new Date(b.createdAt)-new Date(a.createdAt);
+  });
   if(!items.length){
     list.innerHTML='<div style="text-align:center;color:var(--t3);padding:36px;"><div style="font-size:36px;margin-bottom:8px;">🛠</div><div style="font-size:14px;font-weight:600;">No custom orders'+(_wkFilter!=='all'?' here':' yet')+'</div><div style="font-size:12px;margin-top:4px;">Tap + New custom order to start</div></div>';
     return;
@@ -4041,10 +4133,15 @@ function renderWalkin(){
     var balance=Math.max(0,w.price-w.deposit);
     var dt=new Date(w.createdAt);
     var ready=w.readyBy?new Date(w.readyBy):null;
-    var today=new Date(); today.setHours(0,0,0,0);
-    var overdue=ready&&ready<today&&(w.status==='requested'||w.status==='ordered');
+    var due=wkDue(w);
+    var overdue=due==='overdue';
+    var soon=due==='soon';
     var nextSt=st.next?WK_STATUS[st.next]:null;
-    return '<div class="card" style="margin-bottom:10px;border-left:4px solid '+st.color+';padding:13px 14px;">'+
+    var noteCount=(w.notes&&w.notes.length)||0;
+    var cardBorder=overdue?'var(--d)':(soon?'#BA7517':st.color);
+    return '<div class="card" style="margin-bottom:10px;border-left:4px solid '+cardBorder+';padding:13px 14px;'+(overdue?'background:linear-gradient(90deg,#FFF5F5,#fff);':'')+'">'+
+      (overdue?'<div style="display:inline-block;background:var(--d);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:6px;letter-spacing:.3px;">🚨 OVERDUE</div>':'')+
+      (soon?'<div style="display:inline-block;background:#FFF3E0;color:#8A5A00;border:1px solid #F0D9A8;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:6px;">⏰ DUE SOON</div>':'')+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
         '<div>'+
           '<div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--t3);">'+w.id+'</div>'+
@@ -4057,14 +4154,19 @@ function renderWalkin(){
         '</div>'+
       '</div>'+
       '<div style="font-size:13px;color:var(--t);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+w.description+'</div>'+
+      ((w.items&&w.items.length)?'<div style="margin-bottom:8px;">'+w.items.map(function(it){
+        return'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 10px;color:var(--t2);"><span>• '+it.desc+'</span><span style="font-weight:600;">$'+it.price.toFixed(2)+'</span></div>';
+      }).join('')+'</div>':'')+
       '<div style="display:flex;gap:12px;font-size:11px;color:var(--t3);margin-bottom:8px;flex-wrap:wrap;">'+
-        (w.readyBy?'<span style="'+(overdue?'color:var(--d);font-weight:700;':'')+'">📅 Ready by: '+(ready?ready.toLocaleDateString():'-')+(overdue?' (OVERDUE)':'')+'</span>':'')+
+        (w.readyBy?'<span style="'+(overdue?'color:var(--d);font-weight:700;':(soon?'color:#8A5A00;font-weight:700;':''))+'">📅 Ready by: '+(ready?ready.toLocaleDateString():'-')+'</span>':'')+
         '<span>💰 Deposit: <strong>$'+w.deposit.toFixed(2)+'</strong></span>'+
         (balance>0?'<span>Balance: <strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></span>':'<span style="color:#2E7D32;font-weight:700;">PAID IN FULL</span>')+
       '</div>'+
+      (noteCount?'<div style="font-size:11px;color:var(--t2);background:#F7F7F5;border-radius:8px;padding:6px 9px;margin-bottom:8px;border-left:3px solid var(--b);">📝 <strong>'+w.notes[w.notes.length-1].text+'</strong><span style="color:var(--t3);"> — '+new Date(w.notes[w.notes.length-1].date).toLocaleDateString()+(noteCount>1?' · '+noteCount+' notes':'')+'</span></div>':'')+
       '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
         (nextSt?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-wk-next="'+w.id+'">'+nextSt.emoji+' Mark '+nextSt.label+'</button>':'')+
         (w.status!=='collected'&&w.status!=='cancelled'&&balance>0?'<button class="ord-btn" style="background:var(--ad);color:#fff;border-color:var(--ad);" data-wk-pay="'+w.id+'">💰 Take Payment</button>':'')+
+        '<button class="ord-btn" data-wk-note="'+w.id+'">📝 Notes'+(noteCount?' ('+noteCount+')':'')+'</button>'+
         '<button class="ord-btn" data-wk-hist="'+w.id+'">🕐 Payments</button>'+
         '<button class="ord-btn" data-wk-edit="'+w.id+'">✏️ Edit</button>'+
         '<button class="ord-btn" data-wk-wa="'+w.id+'">💬 WhatsApp</button>'+
@@ -4099,6 +4201,15 @@ function openAddWalkinModal(editId){
     '<div class="f" style="margin-bottom:8px;"><label>What does the customer want? *</label>'+
       '<textarea id="wk-desc" rows="3" placeholder="e.g. Custom mix metallic blue paint, 2 litres — match sample provided" style="width:100%;font-size:16px;padding:11px;border-radius:12px;border:1.5px solid var(--b);background:var(--bg);font-family:inherit;resize:vertical;">'+(ex.description||'')+'</textarea>'+
     '</div>'+
+    /* Optional extra line items */
+    '<div class="f" style="margin-bottom:6px;"><label>Additional items (optional)</label>'+
+      '<div style="display:flex;gap:6px;">'+
+        '<input type="text" id="wk-li-desc" placeholder="Item description" style="flex:2;">'+
+        '<input type="number" id="wk-li-price" placeholder="0.00" min="0" step="0.01" inputmode="decimal" style="width:90px;">'+
+        '<button class="ok" id="wk-li-add" style="padding:8px 12px;">Add</button>'+
+      '</div>'+
+    '</div>'+
+    '<div id="wk-items-wrap" style="margin-bottom:8px;max-height:130px;overflow-y:auto;"></div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'+
       '<div class="f"><label>Price quote</label><input type="number" id="wk-price" value="'+(ex.price||0)+'" min="0" step="0.01" inputmode="decimal"></div>'+
       '<div class="f"><label>Deposit taken</label><input type="number" id="wk-deposit" value="'+(ex.deposit||0)+'" min="0" step="0.01" inputmode="decimal"></div>'+
@@ -4111,6 +4222,45 @@ function openAddWalkinModal(editId){
     var c=CUSTS.find(function(x){return x.id===val;});
     if(c){document.getElementById('wk-name').value=c.name;if(c.phone)document.getElementById('wk-phone').value=c.phone;}
   });
+
+  /* Extra line items */
+  var wkItems=isEdit?((ex.items||[]).slice()):[];
+  function renderWkItems(){
+    var wrap=document.getElementById('wk-items-wrap');
+    if(!wrap) return;
+    if(!wkItems.length){wrap.innerHTML='';return;}
+    wrap.innerHTML=wkItems.map(function(it,i){
+      return'<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border-radius:8px;margin-bottom:4px;font-size:12px;">'+
+        '<div style="flex:1;">'+it.desc+'</div>'+
+        '<div style="font-weight:700;">$'+it.price.toFixed(2)+'</div>'+
+        '<button class="ord-btn" data-wkli-del="'+i+'" style="padding:2px 7px;color:var(--d);border-color:var(--d);">🗑</button>'+
+      '</div>';
+    }).join('')+
+    '<div style="text-align:right;font-size:11px;color:var(--t3);padding:2px 4px;">Items subtotal: <strong>$'+wkItems.reduce(function(s,x){return s+x.price;},0).toFixed(2)+'</strong></div>';
+    wrap.querySelectorAll('[data-wkli-del]').forEach(function(b){
+      b.addEventListener('click',function(){
+        wkItems.splice(parseInt(this.getAttribute('data-wkli-del')),1);
+        renderWkItems(); syncWkPrice();
+      });
+    });
+  }
+  function syncWkPrice(){
+    if(!wkItems.length) return;
+    var sum=wkItems.reduce(function(s,x){return s+x.price;},0);
+    var pf=document.getElementById('wk-price');
+    if(pf) pf.value=sum.toFixed(2);
+  }
+  renderWkItems();
+  document.getElementById('wk-li-add').addEventListener('click',function(){
+    var d=document.getElementById('wk-li-desc').value.trim();
+    var p=parseFloat(document.getElementById('wk-li-price').value)||0;
+    if(!d){toast('Enter an item description');return;}
+    wkItems.push({desc:d,price:p});
+    document.getElementById('wk-li-desc').value='';
+    document.getElementById('wk-li-price').value='';
+    renderWkItems(); syncWkPrice();
+  });
+
   document.getElementById('wk-cancel').addEventListener('click',closeModal);
   document.getElementById('wk-save').addEventListener('click',function(){
     var name=document.getElementById('wk-name').value.trim();
@@ -4127,6 +4277,7 @@ function openAddWalkinModal(editId){
       customerId:custId||null,
       phone:document.getElementById('wk-phone').value.trim(),
       description:desc,
+      items:wkItems,
       price:price,
       deposit:deposit,
       readyBy:document.getElementById('wk-ready').value,
@@ -4149,8 +4300,65 @@ function advanceWalkin(id){
   var w=WALKINS.find(function(x){return x.id===id;});
   if(!w||!WK_STATUS[w.status]||!WK_STATUS[w.status].next) return;
   w.status=WK_STATUS[w.status].next;w.updatedAt=new Date().toISOString();
+  /* Auto-log the status change as a note */
+  w.notes=w.notes||[];
+  w.notes.push({date:new Date().toISOString(),text:'Status → '+WK_STATUS[w.status].label,auto:true});
   saveAll();renderWalkin();
   toast('Order '+id+' → '+WK_STATUS[w.status].label+' ✓');
+  /* When marked Ready, immediately offer to notify the customer */
+  if(w.status==='ready'){
+    setTimeout(function(){
+      confirmModal(
+        '<div style="text-align:center;">'+
+          '<div style="font-size:34px;margin-bottom:6px;">🎉</div>'+
+          '<div style="font-size:15px;font-weight:700;margin-bottom:4px;">'+w.id+' is ready!</div>'+
+          '<div style="font-size:13px;color:var(--t2);">Notify <strong>'+w.customerName+'</strong> on WhatsApp now?</div>'+
+        '</div>',
+        function(){ whatsAppWalkin(id); },
+        '💬 Send WhatsApp',
+        '#25D366'
+      );
+    },350);
+  }
+}
+
+function openWalkinNotes(id){
+  var w=WALKINS.find(function(x){return x.id===id;});
+  if(!w) return;
+  var notes=w.notes||[];
+  openModal(
+    '<h3>Notes — '+w.id+'</h3>'+
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:10px;">'+w.customerName+'</div>'+
+    '<div class="f" style="margin-bottom:10px;">'+
+      '<label>Add a note</label>'+
+      '<input type="text" id="wkn-text" placeholder="e.g. Called customer, no answer" maxlength="200">'+
+    '</div>'+
+    '<div style="max-height:220px;overflow-y:auto;margin-bottom:10px;">'+
+    (notes.length?
+      notes.slice().reverse().map(function(n,i){
+        var nd=new Date(n.date);
+        return'<div style="display:flex;gap:8px;padding:8px 10px;background:'+(n.auto?'#F7F7F5':'var(--al)')+';border-radius:8px;margin-bottom:6px;font-size:12px;">'+
+          '<span style="font-size:13px;">'+(n.auto?'🔄':'📝')+'</span>'+
+          '<div style="flex:1;"><div style="'+(n.auto?'color:var(--t2);':'font-weight:600;')+'">'+n.text+'</div>'+
+          '<div style="color:var(--t3);font-size:10px;margin-top:2px;">'+nd.toLocaleDateString()+' '+nd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'+
+        '</div>';
+      }).join('')
+    :'<div style="text-align:center;color:var(--t3);padding:18px;font-size:12px;">No notes yet</div>')+
+    '</div>'+
+    '<div class="mbs"><button id="wkn-cl">Close</button><button class="ok" id="wkn-add">Add Note</button></div>'
+  );
+  document.getElementById('wkn-cl').addEventListener('click',closeModal);
+  document.getElementById('wkn-add').addEventListener('click',function(){
+    var t=document.getElementById('wkn-text').value.trim();
+    if(!t){toast('Type a note first');return;}
+    w.notes=w.notes||[];
+    w.notes.push({date:new Date().toISOString(),text:t,auto:false});
+    w.updatedAt=new Date().toISOString();
+    saveAll();renderWalkin();closeModal();
+    toast('Note added ✓');
+  });
+  var ti=document.getElementById('wkn-text');
+  if(ti) ti.addEventListener('keydown',function(e){if(e.key==='Enter'){document.getElementById('wkn-add').click();}});
 }
 
 function collectWalkin(id){
@@ -4266,60 +4474,71 @@ function whatsAppWalkin(id){
   var cust=w.customerId?CUSTS.find(function(c){return c.id===w.customerId;}):null;
   var st=WK_STATUS[w.status]||WK_STATUS.requested;
   var balance=Math.max(0,w.price-w.deposit);
+  var DIV='━━━━━━━━━━━━━━━';
   var L=[];
+  /* Header */
   L.push('🛠️ *'+BRAND.name+'*');
   if(BRAND.sub) L.push('_'+BRAND.sub+'_');
-  L.push('━━━━━━━━━━━━━━');
+  L.push(DIV);
   L.push('');
   L.push('Hi *'+w.customerName+'*! 👋');
   L.push('');
 
+  /* Status line */
   if(w.status==='ready'){
-    L.push('🎉🎉🎉');
-    L.push('*YOUR ORDER IS READY!*');
-    L.push('*✅ READY TO COLLECT ✅*');
-    L.push('🎉🎉🎉');
+    L.push('🎉 *YOUR ORDER IS READY!*');
+    L.push('✅ *READY TO COLLECT*');
     L.push('');
-    L.push('Please come by to pick it up. 🏬');
+    L.push('🏬 Come by anytime to pick it up!');
   } else if(w.status==='ordered'){
-    L.push('📦 Good news! Your order has been placed and is on the way.');
+    L.push('📦 Your order has been placed and is on the way! 🚚');
   } else if(w.status==='requested'){
     L.push('📝 We have received your custom order request.');
   } else if(w.status==='collected'){
     L.push('✅ Thank you for collecting your order!');
-  } else {
-    L.push('Here is an update on your order:');
+  } else if(w.status==='cancelled'){
+    L.push('❌ This order has been cancelled.');
   }
   L.push('');
+
+  /* Order details */
   L.push('📋 *Order Details*');
-  L.push('━━━━━━━━━━━━━━');
+  L.push(DIV);
   L.push('🔖 Order No: *'+w.id+'*');
   L.push('📌 Status: '+st.emoji+' *'+st.label+'*');
   L.push('🛍️ Item:');
   L.push('   _'+w.description+'_');
+  if(w.items&&w.items.length){
+    w.items.forEach(function(it){
+      L.push('   ▪️ '+it.desc+' — *$'+it.price.toFixed(2)+'*');
+    });
+  }
   L.push('');
+
+  /* Payment */
   L.push('💵 *Payment*');
-  L.push('━━━━━━━━━━━━━━');
-  L.push('Total:  $'+w.price.toFixed(2));
-  L.push('Paid:   $'+w.deposit.toFixed(2));
+  L.push(DIV);
+  L.push('💰 Total:  *$'+w.price.toFixed(2)+'*');
+  L.push('✅ Paid:   $'+w.deposit.toFixed(2));
   if(balance>0){
-    L.push('*⚠️ Balance Due:  $'+balance.toFixed(2)+'*');
-    if(w.status==='ready') L.push('_(payable on collection)_');
+    L.push('⚠️ *Balance Due:  $'+balance.toFixed(2)+'*');
+    if(w.status==='ready') L.push('   _(payable on collection)_');
   } else {
-    L.push('*✅ PAID IN FULL*');
+    L.push('💚 *PAID IN FULL*');
   }
   if(w.readyBy){
     L.push('');
     L.push('📅 Ready by: *'+new Date(w.readyBy).toLocaleDateString()+'*');
   }
   L.push('');
-  L.push('━━━━━━━━━━━━━━');
+  L.push(DIV);
   if(STORE.address) L.push('📍 '+STORE.address);
   if(STORE.phone) L.push('📞 '+STORE.phone);
   L.push('');
   L.push('Thank you for choosing *'+BRAND.name+'*! 💚');
-  var phone=cust&&cust.phone?cust.phone.replace(/\D/g,''):(w.phone?w.phone.replace(/\D/g,''):'');
-  window.open('https://wa.me/'+(phone||'')+'?text='+encodeURIComponent(L.join('\n')),'_blank');
+
+  var phone=waPhone((cust&&cust.phone)||w.phone||'');
+  openWA(phone, L.join('\n'));
 }
 
 async function init(){
@@ -4409,10 +4628,12 @@ async function init(){
   } catch(initErr) { console.error('[SwiftPOS]', initErr); }
 }
 /* ── CONFIRM MODAL (replaces confirm() which is blocked on mobile) ── */
-function confirmModal(msg, onYes){
+function confirmModal(msg, onYes, okLabel, okColor){
+  var lbl=okLabel||'Delete';
+  var col=okColor||'var(--d)';
   openModal(
     '<div style="padding:8px 0 16px;font-size:14px;line-height:1.5;">'+msg+'</div>'+
-    '<div class="mbs"><button id="conf-no">Cancel</button><button class="ok del" id="conf-yes" style="background:var(--d);border-color:var(--d);">Delete</button></div>'
+    '<div class="mbs"><button id="conf-no">Cancel</button><button class="ok del" id="conf-yes" style="background:'+col+';border-color:'+col+';">'+lbl+'</button></div>'
   );
   document.getElementById('conf-no').addEventListener('click', closeModal);
   document.getElementById('conf-yes').addEventListener('click', function(){
@@ -4455,6 +4676,8 @@ document.addEventListener('click',function(e){
   if(wkPay){takeWalkinPayment(wkPay.getAttribute('data-wk-pay'));return;}
   var wkHist=e.target.closest('[data-wk-hist]');
   if(wkHist){walkinPaymentHistory(wkHist.getAttribute('data-wk-hist'));return;}
+  var wkNote=e.target.closest('[data-wk-note]');
+  if(wkNote){openWalkinNotes(wkNote.getAttribute('data-wk-note'));return;}
   var wkEdit=e.target.closest('[data-wk-edit]');
   if(wkEdit){openAddWalkinModal(wkEdit.getAttribute('data-wk-edit'));return;}
   var wkWa=e.target.closest('[data-wk-wa]');
