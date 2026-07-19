@@ -283,12 +283,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .qas{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;}
 .qa{padding:6px 12px;border-radius:18px;border:1px solid var(--b);background:var(--s);font-size:13px;cursor:pointer;font-weight:500;color:var(--t2);font-family:inherit;}
 .qa:active{border-color:var(--a);color:var(--a);}
-.chgbox{border-radius:var(--r);padding:10px 12px;margin-top:9px;display:none;}
+.chgbox{border-radius:var(--rl);padding:16px 14px;margin-top:11px;display:none;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.06);}
 .chgbox.ok{background:var(--al);border:1px solid var(--a);}
 .chgbox.bad{background:#FCEBEB;border:1px solid var(--d);}
-.chlbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;}
+.chlbl{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
 .chgbox.ok .chlbl{color:var(--ad);}.chgbox.bad .chlbl{color:var(--d);}
-.chamt{font-size:24px;font-weight:700;font-family:monospace;}
+.chamt{font-size:46px;font-weight:900;font-family:'Courier New',monospace;letter-spacing:-1px;line-height:1.05;}
 .chgbox.ok .chamt{color:var(--ad);}.chgbox.bad .chamt{color:var(--d);}
 .mbs{display:flex;gap:8px;margin-top:12px;}
 .mbs button{flex:1;padding:11px;border-radius:var(--r);font-size:14px;cursor:pointer;border:1px solid var(--b);background:var(--bg);color:var(--t2);font-weight:600;font-family:inherit;}
@@ -544,7 +544,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="cart-sheet-btns">
       <button class="paybtn" id="mob-paybtn" onclick="openPay()" disabled style="margin:0 0 6px;width:100%;">Charge $0.00</button>
-      <button class="quotebtn" id="mob-quotebtn" onclick="saveQuote()" disabled style="margin:0;width:100%;">📋 Save as Quotation</button>
+      <div style="display:flex;gap:6px;">
+        <button class="quotebtn" id="mob-quotebtn" onclick="saveQuote()" disabled style="margin:0;flex:1;">📋 Quote</button>
+        <button class="quotebtn" data-act="park-sale" style="margin:0;flex:1;">🅿️ Hold</button>
+        <button class="quotebtn" data-act="park-list" style="margin:0;flex:0 0 auto;position:relative;padding-left:14px;padding-right:14px;">📥<span id="mob-park-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--d);color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:10px;align-items:center;justify-content:center;font-weight:800;padding:0 4px;"></span></button>
+      </div>
     </div>
   </div>
 </div>
@@ -1029,7 +1033,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="tr2 grand"><span>Total</span><span id="t-grd">$0.00</span></div>
     </div>
     <button class="paybtn" id="paybtn" onclick="openPay()" disabled>Charge $0.00</button>
-    <button class="quotebtn" id="quotebtn" onclick="saveQuote()" disabled>📋 Save as Quotation</button>
+    <div style="display:flex;gap:6px;margin-top:6px;">
+      <button class="quotebtn" id="quotebtn" onclick="saveQuote()" disabled style="flex:1;margin:0;">📋 Quote</button>
+      <button class="quotebtn" data-act="park-sale" style="flex:1;margin:0;">🅿️ Hold</button>
+      <button class="quotebtn" data-act="park-list" style="flex:0 0 auto;margin:0;position:relative;padding-left:14px;padding-right:14px;">📥<span id="park-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:var(--d);color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:10px;align-items:center;justify-content:center;font-weight:800;padding:0 4px;"></span></button>
+    </div>
   </div>
 </div>
 
@@ -1082,7 +1090,7 @@ async function saveAll(){
   var _now=Date.now();
   _lastSaveTime=_now;        /* claim this timestamp immediately so sync won't overwrite */
   _saving=true;              /* lock: tells the sync loop to skip overwriting us */
-  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,meta:{nid,txn,qn},savedAt:_now};
+  const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
   if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;try{setSrv('err','● Offline');}catch(e2){}}}
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
@@ -1098,6 +1106,7 @@ async function saveAll(){
     localStorage.setItem('sp_wk',JSON.stringify(WALKINS));
     localStorage.setItem('sp_ord',JSON.stringify(ORDERS));
     localStorage.setItem('sp_lwy',JSON.stringify(LAYAWAYS));
+    localStorage.setItem('sp_park',JSON.stringify(PARKED));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
   _saving=false;             /* release lock */
@@ -1157,6 +1166,7 @@ async function loadAll(){
     const wk=localStorage.getItem('sp_wk');if(wk)WALKINS=JSON.parse(wk);
     const ord=localStorage.getItem('sp_ord');if(ord)ORDERS=JSON.parse(ord);
     const lwy=localStorage.getItem('sp_lwy');if(lwy)LAYAWAYS=JSON.parse(lwy);
+    const pk=localStorage.getItem('sp_park');if(pk)PARKED=JSON.parse(pk);
   }catch(e){}
 
   }catch(_e){return;}
@@ -1200,6 +1210,7 @@ let VAT={rate:15,label:'VAT',mode:'exclusive'};
 let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='📦',PAYM='cash';
+let PARKED=[];   /* held/parked sales */
 let ITEM_DISC={};
 let ORDERS=[];
 let LAYAWAYS=[];
@@ -1744,6 +1755,24 @@ function openPay(){
       '<div class="pm on" id="pm-cash"><span class="pm-ic">&#128181;</span>Cash</div>'+
       '<div class="pm" id="pm-card"><span class="pm-ic">&#128179;</span>Card</div>'+
       '<div class="pm" id="pm-mob"><span class="pm-ic">&#128241;</span>Mobile</div>'+
+      '<div class="pm" id="pm-split"><span class="pm-ic">&#9878;</span>Split</div>'+
+    '</div>'+
+    /* Split payment panel */
+    '<div id="splitwrap" style="display:none;margin:8px 0;padding:11px 12px;background:var(--bg);border-radius:var(--r);border:1px solid var(--b);">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;margin-bottom:8px;">Split across payment methods</div>'+
+      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">'+
+        '<span style="font-size:16px;width:22px;">&#128181;</span>'+
+        '<div class="cwrap" style="flex:1;margin:0;"><em>$</em><input type="number" id="sp-cash" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">'+
+        '<span style="font-size:16px;width:22px;">&#128179;</span>'+
+        '<div class="cwrap" style="flex:1;margin:0;"><em>$</em><input type="number" id="sp-card" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">'+
+        '<span style="font-size:16px;width:22px;">&#128241;</span>'+
+        '<div class="cwrap" style="flex:1;margin:0;"><em>$</em><input type="number" id="sp-mob" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>'+
+      '</div>'+
+      '<div id="sp-status" style="text-align:center;font-size:13px;font-weight:700;padding:8px;border-radius:8px;background:var(--s);"></div>'+
     '</div>'+
     /* Tip row */
     '<div style="display:flex;align-items:center;gap:8px;margin:8px 0;padding:8px 10px;background:var(--bg);border-radius:var(--r);border:1px solid var(--b);">'+
@@ -1774,12 +1803,7 @@ function openPay(){
     var el=document.getElementById('pay-total');
     if(el) el.textContent='$'+getTipTotal().toFixed(2)+(_tipVal>0?' (incl. $'+_tipVal.toFixed(2)+' tip)':'');
     calcChg(getTipTotal());
-    /* update quick amount buttons */
-    var qas=document.getElementById('qas');
-    if(qas) qas.querySelectorAll('.qa').forEach(function(b){
-      var v=parseFloat(b.textContent.replace('$',''));
-      b.onclick=function(){setTend(v,getTipTotal());};
-    });
+    if(typeof buildQuickCash==='function') buildQuickCash(getTipTotal());
   }
   function setTipPct(pct){
     _tipVal=+(grand*pct/100).toFixed(2);
@@ -1792,9 +1816,55 @@ function openPay(){
     var ab=document.getElementById(active); if(ab) ab.style.background='var(--al)';
   }
 
-  document.getElementById('pm-cash').addEventListener('click',function(){selPay('cash');});
-  document.getElementById('pm-card').addEventListener('click',function(){selPay('card');});
-  document.getElementById('pm-mob').addEventListener('click',function(){selPay('mobile');});
+  document.getElementById('pm-cash').addEventListener('click',function(){selPay('cash');updSplitUI();});
+  document.getElementById('pm-card').addEventListener('click',function(){selPay('card');updSplitUI();});
+  document.getElementById('pm-mob').addEventListener('click',function(){selPay('mobile');updSplitUI();});
+  document.getElementById('pm-split').addEventListener('click',function(){
+    PAYM='split';
+    ['pm-cash','pm-card','pm-mob','pm-split'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.classList.toggle('on', id==='pm-split');
+    });
+    updSplitUI();
+  });
+
+  function splitTotal(){
+    return (parseFloat(document.getElementById('sp-cash').value)||0)+
+           (parseFloat(document.getElementById('sp-card').value)||0)+
+           (parseFloat(document.getElementById('sp-mob').value)||0);
+  }
+  function updSplitUI(){
+    var isSplit=PAYM==='split';
+    var sw=document.getElementById('splitwrap');
+    var cw=document.getElementById('cashwrap');
+    if(sw) sw.style.display=isSplit?'block':'none';
+    if(cw) cw.style.display=(PAYM==='cash')?'block':'none';
+    var ok=document.getElementById('okbtn');
+    if(isSplit){
+      var need=getTipTotal(), got=splitTotal(), diff=+(need-got).toFixed(2);
+      var st=document.getElementById('sp-status');
+      if(st){
+        if(Math.abs(diff)<0.005){
+          st.textContent='✅ Fully covered — $'+need.toFixed(2);
+          st.style.background='var(--al)'; st.style.color='var(--ad)';
+        } else if(diff>0){
+          st.textContent='Remaining: $'+diff.toFixed(2);
+          st.style.background='#FCEBEB'; st.style.color='var(--d)';
+        } else {
+          st.textContent='Over by $'+Math.abs(diff).toFixed(2);
+          st.style.background='#FFF3E0'; st.style.color='#8A5A00';
+        }
+      }
+      if(ok) ok.disabled=!(Math.abs(diff)<0.005);
+    } else if(PAYM!=='cash'){
+      if(ok) ok.disabled=false;
+    } else {
+      calcChg(getTipTotal());
+    }
+  }
+  ['sp-cash','sp-card','sp-mob'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.addEventListener('input',updSplitUI);
+  });
   document.getElementById('pay-cancel').addEventListener('click',closeModal);
   /* Single click handler — disable after first click to prevent double-tap */
   document.getElementById('okbtn').addEventListener('click',function(){
@@ -1816,15 +1886,33 @@ function openPay(){
     updateTipDisplay();
   });
 
-  /* Quick-amount buttons */
+  /* Quick-amount buttons — common note denominations + smart round-ups */
   var qas=document.getElementById('qas');
-  var sugg=[...new Set([Math.ceil(grand),Math.ceil(grand/5)*5,Math.ceil(grand/10)*10,Math.ceil(grand/20)*20].filter(function(v){return v>=grand;}))].slice(0,4);
-  sugg.forEach(function(v){
-    var b=document.createElement('button');
-    b.className='qa'; b.textContent='$'+v.toFixed(2);
-    b.addEventListener('click',(function(val){return function(){setTend(val,getTipTotal());};})(v));
-    qas.appendChild(b);
-  });
+  function buildQuickCash(total){
+    if(!qas) return;
+    qas.innerHTML='';
+    var notes=(STORE.cashDenoms&&STORE.cashDenoms.length)?STORE.cashDenoms:[500,1000,2000,5000,10000,20000];
+    var opts=[];
+    opts.push({label:'Exact',val:total});
+    notes.forEach(function(n){ if(n>=total) opts.push({label:'$'+n.toLocaleString(),val:n}); });
+    /* Round-ups so there's always something useful */
+    [100,500,1000,5000].forEach(function(step){
+      var up=Math.ceil(total/step)*step;
+      if(up>total) opts.push({label:'$'+up.toLocaleString(),val:up});
+    });
+    /* Dedupe by value, keep first 6 */
+    var seen={},final=[];
+    opts.forEach(function(o){ if(!seen[o.val]&&final.length<6){seen[o.val]=1;final.push(o);} });
+    final.forEach(function(o){
+      var b=document.createElement('button');
+      b.className='qa';
+      b.textContent=o.label;
+      if(o.label==='Exact') b.style.fontWeight='700';
+      b.addEventListener('click',(function(val){return function(){setTend(val,getTipTotal());};})(o.val));
+      qas.appendChild(b);
+    });
+  }
+  buildQuickCash(grand);
 
   setTipPct(0);
   setTimeout(function(){var i=document.getElementById('tend');if(i)i.focus();},300);
@@ -1869,12 +1957,19 @@ async function doPay(total,tip){
 
   tip=tip||0;
   const tendered=PAYM==='cash'?(parseFloat(document.getElementById('tend').value)||0):total;
+  var splitInfo=null;
+  if(PAYM==='split'){
+    var _c=parseFloat((document.getElementById('sp-cash')||{}).value)||0;
+    var _d=parseFloat((document.getElementById('sp-card')||{}).value)||0;
+    var _m=parseFloat((document.getElementById('sp-mob')||{}).value)||0;
+    splitInfo={cash:_c,card:_d,mobile:_m};
+  }
   const change=PAYM==='cash'?Math.max(0,tendered-total):0;
   const txid='TXN-'+(++txn);
   const custId=document.getElementById('cart-cust').value;
   const items=Object.keys(CART).map(id=>{const p=PRODS.find(x=>x.id==id);var lg=p.price*CART[id];var idsc=ITEM_DISC[id];var dv=idsc?(idsc.type==='pct'?lg*idsc.val/100:Math.min(idsc.val,lg)):0;return{id:p.id,name:p.name,emoji:p.emoji,price:p.price,cost:p.cost||0,qty:CART[id],line:+(lg-dv).toFixed(2),itemDisc:+dv.toFixed(2),itemDiscType:idsc?idsc.type:null,itemDiscVal:idsc?idsc.val:0,vatExempt:p.vatExempt||false,size:p.size||null,unit:p.unit||null};});
   const{sub,disc,tax,grand}=getTots();
-  const tx={id:txid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,tip:tip,tendered,change,payMethod:PAYM,coupon:COUPON?COUPON.label:null,customerId:custId||null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode};
+  const tx={id:txid,timestamp:new Date().toISOString(),items,subtotal:sub,discount:disc,tax,total:grand,tip:tip,tendered,change,payMethod:PAYM,split:splitInfo,coupon:COUPON?COUPON.label:null,customerId:custId||null,vatRate:VAT.rate,vatLabel:VAT.label,vatMode:VAT.mode};
   TXS.unshift(tx);
   HRS[Math.floor(Math.random()*HRS.length)].v+=total;
   items.forEach(it=>{const ti=TOPITS.find(t=>t.name===it.name);if(ti)ti.sold+=it.qty;});
@@ -1951,6 +2046,11 @@ function rcptHTML(tx, forPrint){
     var body2='';
     if(totalItemDisc+tx.discount>0) body2+=ctr('*** You saved $'+(totalItemDisc+tx.discount).toFixed(2)+'! ***')+'\n';
     body2+=lr('Payment:',tx.payMethod.toUpperCase())+'\n';
+    if(tx.split){
+      if(tx.split.cash>0)   body2+=lr('  Cash:','$'+tx.split.cash.toFixed(2))+'\n';
+      if(tx.split.card>0)   body2+=lr('  Card:','$'+tx.split.card.toFixed(2))+'\n';
+      if(tx.split.mobile>0) body2+=lr('  Mobile:','$'+tx.split.mobile.toFixed(2))+'\n';
+    }
     if(tx.payMethod==='cash'){
       body2+=lr('Tendered:','$'+tx.tendered.toFixed(2))+'\n';
       body2+=lr('Change:','$'+tx.change.toFixed(2))+'\n';
@@ -2000,7 +2100,7 @@ function rcptHTML(tx, forPrint){
 
   var totalItemDisc=tx.items.reduce(function(s,i){return s+(i.itemDisc||0);},0);
 
-  var payBadge={cash:'💵 Cash',card:'💳 Card',mobile:'📱 Mobile',refund:'↩ Refund'}[tx.payMethod]||tx.payMethod.toUpperCase();
+  var payBadge={cash:'💵 Cash',card:'💳 Card',mobile:'📱 Mobile',split:'⚖️ Split',refund:'↩ Refund'}[tx.payMethod]||tx.payMethod.toUpperCase();
   var itemCount=tx.items.reduce(function(s,i){return s+i.qty;},0);
   var savedTotal=totalItemDisc+(tx.discount||0);
 
@@ -2044,6 +2144,7 @@ function rcptHTML(tx, forPrint){
     '<div class="rcpt-pay" style="margin:0 14px 14px;padding:11px 13px;background:#F6F6F6;border-radius:10px;display:flex;justify-content:space-between;align-items:center;animation-delay:'+( (.3+tx.items.length*.08+.2).toFixed(2) )+'s;">'+
       '<span style="font-size:13px;font-weight:700;">'+payBadge+'</span>'+
       (tx.payMethod==='cash'?'<div style="text-align:right;font-size:12px;color:#666;"><div>Tendered: $'+tx.tendered.toFixed(2)+'</div><div style="font-weight:700;color:'+accent+';">Change: $'+tx.change.toFixed(2)+'</div></div>':'')+
+      (tx.split?'<div style="text-align:right;font-size:11px;color:#666;">'+(tx.split.cash>0?'<div>💵 $'+tx.split.cash.toFixed(2)+'</div>':'')+(tx.split.card>0?'<div>💳 $'+tx.split.card.toFixed(2)+'</div>':'')+(tx.split.mobile>0?'<div>📱 $'+tx.split.mobile.toFixed(2)+'</div>':'')+'</div>':'')+
     '</div>'+
     /* Footer */
     '<div class="rcpt-foot" style="text-align:center;padding:14px 16px 18px;border-top:2px dashed #ddd;margin:0 14px;animation-delay:'+( (.3+tx.items.length*.08+.3).toFixed(2) )+'s;">'+
@@ -2604,6 +2705,107 @@ function renderPtbl(){
       renderPtbl();
     });
   });
+}
+
+/* ════════ HOLD / PARK SALE ════════ */
+function parkSale(){
+  if(!Object.keys(CART).length){toast('Cart is empty');return;}
+  var tots=getTots();
+  var custSel=document.getElementById('cart-cust');
+  var custId=custSel?custSel.value:'';
+  var cust=custId?CUSTS.find(function(c){return c.id===custId;}):null;
+  openModal(
+    '<h3>Hold this sale</h3>'+
+    '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);display:flex;justify-content:space-between;font-size:13px;">'+
+      '<span>'+Object.values(CART).reduce(function(s,v){return s+v;},0)+' items</span>'+
+      '<strong>$'+tots.grand.toFixed(2)+'</strong>'+
+    '</div>'+
+    '<div class="f" style="margin-bottom:10px;"><label>Label (so you can find it)</label>'+
+      '<input type="text" id="pk-label" placeholder="e.g. Blue shirt customer" value="'+(cust?cust.name.replace(/"/g,'&quot;'):'')+'" maxlength="40"></div>'+
+    '<div class="mbs"><button id="pk-cancel">Cancel</button><button class="ok" id="pk-save">🅿️ Hold Sale</button></div>'
+  );
+  document.getElementById('pk-cancel').addEventListener('click',closeModal);
+  document.getElementById('pk-save').addEventListener('click',function(){
+    var label=document.getElementById('pk-label').value.trim();
+    PARKED.unshift({
+      id:'HOLD-'+Date.now().toString(36).toUpperCase().slice(-5),
+      label:label||('Sale '+(PARKED.length+1)),
+      cart:JSON.parse(JSON.stringify(CART)),
+      itemDisc:JSON.parse(JSON.stringify(ITEM_DISC)),
+      coupon:COUPON?JSON.parse(JSON.stringify(COUPON)):null,
+      manualDisc:MANUAL_DISC?JSON.parse(JSON.stringify(MANUAL_DISC)):null,
+      customerId:custId||null,
+      total:tots.grand,
+      count:Object.values(CART).reduce(function(s,v){return s+v;},0),
+      date:new Date().toISOString()
+    });
+    clearCart();
+    saveAll();updParkBadge();closeModal();
+    toast('Sale held — start a new one ✓');
+  });
+}
+
+function openParkedList(){
+  if(!PARKED.length){toast('No held sales');return;}
+  openModal(
+    '<h3>Held sales ('+PARKED.length+')</h3>'+
+    '<div style="max-height:340px;overflow-y:auto;margin-bottom:10px;">'+
+    PARKED.map(function(h){
+      var d=new Date(h.date);
+      return'<div class="card" style="margin-bottom:8px;padding:11px 12px;">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'+
+          '<div><div style="font-weight:700;font-size:14px;">'+h.label+'</div>'+
+          '<div style="font-size:10px;color:var(--t3);font-family:monospace;">'+h.id+' · '+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'+
+          '<div style="text-align:right;"><div style="font-size:16px;font-weight:800;color:var(--a);">$'+h.total.toFixed(2)+'</div>'+
+          '<div style="font-size:10px;color:var(--t3);">'+h.count+' items</div></div>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;">'+
+          '<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);flex:1;" data-park-resume="'+h.id+'">▶️ Resume</button>'+
+          '<button class="ord-btn" style="color:var(--d);border-color:var(--d);" data-park-del="'+h.id+'">🗑</button>'+
+        '</div>'+
+      '</div>';
+    }).join('')+
+    '</div>'+
+    '<div class="mbs"><button id="pklist-cl" class="ok">Close</button></div>'
+  );
+  document.getElementById('pklist-cl').addEventListener('click',closeModal);
+}
+
+function resumeParked(id){
+  var h=PARKED.find(function(x){return x.id===id;});
+  if(!h) return;
+  var hasCart=Object.keys(CART).length>0;
+  function doResume(){
+    CART=JSON.parse(JSON.stringify(h.cart));
+    ITEM_DISC=h.itemDisc?JSON.parse(JSON.stringify(h.itemDisc)):{};
+    COUPON=h.coupon?JSON.parse(JSON.stringify(h.coupon)):null;
+    MANUAL_DISC=h.manualDisc?JSON.parse(JSON.stringify(h.manualDisc)):null;
+    PARKED=PARKED.filter(function(x){return x.id!==id;});
+    var cs=document.getElementById('cart-cust'); if(cs&&h.customerId)cs.value=h.customerId;
+    var mcs=document.getElementById('mob-cart-cust'); if(mcs&&h.customerId)mcs.value=h.customerId;
+    saveAll();renderCart();renderGrid();updCartBadge();updParkBadge();closeModal();
+    toast('Sale resumed ✓');
+  }
+  if(hasCart){
+    closeModal();
+    setTimeout(function(){
+      confirmModal('You have items in the current cart. Resuming will <strong>replace</strong> them.<br><br>Hold the current sale first?',
+        function(){ doResume(); }, 'Replace cart', 'var(--w)');
+    },250);
+  } else doResume();
+}
+
+function updParkBadge(){
+  var b=document.getElementById('park-badge');
+  if(b){
+    if(PARKED.length){b.style.display='inline-flex';b.textContent=PARKED.length;}
+    else b.style.display='none';
+  }
+  var mb=document.getElementById('mob-park-badge');
+  if(mb){
+    if(PARKED.length){mb.style.display='inline-flex';mb.textContent=PARKED.length;}
+    else mb.style.display='none';
+  }
 }
 
 /* ════════ PRODUCT TOOLS ════════ */
@@ -4877,6 +5079,7 @@ async function init(){
   tick();
   setInterval(function(){try{tick();}catch(e){}},60000);
   initMobile();
+  updParkBadge();
   /* Product catalog toolbar */
   (function(){
     var s=document.getElementById('pt-search');
@@ -5060,6 +5263,18 @@ document.addEventListener('click',function(e){
   if(txWaB){var twb=TXS.find(x=>x.id===txWaB.getAttribute('data-tx-wa'));if(twb)sendWhatsApp(twb);return;}
   var txelB=e.target.closest('[data-txid]');
   if(txelB){viewTx(txelB.getAttribute('data-txid'));return;}
+  /* Parked / held sales */
+  var pkR=e.target.closest('[data-park-resume]');
+  if(pkR){resumeParked(pkR.getAttribute('data-park-resume'));return;}
+  var pkD=e.target.closest('[data-park-del]');
+  if(pkD){
+    var pid=pkD.getAttribute('data-park-del');
+    PARKED=PARKED.filter(function(x){return x.id!==pid;});
+    saveAll();updParkBadge();closeModal();
+    if(PARKED.length) setTimeout(openParkedList,200);
+    toast('Held sale removed');
+    return;
+  }
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
@@ -5115,6 +5330,8 @@ document.addEventListener('click',function(e){
   if(act==='open-add-cat'){openAddCatModal();return;}
   // Add product submit
   if(act==='add-prod'){addProd();return;}
+  if(act==='park-sale'){parkSale();return;}
+  if(act==='park-list'){openParkedList();return;}
   if(act==='pt-selall'){
     var vis=ptFiltered();
     var allSel=vis.length&&vis.every(function(p){return PT_SEL[p.id];});
