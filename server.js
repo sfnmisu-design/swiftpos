@@ -57,17 +57,34 @@ async function dbSetAll(obj) {
     // ── Concurrency-safe merge for list collections ──
     // When multiple devices save at once, union records by id instead of
     // blindly overwriting, so concurrent additions are never lost.
-    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations'];
+    // Collections merged by union of ids (concurrency-safe).
+    // 'products' and 'categories' use soft deletes (deleted:true tombstones)
+    // so a delete on one device isn't undone by a stale copy from another.
+    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations','products'];
     const current = await dbGetAll();
     mergeKeys.forEach(k => {
       if (Array.isArray(obj[k]) && Array.isArray(current[k])) {
         const byId = {};
         // Start with existing server records
         current[k].forEach(r => { if (r && r.id!=null) byId[r.id]=r; });
-        // Overlay incoming records (newer wins for same id; new ids added)
-        obj[k].forEach(r => { if (r && r.id!=null) byId[r.id]=r; });
-        // Rebuild as array, newest first by timestamp/createdAt if present
-        const merged = Object.values(byId);
+        // Overlay incoming records — newest updatedAt wins for the same id
+        obj[k].forEach(r => {
+          if (!r || r.id==null) return;
+          const ex = byId[r.id];
+          if (!ex) { byId[r.id]=r; return; }
+          const tIn = new Date(r.updatedAt||r.timestamp||r.createdAt||0).getTime();
+          const tEx = new Date(ex.updatedAt||ex.timestamp||ex.createdAt||0).getTime();
+          // If neither has a timestamp, prefer the incoming (client just edited it)
+          byId[r.id] = (tIn >= tEx) ? r : ex;
+        });
+        let merged = Object.values(byId);
+        // Drop tombstones older than 7 days so the list doesn't grow forever
+        const cutoff = Date.now() - 7*24*60*60*1000;
+        merged = merged.filter(r => {
+          if (!r.deleted) return true;
+          const t = new Date(r.updatedAt||0).getTime();
+          return t > cutoff;   // keep recent tombstones, purge old ones
+        });
         merged.sort((a,b) => {
           const ta = new Date(a.timestamp||a.createdAt||0).getTime();
           const tb = new Date(b.timestamp||b.createdAt||0).getTime();

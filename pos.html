@@ -1091,7 +1091,19 @@ async function saveAll(){
   _lastSaveTime=_now;        /* claim this timestamp immediately so sync won't overwrite */
   _saving=true;              /* lock: tells the sync loop to skip overwriting us */
   const d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
-  if(srvOk){try{var _sr=await api('/data/save','POST',d);if(_sr&&_sr.ok)_lastSaveTime=_now;}catch(e){srvOk=false;try{setSrv('err','● Offline');}catch(e2){}}}
+  if(srvOk){
+    var _ok=false;
+    for(var _try=0;_try<3 && !_ok;_try++){
+      try{
+        var _sr=await api('/data/save','POST',d);
+        if(_sr&&_sr.ok){ _ok=true; _lastSaveTime=_now; }
+      }catch(e){
+        if(_try===2){ srvOk=false; try{setSrv('err','● Offline');}catch(e2){} }
+        else { await new Promise(function(res){setTimeout(res,600*(_try+1));}); }
+      }
+    }
+    if(!_ok && srvOk){ try{setSrv('err','● Save failed');}catch(e2){} }
+  }
   try{
     localStorage.setItem('sp_p',JSON.stringify(PRODS));
     localStorage.setItem('sp_t',JSON.stringify(TXS));
@@ -1308,7 +1320,7 @@ function resetNewProdVATToggle(){
 }
 function toggleVAT(id){
   const p=PRODS.find(x=>x.id===id);if(!p)return;
-  p.vatExempt=!p.vatExempt;renderPtbl();renderGrid();renderCart();saveAll();
+  p.vatExempt=!p.vatExempt;p.updatedAt=new Date().toISOString();renderPtbl();renderGrid();renderCart();saveAll();
   toast(p.name+': VAT '+(p.vatExempt?'removed ✓':'added ✓'));
 }
 function saveVAT(){
@@ -1336,7 +1348,7 @@ function renderCatMgmt(){
   const el=document.getElementById('catmgmt');
   if(!CATS.length){el.innerHTML='<div style="color:var(--t3);font-size:13px;padding:14px;text-align:center;">No categories</div>';return;}
   el.innerHTML=CATS.map((c,i)=>`<div class="catitem">
-    <div class="catitem-l"><span style="font-size:18px;">${c.emoji}</span><div><div style="font-size:13px;font-weight:500;">${c.name}</div><div style="font-size:11px;color:var(--t3);">${PRODS.filter(p=>p.cat===c.name).length} products</div></div></div>
+    <div class="catitem-l"><span style="font-size:18px;">${c.emoji}</span><div><div style="font-size:13px;font-weight:500;">${c.name}</div><div style="font-size:11px;color:var(--t3);">${PRODS.filter(p=>!p.deleted&&p.cat===c.name).length} products</div></div></div>
     <div style="display:flex;gap:4px;"><button class="icon-btn edit" data-catidx="${i}" data-act="edit-cat">✏️</button><button class="icon-btn del" data-catidx="${i}" data-act="del-cat">🗑</button></div>
   </div>`).join('');
 }
@@ -1534,9 +1546,10 @@ function closeCameraScanner(){
 }
 
 /* Add to delegation */
-function renderGrid(){renderLSBanner();
+function renderGrid(){
+  /* tombstoned products are excluded via livePRODS below */renderLSBanner();
   const g=document.getElementById('pgrid');
-  const f=PRODS.filter(p=>(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)));
+  const f=PRODS.filter(p=>!p.deleted&&(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)||(p.sku&&p.sku.toLowerCase().includes(SQ))));
   if(!f.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:36px;font-size:13px;">'+(PRODS.length===0&&!srvOk?'<div style="margin-bottom:8px;font-size:20px;">🔄</div>Connecting to server…':'No products found')+'</div>';return;}
   g.innerHTML=f.map(p=>{
     const q=CART[p.id]||0;
@@ -2615,7 +2628,7 @@ async function addProd(){
   const unit=document.getElementById('np-unit').value||null;
   if(!n){toast('Name required');return;}if(!pr||pr<=0){toast('Enter a valid price');return;}if(!cat){toast('Select or type a category');return;}
   if(cn&&!CATS.find(c=>c.name===cn)){CATS.push({name:cn,emoji:'📦',color:'#888780'});populateCatDropdown();renderCatMgmt();renderCats();}
-  PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000),name:n,price:pr,cost:cost,cat,emoji:ESEL,stock:st,sku:sk,vatExempt,size:sz,unit:unit});
+  PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000),name:n,price:pr,cost:cost,cat,emoji:ESEL,stock:st,sku:sk,vatExempt,size:sz,unit:unit,updatedAt:new Date().toISOString()});
   TOPITS.push({name:n,emoji:ESEL,sold:0});
   ['np-n','np-p','np-cost','np-cn','np-s','np-sk','np-sz'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('np-unit').value='';
@@ -2628,8 +2641,10 @@ async function addProd(){
 async function delProd(id){
   try{
 
-  /* handled by confirmModal */
-  PRODS=PRODS.filter(p=>p.id!==id);delete CART[id];
+  /* Soft delete: mark as deleted so other devices don't resurrect it on merge */
+  var _p=PRODS.find(function(x){return x.id===id;});
+  if(_p){ _p.deleted=true; _p.updatedAt=new Date().toISOString(); }
+  delete CART[id]; delete ITEM_DISC[id]; delete PT_SEL[id];
   renderPtbl();renderCats();renderGrid();renderCart();await saveAll();toast('Product removed');
 
   }catch(_e){}
@@ -2637,9 +2652,13 @@ async function delProd(id){
 let PT_SEL={};        /* selected product ids for bulk edit */
 let PT_SORT='name', PT_STOCKF='all', PT_SEARCH='';
 
+/* Live products = not soft-deleted. Use everywhere products are shown. */
+function livePRODS(){ return PRODS.filter(function(p){return !p.deleted;}); }
+
 function ptFiltered(){
   var q=PT_SEARCH.toLowerCase().trim();
   var list=PRODS.filter(function(p){
+    if(p.deleted) return false;
     if(q && p.name.toLowerCase().indexOf(q)<0 && !(p.sku&&p.sku.toLowerCase().indexOf(q)>=0) && (p.cat||'').toLowerCase().indexOf(q)<0) return false;
     var st=p.stock||0;
     if(PT_STOCKF==='low')  return st>0 && st<=(LOW_STOCK_THRESHOLD||10);
@@ -2817,6 +2836,8 @@ function dupProduct(id){
   copy.id=Date.now()*1000+Math.floor(Math.random()*1000);
   copy.name=p.name+' (copy)';
   copy.sku='';
+  copy.deleted=false;
+  copy.updatedAt=new Date().toISOString();
   PRODS.push(copy);
   TOPITS.push({name:copy.name,emoji:copy.emoji,sold:0});
   saveAll();renderPtbl();renderGrid();
@@ -2884,6 +2905,7 @@ function openStockAdjust(id){
     p.stockLog.push({date:new Date().toISOString(),from:old,to:nq,delta:nq-old,reason:reason,note:note});
     if(p.stockLog.length>50) p.stockLog=p.stockLog.slice(-50);
     p.stock=nq;
+    p.updatedAt=new Date().toISOString();
     saveAll();renderPtbl();renderGrid();renderLSBanner();closeModal();
     toast('Stock updated: '+old+' → '+nq+' ✓');
   });
@@ -2918,7 +2940,7 @@ function openBulkEdit(){
     closeModal();
     setTimeout(function(){
       confirmModal('Delete <strong>'+sel.length+'</strong> product'+(sel.length!==1?'s':'')+'? This cannot be undone.',function(){
-        PRODS=PRODS.filter(function(p){return !PT_SEL[p.id];});
+        PRODS.forEach(function(p){ if(PT_SEL[p.id]){p.deleted=true;p.updatedAt=new Date().toISOString();} });
         PT_SEL={};
         saveAll();renderPtbl();renderGrid();
         toast(sel.length+' products deleted');
@@ -2943,7 +2965,7 @@ function openBulkEdit(){
       }
       if(vat){p.vatExempt=(vat==='no');did=true;}
       if(stockRaw!==''){p.stock=parseInt(stockRaw)||0;did=true;}
-      if(did)changed++;
+      if(did){p.updatedAt=new Date().toISOString();changed++;}
     });
     if(!changed){toast('Nothing to change');return;}
     PT_SEL={};
@@ -2959,7 +2981,7 @@ function exportProductsCSV(){
     return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;
   }
   var rows=[hdr.join(',')];
-  PRODS.forEach(function(p){
+  PRODS.filter(function(p){return !p.deleted;}).forEach(function(p){
     rows.push([p.name,p.cat,(p.cost||0),p.price,(p.stock||0),(p.sku||''),p.emoji,(p.vatExempt?'yes':'no'),(p.size||''),(p.unit||'')].map(esc).join(','));
   });
   var blob=new Blob(['\ufeff'+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
@@ -3029,9 +3051,10 @@ function importProductsCSV(text){
         ex.price=price; ex.cost=cost; ex.stock=stock; ex.cat=cat;
         if(sku)ex.sku=sku; if(emoji)ex.emoji=emoji;
         ex.vatExempt=vatExempt; ex.size=size; ex.unit=unit;
+        ex.deleted=false; ex.updatedAt=new Date().toISOString();
         updated++;
       } else {
-        PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000)+i,name:name,price:price,cost:cost,cat:cat,emoji:emoji,stock:stock,sku:sku,vatExempt:vatExempt,size:size,unit:unit});
+        PRODS.push({id:Date.now()*1000+Math.floor(Math.random()*1000)+i,name:name,price:price,cost:cost,cat:cat,emoji:emoji,stock:stock,sku:sku,vatExempt:vatExempt,size:size,unit:unit,updatedAt:new Date().toISOString()});
         TOPITS.push({name:name,emoji:emoji,sold:0});
         added++;
       }
@@ -3066,7 +3089,7 @@ function renderReports(){
     '<div class="sc" style="background:linear-gradient(135deg,var(--al),#fff);border-color:var(--a);"><div class="sl2">💰 Net Profit</div><div class="sv" style="color:var(--a);">$'+allProfit.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})+'</div><div class="ss">'+allMargin.toFixed(1)+'% margin</div></div>'+
     '<div class="sc"><div class="sl2">Transactions</div><div class="sv">'+txCount+'</div><div class="ss">All time</div></div>'+
     '<div class="sc"><div class="sl2">Avg order</div><div class="sv">$'+avg.toFixed(2)+'</div><div class="ss">Per sale</div></div>'+
-    '<div class="sc"><div class="sl2">Products</div><div class="sv">'+PRODS.length+'</div><div class="ss">In catalog</div></div>';
+    '<div class="sc"><div class="sl2">Products</div><div class="sv">'+livePRODS().length+'</div><div class="ss">In catalog</div></div>';
 
   /* Bar chart — guard against empty/zero */
   var hrsVals=HRS.map(function(x){return x.v;});
@@ -3527,6 +3550,7 @@ function openEditProd(id){
     if(!n){toast('Name required');return;}
     if(!pr||pr<=0){toast('Valid price required');return;}
     p.name=n; p.price=pr;
+    p.updatedAt=new Date().toISOString();
     p.cost=parseFloat(document.getElementById('ep-cost').value)||0;
     p.cat=document.getElementById('ep-c').value;
     p.stock=parseInt(document.getElementById('ep-s').value)||0;
@@ -3978,7 +4002,7 @@ function openAddOrderModal(editId){
   };
   if(!ex) return;
 
-  var prodOpts=PRODS.map(function(p){
+  var prodOpts=livePRODS().map(function(p){
     return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';
   }).join('');
 
@@ -4056,7 +4080,7 @@ function openAddOrderModal(editId){
   if(ooSearch){
     ooSearch.addEventListener('input',function(){
       var q=this.value.toLowerCase().trim();
-      var matches=PRODS.filter(function(p){
+      var matches=livePRODS().filter(function(p){
         return !q || p.name.toLowerCase().indexOf(q)>=0 || (p.sku&&p.sku.toLowerCase().indexOf(q)>=0);
       });
       var sel=document.getElementById('oo-prod');
@@ -4321,7 +4345,7 @@ function openAddLayawayModal(editId){
     return'<option value="'+c.id+'"'+(ex.customerId===c.id?' selected':'')+'>'+c.name+(c.phone?' — '+c.phone:'')+'</option>';
   }).join('');
 
-  var prodOpts=PRODS.map(function(p){
+  var prodOpts=livePRODS().map(function(p){
     return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';
   }).join('');
 
@@ -4394,7 +4418,7 @@ function openAddLayawayModal(editId){
   if(lwySearch){
     lwySearch.addEventListener('input',function(){
       var q=this.value.toLowerCase().trim();
-      var matches=PRODS.filter(function(p){
+      var matches=livePRODS().filter(function(p){
         return !q || p.name.toLowerCase().indexOf(q)>=0 || (p.sku&&p.sku.toLowerCase().indexOf(q)>=0);
       });
       var sel=document.getElementById('lwy-prod');
@@ -5154,16 +5178,32 @@ async function init(){
         var changed=sp!==PRODS.length||st!==TXS.length||sc!==CUSTS.length;
         /* Always apply if server is newer, even if counts are same (could be edits) */
         if(changed || serverTime > _lastSaveTime + 2000){
-          if(Array.isArray(r.products))    PRODS=[...r.products];
+          if(_saving) return;   /* final guard before we touch local state */
+          /* Merge server products with any local ones the server hasn't seen yet.
+             Without this, a product added locally moments ago can be wiped by a
+             server copy that predates it. */
+          if(Array.isArray(r.products)){
+            var srvById={};
+            r.products.forEach(function(p){ if(p&&p.id!=null) srvById[p.id]=p; });
+            var keptLocal=PRODS.filter(function(p){
+              if(p==null||p.id==null) return false;
+              if(srvById[p.id]) return false;              /* server has it */
+              var t=new Date(p.updatedAt||0).getTime();
+              return (Date.now()-t) < 120000;              /* local & recent → keep */
+            });
+            PRODS=r.products.concat(keptLocal);
+            if(keptLocal.length){ setTimeout(function(){saveAll().catch(function(){});},400); }
+          }
           if(Array.isArray(r.transactions))TXS=[...r.transactions];
           if(Array.isArray(r.customers))   CUSTS=[...r.customers];
           if(Array.isArray(r.categories))  CATS=[...r.categories];
           if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
+          if(Array.isArray(r.parked))      PARKED=[...r.parked];
           if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
           if(r.vat)VAT=Object.assign({},VAT,r.vat);
           if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
           _lastSaveTime=serverTime; /* update so we don't re-apply same data */
-          applyBrand();renderGrid();renderPtbl();populateCatDropdown();renderCats();
+          applyBrand();renderGrid();renderPtbl();populateCatDropdown();renderCats();updParkBadge();
           setSrv('ok','● Synced');
           
         }
