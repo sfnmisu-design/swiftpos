@@ -5315,6 +5315,17 @@ document.addEventListener('click',function(e){
     toast('Held sale removed');
     return;
   }
+  /* Order card actions — must run before the data-act guard */
+  var ordNext=e.target.closest('[data-ord-next]');
+  if(ordNext){advanceOrder(ordNext.getAttribute('data-ord-next'));return;}
+  var ordEdit=e.target.closest('[data-ord-edit]');
+  if(ordEdit){openAddOrderModal(ordEdit.getAttribute('data-ord-edit'));return;}
+  var ordWa=e.target.closest('[data-ord-whatsapp]');
+  if(ordWa){whatsAppOrder(ordWa.getAttribute('data-ord-whatsapp'));return;}
+  var ordCancel=e.target.closest('[data-ord-cancel]');
+  if(ordCancel){cancelOrder(ordCancel.getAttribute('data-ord-cancel'));return;}
+  var ordConvert=e.target.closest('[data-ord-convert]');
+  if(ordConvert){convertOrderToSale(ordConvert.getAttribute('data-ord-convert'));return;}
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
@@ -5391,17 +5402,6 @@ document.addEventListener('click',function(e){
   if(act==='open-add-order'){openAddOrderModal();return;}
   if(act==='open-add-layaway'){openAddLayawayModal();return;}
   if(act==='open-add-walkin'){openAddWalkinModal();return;}
-  /* Order card actions */
-  var ordNext=e.target.closest('[data-ord-next]');
-  if(ordNext){advanceOrder(ordNext.getAttribute('data-ord-next'));return;}
-  var ordEdit=e.target.closest('[data-ord-edit]');
-  if(ordEdit){openAddOrderModal(ordEdit.getAttribute('data-ord-edit'));return;}
-  var ordWa=e.target.closest('[data-ord-whatsapp]');
-  if(ordWa){whatsAppOrder(ordWa.getAttribute('data-ord-whatsapp'));return;}
-  var ordCancel=e.target.closest('[data-ord-cancel]');
-  if(ordCancel){cancelOrder(ordCancel.getAttribute('data-ord-cancel'));return;}
-  var ordConvert=e.target.closest('[data-ord-convert]');
-  if(ordConvert){convertOrderToSale(ordConvert.getAttribute('data-ord-convert'));return;}
   if(act==='apply-disc-code'){
     var inp=document.getElementById('disc-apply-inp');
     var code=inp?inp.value.trim().toUpperCase():'';
