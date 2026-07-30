@@ -41,11 +41,51 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .ok .sdot{background:#3B6D11;}.err .sdot{background:#A32D2D;}.chk .sdot{background:var(--w);}
 
 /* ══ TAB BAR ══ */
-.tabs{display:flex;background:var(--s);border-bottom:1px solid var(--b);padding:0 14px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.tabs{display:flex;background:var(--s);border-bottom:1px solid var(--b);padding:0 14px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;position:relative;}
+.tabs::before{content:'';position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,#1D9E75,#1BB587,#14B8A6,#2DD4BF,#10B981,#1D9E75);background-size:300% 100%;animation:barFlow 6s linear infinite;opacity:.5;}
+@keyframes barFlow{0%{background-position:0% 0}100%{background-position:300% 0}}
+.t{position:relative;padding:11px 14px;font-size:12px;cursor:pointer;color:var(--t3);border-bottom:2.5px solid transparent;font-weight:500;white-space:nowrap;flex-shrink:0;transition:color .2s,background .2s,transform .12s;border-radius:8px 8px 0 0;}
+.t:hover:not(.on){color:var(--a);background:var(--al);transform:translateY(-1px);}
+.t:active{transform:scale(.94);}
+.t.on{
+  font-weight:800;
+  background:linear-gradient(120deg,#E8F7F1,#DBF4EC,#D5F5EE,#E8F7F1);
+  background-size:300% 100%;
+  animation:tabPop .32s cubic-bezier(.34,1.56,.64,1), tabBgFlow 4s linear infinite;
+  color:transparent;
+  -webkit-background-clip:text;background-clip:text;
+}
+/* colored text via a second gradient layer */
+.t.on{
+  background-image:linear-gradient(120deg,#1D9E75,#14B8A6,#0EA5A5,#1BB587,#2DD4BF,#1D9E75);
+  background-size:300% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  animation:tabPop .32s cubic-bezier(.34,1.56,.64,1), tabTextFlow 3.5s linear infinite;
+}
+@keyframes tabTextFlow{0%{background-position:0% 0}100%{background-position:300% 0}}
+@keyframes tabBgFlow{0%{background-position:0% 0}100%{background-position:300% 0}}
+.t.on::before{
+  content:'';position:absolute;inset:0;z-index:-1;border-radius:8px 8px 0 0;
+  background:linear-gradient(120deg,rgba(29,158,117,.12),rgba(20,184,166,.14),rgba(45,212,191,.12),rgba(29,158,117,.12));
+  background-size:300% 100%;
+  animation:tabBgFlow 4s linear infinite;
+}
+.t.on::after{
+  content:'';position:absolute;left:6px;right:6px;bottom:-1px;height:3px;border-radius:3px;
+  background:linear-gradient(90deg,#1D9E75,#14B8A6,#2DD4BF,#1BB587,#1D9E75);
+  background-size:300% 100%;
+  animation:tabUnderline .3s ease, tabBgFlow 3s linear infinite;
+  transform-origin:center;
+}
+@keyframes tabPop{0%{transform:scale(.9)}55%{transform:scale(1.07)}100%{transform:scale(1)}}
+@keyframes tabUnderline{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+.t .t-ic{display:inline-block;margin-right:3px;transition:transform .2s;-webkit-text-fill-color:initial;}
+.t.on .t-ic{animation:tabIcon .6s ease, icBob 2.5s ease-in-out .6s infinite;-webkit-text-fill-color:initial;}
+@keyframes tabIcon{0%{transform:scale(1) rotate(0)}25%{transform:scale(1.35) rotate(-10deg)}55%{transform:scale(1.15) rotate(7deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes icBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.t:hover:not(.on) .t-ic{transform:scale(1.2) translateY(-1px) rotate(-5deg);}
 .tabs::-webkit-scrollbar{display:none;}
-.t{padding:9px 11px;font-size:12px;cursor:pointer;color:var(--t3);border-bottom:2px solid transparent;font-weight:500;white-space:nowrap;flex-shrink:0;transition:all .15s;}
-.t.on{color:var(--a);border-bottom-color:var(--a);}
-.t:hover:not(.on){color:var(--t2);}
 
 /* ══ PANELS ══ */
 .panel{display:none;flex-direction:column;flex:1;overflow:hidden;}
@@ -439,9 +479,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .ls-banner{margin:8px 8px 0;border-radius:12px;}
 
   .mob-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:calc(58px + env(safe-area-inset-bottom,0px));padding-bottom:env(safe-area-inset-bottom,0px);background:var(--s);border-top:1px solid var(--b);z-index:80;box-shadow:0 -2px 12px rgba(0,0,0,.08);}
-  .mob-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 2px 4px;cursor:pointer;color:var(--t3);font-size:9px;font-weight:600;gap:2px;-webkit-tap-highlight-color:transparent;}
-  .mob-nav-item.on{color:var(--a);}
-  .mob-nav-item span:first-child{font-size:20px;line-height:1;}
+  .mob-nav::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#1D9E75,#1BB587,#14B8A6,#2DD4BF,#10B981,#1D9E75);background-size:300% 100%;animation:barFlow 6s linear infinite;opacity:.55;}
+  .mob-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px 2px 4px;cursor:pointer;color:var(--t3);font-size:9px;font-weight:600;gap:2px;-webkit-tap-highlight-color:transparent;transition:transform .12s;position:relative;}
+  .mob-nav-item:active{transform:scale(.9);}
+  .mob-nav-item.on{
+    font-weight:800;
+    background-image:linear-gradient(120deg,#1D9E75,#14B8A6,#0EA5A5,#1BB587,#2DD4BF,#1D9E75);
+    background-size:300% 100%;
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+    animation:mobPop .32s cubic-bezier(.34,1.56,.64,1), tabTextFlow 3.5s linear infinite;
+  }
+  .mob-nav-item.on::before{
+    content:'';position:absolute;top:0;left:22%;right:22%;height:3px;border-radius:0 0 3px 3px;
+    background:linear-gradient(90deg,#1D9E75,#14B8A6,#2DD4BF,#1BB587,#1D9E75);
+    background-size:300% 100%;
+    animation:tabBgFlow 3s linear infinite, tabUnderline .3s ease;
+  }
+  @keyframes mobPop{0%{transform:scale(.85)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+  .mob-nav-item span:first-child{font-size:20px;line-height:1;-webkit-text-fill-color:initial;display:inline-block;transition:transform .2s;}
+  .mob-nav-item.on span:first-child{animation:tabIcon .6s ease, icBob 2.5s ease-in-out .6s infinite;-webkit-text-fill-color:initial;}
 
   .mob-cart-btn{display:flex;position:fixed;bottom:68px;right:14px;width:54px;height:54px;border-radius:27px;background:var(--a);color:#fff;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 16px rgba(29,158,117,.4);cursor:pointer;z-index:81;border:none;-webkit-tap-highlight-color:transparent;}
   .mob-cart-badge{position:absolute;top:-3px;right:-3px;background:var(--d);color:#fff;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;border:2px solid var(--s);}
@@ -572,20 +629,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
     </div>
     <div class="tabs" id="tab-bar">
-      <div class="t on"  onclick="openTab('catalog')">🛍 Products</div>
-      <div class="t" onclick="openTab('addprod')">➕ Add</div>
-      <div class="t" onclick="openTab('customers')">👥 Customers</div>
-      <div class="t" onclick="openTab('quotes')">📋 Quotes</div>
-      <div class="t" onclick="openTab('sales')">🧾 Sales</div>
-      <div class="t" onclick="openTab('daily')">📅 Daily</div>
-      <div class="t" onclick="openTab('reports')">📊 Reports</div>
-      <div class="t" onclick="openTab('settings')">⚙ Settings</div>
-      <div class="t" onclick="openTab('backup')">💾 Backup</div>
-      <div class="t" onclick="openTab('branding')">🎨 Brand</div>
-      <div class="t" onclick="openTab('discounts')">🏷 Discounts</div>
-      <div class="t" onclick="openTab('orders')">📦 Orders</div>
-      <div class="t" onclick="openTab('layaway')">💳 Layaway</div>
-      <div class="t" onclick="openTab('walkin')">🛠 Custom Orders</div>
+      <div class="t on"  onclick="openTab('catalog')"><span class="t-ic">🛍</span> Products</div>
+      <div class="t" onclick="openTab('addprod')"><span class="t-ic">➕</span> Add</div>
+      <div class="t" onclick="openTab('customers')"><span class="t-ic">👥</span> Customers</div>
+      <div class="t" onclick="openTab('quotes')"><span class="t-ic">📋</span> Quotes</div>
+      <div class="t" onclick="openTab('sales')"><span class="t-ic">🧾</span> Sales</div>
+      <div class="t" onclick="openTab('daily')"><span class="t-ic">📅</span> Daily</div>
+      <div class="t" onclick="openTab('reports')"><span class="t-ic">📊</span> Reports</div>
+      <div class="t" onclick="openTab('settings')"><span class="t-ic">⚙</span> Settings</div>
+      <div class="t" onclick="openTab('backup')"><span class="t-ic">💾</span> Backup</div>
+      <div class="t" onclick="openTab('branding')"><span class="t-ic">🎨</span> Brand</div>
+      <div class="t" onclick="openTab('discounts')"><span class="t-ic">🏷</span> Discounts</div>
+      <div class="t" onclick="openTab('orders')"><span class="t-ic">📦</span> Orders</div>
+      <div class="t" onclick="openTab('layaway')"><span class="t-ic">💳</span> Layaway</div>
+      <div class="t" onclick="openTab('walkin')"><span class="t-ic">🛠</span> Custom Orders</div>
     </div>
 
     <!-- CATALOG -->
