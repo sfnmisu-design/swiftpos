@@ -60,7 +60,7 @@ async function dbSetAll(obj) {
     // Collections merged by union of ids (concurrency-safe).
     // 'products' and 'categories' use soft deletes (deleted:true tombstones)
     // so a delete on one device isn't undone by a stale copy from another.
-    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations','products'];
+    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations','products','repairs'];
     const current = await dbGetAll();
     mergeKeys.forEach(k => {
       if (Array.isArray(obj[k]) && Array.isArray(current[k])) {
@@ -176,6 +176,20 @@ async function start() {
         if (!dbReady) return sendJ(res,200,{ok:false,db:false,error:dbError||'DB not connected'});
         const ok=await dbSetAll(d);
         return sendJ(res,200,{ok,db:true});
+      } catch(e) { return sendJ(res,400,{ok:false,error:e.message}); }
+    }
+
+    if (url==='/data/patch' && method==='POST') {
+      // Fast partial save: only the collections included in the body are
+      // merged & written. Much smaller payload than /data/save.
+      try {
+        const body=await getBody(req);
+        const keys=Object.keys(body).filter(k=>k!=='savedAt');
+        if(!keys.length) return sendJ(res,200,{ok:true});
+        const partial={};
+        keys.forEach(k=>{ partial[k]=body[k]; });
+        const ok=await dbSetAll(partial);   // dbSetAll already merges list collections by id
+        return sendJ(res,200,{ok:ok!==false});
       } catch(e) { return sendJ(res,400,{ok:false,error:e.message}); }
     }
 
