@@ -650,7 +650,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="t" onclick="openTab('orders')"><span class="t-ic">📦</span> Orders</div>
       <div class="t" onclick="openTab('layaway')"><span class="t-ic">💳</span> Layaway</div>
       <div class="t" onclick="openTab('walkin')"><span class="t-ic">🛠</span> Custom Orders</div>
-      <div class="t" onclick="openTab('repairs')"><span class="t-ic">🔧</span> Repairs</div>
     </div>
 
     <!-- CATALOG -->
@@ -1071,28 +1070,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div id="wk-list"></div>
       </div>
     </div>
-    <div class="panel" id="panel-repairs">
-      <div class="sec">
-        <div class="stitle" style="display:flex;align-items:center;justify-content:space-between;">
-          <span>🔧 Repair Tickets</span>
-          <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-add-repair">+ New repair ticket</button>
-        </div>
-        <div class="sgd" id="rp-stats" style="margin-bottom:12px;"></div>
-        <div id="rp-alerts" style="display:none;gap:8px;margin-bottom:12px;flex-wrap:wrap;"></div>
-        <div style="display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px;">
-          <button class="ord-filter on" data-rp-filter="all">All</button>
-          <button class="ord-filter" data-rp-filter="received">📥 Received</button>
-          <button class="ord-filter" data-rp-filter="diagnosing">🔍 Diagnosing</button>
-          <button class="ord-filter" data-rp-filter="approval">💬 Awaiting approval</button>
-          <button class="ord-filter" data-rp-filter="repairing">🔧 Repairing</button>
-          <button class="ord-filter" data-rp-filter="ready">✅ Ready</button>
-          <button class="ord-filter" data-rp-filter="collected">🚀 Collected</button>
-        </div>
-        <div id="rp-list"></div>
-      </div>
-    </div>
   </div>
-
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
     <div class="cart-hd">
@@ -1182,7 +1160,7 @@ function savePatch(keys){
     branding:['sp_b',BRAND], vat:['sp_v',VAT], storeInfo:['sp_si',STORE],
     categories:['sp_cats',CATS], quotations:['sp_q',QUOTES],
     orders:['sp_ord',ORDERS], layaways:['sp_lwy',LAYAWAYS], walkins:['sp_wk',WALKINS],
-    parked:['sp_park',PARKED], repairs:['sp_rep',REPAIRS]
+    parked:['sp_park',PARKED]
   };
   var payload={savedAt:_now};
   try{
@@ -1236,11 +1214,10 @@ function saveAll(){
     localStorage.setItem('sp_ord',JSON.stringify(ORDERS));
     localStorage.setItem('sp_lwy',JSON.stringify(LAYAWAYS));
     localStorage.setItem('sp_park',JSON.stringify(PARKED));
-    localStorage.setItem('sp_rep',JSON.stringify(REPAIRS));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
   /* BACKGROUND: push to server without blocking the caller */
-  var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,repairs:REPAIRS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
+  var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
   return _pushToServer(d,_now);
 }
 
@@ -1299,7 +1276,6 @@ async function loadAll(){
     if(Array.isArray(r.orders)) ORDERS=[...r.orders];
     if(Array.isArray(r.layaways)) LAYAWAYS=[...r.layaways];
     if(Array.isArray(r.walkins)) WALKINS=[...r.walkins];
-    if(Array.isArray(r.repairs)) REPAIRS=[...r.repairs];
       if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       
       return 'ok';
@@ -1320,7 +1296,6 @@ async function loadAll(){
     const ord=localStorage.getItem('sp_ord');if(ord)ORDERS=JSON.parse(ord);
     const lwy=localStorage.getItem('sp_lwy');if(lwy)LAYAWAYS=JSON.parse(lwy);
     const pk=localStorage.getItem('sp_park');if(pk)PARKED=JSON.parse(pk);
-    const rp=localStorage.getItem('sp_rep');if(rp)REPAIRS=JSON.parse(rp);
   }catch(e){}
 
   }catch(_e){return;}
@@ -1369,7 +1344,6 @@ let ITEM_DISC={};
 let ORDERS=[];
 let LAYAWAYS=[];
 let WALKINS=[];
-let REPAIRS=[];
 let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
 let _saving=false;   /* true while a local save is in progress */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
@@ -3375,8 +3349,8 @@ async function factoryReset(){
   try{
 
   /* confirm for wipe — handled inline */;
-  TXS=[];QUOTES=[];ORDERS=[];LAYAWAYS=[];WALKINS=[];REPAIRS=[];PARKED=[];
-  ['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv','sp_wk','sp_ord','sp_lwy','sp_park','sp_rep','sp_lst'].forEach(k=>localStorage.removeItem(k));
+  TXS=[];QUOTES=[];ORDERS=[];LAYAWAYS=[];WALKINS=[];PARKED=[];
+  ['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv','sp_wk','sp_ord','sp_lwy','sp_park','sp_lst'].forEach(k=>localStorage.removeItem(k));
   renderReports();renderBkInfo();toast('All data cleared');
 
   }catch(_e){return;}
@@ -3441,7 +3415,7 @@ function toast(msg, type){
 }
 function tick(){var c=document.getElementById('clk');if(c)c.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway','walkin','repairs'];
+const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway','walkin'];
 const MOB_NAV_ITEMS=['catalog','sales','cart','customers','more'];
 function openTab(name){
   PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
@@ -3459,7 +3433,6 @@ function openTab(name){
   if(name==='orders')renderOrders();
   if(name==='layaway')renderLayaway();
   if(name==='walkin')renderWalkin();
-  if(name==='repairs')renderRepairs();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
   if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
@@ -3864,7 +3837,6 @@ function openMobMore(){
     ['📋 Quotes','quotes'],
     ['📦 Orders','orders'],
     ['💳 Layaway','layaway'],['🛠 Custom Orders','walkin'],
-    ['🔧 Repairs','repairs'],
     ['🏷 Discounts','discounts'],
     ['📅 Daily','daily'],
     ['📊 Reports','reports'],
@@ -4774,16 +4746,6 @@ const WK_STATUS={
   cancelled:{label:'Cancelled',emoji:'❌',color:'#9E9E9E',bg:'#F5F5F5',next:null}
 };
 
-const RP_STATUS={
-  received:  {label:'Received',         emoji:'📥',color:'#E65100',bg:'#FFF3E0',next:'diagnosing'},
-  diagnosing:{label:'Diagnosing',       emoji:'🔍',color:'#1565C0',bg:'#E3F2FD',next:'approval'},
-  approval:  {label:'Awaiting approval', emoji:'💬',color:'#B8860B',bg:'#FFF8E1',next:'repairing'},
-  repairing: {label:'Repairing',        emoji:'🔧',color:'#6A1B9A',bg:'#F3E5F5',next:'ready'},
-  ready:     {label:'Ready',            emoji:'✅',color:'#00838F',bg:'#E0F7FA',next:'collected'},
-  collected: {label:'Collected',        emoji:'🚀',color:'#2E7D32',bg:'#E8F5E9',next:null},
-  cancelled: {label:'Cancelled',        emoji:'❌',color:'#9E9E9E',bg:'#F5F5F5',next:null}
-};
-function genRpId(){ return 'RPR-'+Date.now().toString(36).toUpperCase().slice(-5); }
 
 function genWkId(){ return 'CO-'+Date.now().toString(36).toUpperCase().slice(-5); }
 
@@ -5251,353 +5213,6 @@ function whatsAppWalkin(id){
   openWA(phone, L.join('\n'));
 }
 
-/* ════════ REPAIR TICKETS ════════ */
-let _rpFilter='all';
-
-function renderRepairs(){
-  var _t0=new Date(); _t0.setHours(0,0,0,0);
-  var _t3=new Date(_t0); _t3.setDate(_t3.getDate()+3);
-  function rpDue(r){
-    if(!r.promiseBy) return 'none';
-    if(r.status==='collected'||r.status==='cancelled') return 'none';
-    var d=new Date(r.promiseBy); d.setHours(0,0,0,0);
-    if(d<_t0) return 'overdue';
-    if(d<=_t3) return 'soon';
-    return 'ok';
-  }
-  var stats=document.getElementById('rp-stats');
-  if(stats){
-    var active=REPAIRS.filter(function(r){return r.status!=='collected'&&r.status!=='cancelled';}).length;
-    var approval=REPAIRS.filter(function(r){return r.status==='approval';}).length;
-    var ready=REPAIRS.filter(function(r){return r.status==='ready';}).length;
-    var owed=REPAIRS.filter(function(r){return r.status!=='collected'&&r.status!=='cancelled';})
-      .reduce(function(s,r){return s+Math.max(0,(r.price||0)-(r.deposit||0));},0);
-    stats.innerHTML=
-      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Active jobs</div><div class="sv" style="color:#1565C0;">'+active+'</div></div>'+
-      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Need approval</div><div class="sv" style="color:#B8860B;">'+approval+'</div></div>'+
-      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Ready</div><div class="sv" style="color:#00838F;">'+ready+'</div></div>'+
-      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Balance owed</div><div class="sv" style="color:var(--d);">$'+owed.toFixed(2)+'</div></div>';
-    var overdueN=REPAIRS.filter(function(r){return rpDue(r)==='overdue';}).length;
-    var soonN=REPAIRS.filter(function(r){return rpDue(r)==='soon';}).length;
-    var alertEl=document.getElementById('rp-alerts');
-    if(alertEl){
-      if(overdueN||soonN){
-        alertEl.style.display='flex';
-        alertEl.innerHTML=
-          (overdueN?'<div style="flex:1;background:#FCEBEB;border:1px solid #E8B4B4;color:#A32D2D;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;">🚨 '+overdueN+' past promised date</div>':'')+
-          (soonN?'<div style="flex:1;background:#FFF6E5;border:1px solid #F0D9A8;color:#8A5A00;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;">⏰ '+soonN+' due within 3 days</div>':'');
-      } else { alertEl.style.display='none'; }
-    }
-  }
-  var list=document.getElementById('rp-list');
-  if(!list) return;
-  var items=_rpFilter==='all'?REPAIRS:REPAIRS.filter(function(r){return r.status===_rpFilter;});
-  items=[...items].sort(function(a,b){
-    var rank={overdue:0,soon:1,ok:2,none:3};
-    var da=rank[rpDue(a)],db=rank[rpDue(b)];
-    if(da!==db) return da-db;
-    return new Date(b.createdAt)-new Date(a.createdAt);
-  });
-  if(!items.length){
-    list.innerHTML='<div style="text-align:center;color:var(--t3);padding:30px;font-size:13px;">No repair tickets'+(_rpFilter!=='all'?' in this status':'')+'</div>';
-    return;
-  }
-  list.innerHTML=items.map(function(r){
-    var st=RP_STATUS[r.status]||RP_STATUS.received;
-    var balance=Math.max(0,(r.price||0)-(r.deposit||0));
-    var due=rpDue(r);
-    var overdue=due==='overdue', soon=due==='soon';
-    var nextSt=st.next?RP_STATUS[st.next]:null;
-    var promised=r.promiseBy?new Date(r.promiseBy):null;
-    var noteCount=(r.notes&&r.notes.length)||0;
-    var border=overdue?'var(--d)':(soon?'#BA7517':st.color);
-    return '<div class="card" style="margin-bottom:10px;border-left:4px solid '+border+';padding:13px 14px;'+(overdue?'background:linear-gradient(90deg,#FFF5F5,#fff);':'')+'">'+
-      (overdue?'<div style="display:inline-block;background:var(--d);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:6px;">🚨 OVERDUE</div>':'')+
-      (soon?'<div style="display:inline-block;background:#FFF3E0;color:#8A5A00;border:1px solid #F0D9A8;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px;margin-bottom:6px;">⏰ DUE SOON</div>':'')+
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
-        '<div>'+
-          '<div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--t3);">'+r.id+'</div>'+
-          '<div style="font-size:15px;font-weight:700;">'+r.device+'</div>'+
-          '<div style="font-size:12px;color:var(--t2);">'+r.customerName+(r.phone?' · 📞 '+r.phone:'')+'</div>'+
-        '</div>'+
-        '<div style="text-align:right;">'+
-          (r.price>0?'<div style="font-size:17px;font-weight:800;color:var(--a);">$'+r.price.toFixed(2)+'</div>':'<div style="font-size:12px;color:var(--t3);">no quote yet</div>')+
-          '<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+st.bg+';color:'+st.color+';">'+st.emoji+' '+st.label+'</span>'+
-        '</div>'+
-      '</div>'+
-      '<div style="font-size:13px;color:var(--t);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;"><strong>Problem:</strong> '+r.issue+'</div>'+
-      (r.diagnosis?'<div style="font-size:12px;color:var(--t2);background:#E3F2FD;border-radius:8px;padding:7px 10px;margin-bottom:8px;"><strong>🔍 Diagnosis:</strong> '+r.diagnosis+'</div>':'')+
-      '<div style="display:flex;gap:12px;font-size:11px;color:var(--t3);margin-bottom:8px;flex-wrap:wrap;">'+
-        (r.promiseBy?'<span style="'+(overdue?'color:var(--d);font-weight:700;':(soon?'color:#8A5A00;font-weight:700;':''))+'">📅 Promised: '+(promised?promised.toLocaleDateString():'-')+'</span>':'')+
-        (r.price>0?'<span>💰 Paid: <strong>$'+(r.deposit||0).toFixed(2)+'</strong></span>':'')+
-        (balance>0?'<span>Balance: <strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></span>':(r.price>0?'<span style="color:#2E7D32;font-weight:700;">PAID</span>':''))+
-      '</div>'+
-      (r.status==='approval'&&r.price>0?'<div style="background:#FFF8E1;border:1px solid #F0D9A8;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#8A5A00;font-weight:600;">💬 Quote of $'+r.price.toFixed(2)+' awaiting customer approval</div>':'')+
-      (noteCount?'<div style="font-size:11px;color:var(--t2);background:#F7F7F5;border-radius:8px;padding:6px 9px;margin-bottom:8px;border-left:3px solid var(--b);">📝 <strong>'+r.notes[r.notes.length-1].text+'</strong><span style="color:var(--t3);"> — '+new Date(r.notes[r.notes.length-1].date).toLocaleDateString()+(noteCount>1?' · '+noteCount+' notes':'')+'</span></div>':'')+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
-        (r.status==='approval'?
-          '<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-rp-approve="'+r.id+'">👍 Customer approved</button>':
-          (nextSt?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-rp-next="'+r.id+'">'+nextSt.emoji+' Mark '+nextSt.label+'</button>':''))+
-        (r.status!=='collected'&&r.status!=='cancelled'&&balance>0&&r.price>0?'<button class="ord-btn" style="background:var(--ad);color:#fff;border-color:var(--ad);" data-rp-pay="'+r.id+'">💰 Take Payment</button>':'')+
-        '<button class="ord-btn" data-rp-note="'+r.id+'">📝 Notes'+(noteCount?' ('+noteCount+')':'')+'</button>'+
-        '<button class="ord-btn" data-rp-edit="'+r.id+'">✏️ Edit</button>'+
-        '<button class="ord-btn" data-rp-wa="'+r.id+'">💬 WhatsApp</button>'+
-        (r.status==='ready'?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-rp-collect="'+r.id+'">'+(balance>0?'💵 Collect &amp; Complete':'🚀 Mark Collected')+'</button>':'')+
-        (r.status!=='collected'&&r.status!=='cancelled'?'<button class="ord-btn" style="color:var(--d);" data-rp-cancel="'+r.id+'">❌ Cancel</button>':'')+
-        '<button class="ord-btn" style="color:var(--d);border-color:var(--d);" data-rp-delete="'+r.id+'">🗑</button>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-}
-
-function openAddRepairModal(editId){
-  var isEdit=!!editId;
-  var ex=isEdit?REPAIRS.find(function(x){return x.id===editId;}):{};
-  if(isEdit&&!ex) return;
-  var custOpts='<option value="">— walk-in / no account —</option>'+CUSTS.map(function(c){
-    return'<option value="'+c.id+'"'+(ex.customerId===c.id?' selected':'')+'>'+c.name+'</option>';
-  }).join('');
-  openModal(
-    '<h3>'+(isEdit?'Edit repair ticket':'New repair ticket')+'</h3>'+
-    '<div class="f" style="margin-bottom:8px;"><label>Customer</label><select id="rp-cust">'+custOpts+'</select></div>'+
-    '<div style="display:flex;gap:6px;">'+
-      '<div class="f" style="margin-bottom:8px;flex:1;"><label>Name *</label><input type="text" id="rp-name" value="'+((ex.customerName||'').replace(/"/g,'&quot;'))+'" placeholder="Customer name"></div>'+
-      '<div class="f" style="margin-bottom:8px;flex:1;"><label>Phone</label><input type="text" id="rp-phone" value="'+((ex.phone||'').replace(/"/g,'&quot;'))+'" placeholder="Phone" inputmode="tel"></div>'+
-    '</div>'+
-    '<div class="f" style="margin-bottom:8px;"><label>Device / item *</label><input type="text" id="rp-device" value="'+((ex.device||'').replace(/"/g,'&quot;'))+'" placeholder="e.g. iPhone 13, Samsung TV 55&quot;, Car radio"></div>'+
-    '<div class="f" style="margin-bottom:8px;"><label>Problem reported *</label><textarea id="rp-issue" rows="2" placeholder="What is wrong / what the customer wants fixed" style="width:100%;font-size:16px;padding:11px;border-radius:12px;border:1.5px solid var(--b);background:var(--bg);font-family:inherit;resize:vertical;">'+(ex.issue||'')+'</textarea></div>'+
-    '<div class="f" style="margin-bottom:8px;"><label>Diagnosis / notes (optional)</label><textarea id="rp-diag" rows="2" placeholder="Findings after inspection" style="width:100%;font-size:16px;padding:11px;border-radius:12px;border:1.5px solid var(--b);background:var(--bg);font-family:inherit;resize:vertical;">'+(ex.diagnosis||'')+'</textarea></div>'+
-    '<div style="display:flex;gap:6px;">'+
-      '<div class="f" style="margin-bottom:8px;flex:1;"><label>Quote price</label><input type="number" id="rp-price" value="'+(ex.price||'')+'" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>'+
-      '<div class="f" style="margin-bottom:8px;flex:1;"><label>Deposit taken</label><input type="number" id="rp-deposit" value="'+(ex.deposit||'')+'" placeholder="0.00" min="0" step="0.01" inputmode="decimal"></div>'+
-    '</div>'+
-    '<div class="f" style="margin-bottom:10px;"><label>Promised / ready by</label><input type="date" id="rp-promise" value="'+(ex.promiseBy?ex.promiseBy.slice(0,10):'')+'"></div>'+
-    '<div class="mbs"><button id="rp-cancel">Cancel</button><button class="ok" id="rp-save">'+(isEdit?'Save changes':'Create ticket')+'</button></div>'
-  );
-  document.getElementById('rp-cust').addEventListener('change',function(){
-    var val=this.value;
-    var c=CUSTS.find(function(x){return x.id===val;});
-    if(c){document.getElementById('rp-name').value=c.name;if(c.phone)document.getElementById('rp-phone').value=c.phone;}
-  });
-  document.getElementById('rp-cancel').addEventListener('click',closeModal);
-  document.getElementById('rp-save').addEventListener('click',function(){
-    var name=document.getElementById('rp-name').value.trim();
-    var device=document.getElementById('rp-device').value.trim();
-    var issue=document.getElementById('rp-issue').value.trim();
-    if(!name){toast('Enter customer name');return;}
-    if(!device){toast('Enter the device/item');return;}
-    if(!issue){toast('Describe the problem');return;}
-    var promiseRaw=document.getElementById('rp-promise').value;
-    var ticket={
-      id:isEdit?ex.id:genRpId(),
-      customerId:document.getElementById('rp-cust').value||null,
-      customerName:name,
-      phone:document.getElementById('rp-phone').value.trim(),
-      device:device,
-      issue:issue,
-      diagnosis:document.getElementById('rp-diag').value.trim(),
-      price:parseFloat(document.getElementById('rp-price').value)||0,
-      deposit:parseFloat(document.getElementById('rp-deposit').value)||0,
-      promiseBy:promiseRaw?new Date(promiseRaw).toISOString():null,
-      status:isEdit?ex.status:'received',
-      notes:isEdit?(ex.notes||[]):[],
-      payments:isEdit?(ex.payments||[]):[],
-      createdAt:isEdit?ex.createdAt:new Date().toISOString(),
-      updatedAt:new Date().toISOString()
-    };
-    if(!isEdit&&ticket.deposit>0) ticket.payments=[{date:new Date().toISOString(),amount:ticket.deposit,note:'Initial deposit'}];
-    if(isEdit){var i=REPAIRS.findIndex(function(x){return x.id===editId;});if(i>=0)REPAIRS[i]=ticket;}
-    else REPAIRS.unshift(ticket);
-    savePatch(['repairs']);renderRepairs();closeModal();
-    toast(isEdit?'Ticket updated ✓':'Repair ticket '+ticket.id+' created ✓');
-  });
-}
-
-function advanceRepair(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r||!RP_STATUS[r.status]||!RP_STATUS[r.status].next) return;
-  /* Block moving past approval without a quote price */
-  if(r.status==='approval'&&!(r.price>0)){ toast('Add a quote price before approval'); openAddRepairModal(id); return; }
-  r.status=RP_STATUS[r.status].next;r.updatedAt=new Date().toISOString();
-  r.notes=r.notes||[];
-  r.notes.push({date:new Date().toISOString(),text:'Status → '+RP_STATUS[r.status].label,auto:true});
-  savePatch(['repairs']);renderRepairs();
-  toast(id+' → '+RP_STATUS[r.status].label+' ✓');
-  if(r.status==='ready'){
-    setTimeout(function(){
-      confirmModal('<div style="text-align:center;"><div style="font-size:34px;margin-bottom:6px;">🎉</div><div style="font-size:15px;font-weight:700;margin-bottom:4px;">'+r.id+' is ready!</div><div style="font-size:13px;color:var(--t2);">Notify <strong>'+r.customerName+'</strong> on WhatsApp now?</div></div>',
-        function(){ whatsAppRepair(id); }, '💬 Send WhatsApp', '#25D366');
-    },350);
-  }
-}
-
-function approveRepair(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r) return;
-  if(!(r.price>0)){ toast('Add a quote price first'); openAddRepairModal(id); return; }
-  r.status='repairing';r.updatedAt=new Date().toISOString();
-  r.notes=r.notes||[];
-  r.notes.push({date:new Date().toISOString(),text:'Customer approved $'+r.price.toFixed(2)+' — repair started',auto:true});
-  savePatch(['repairs']);renderRepairs();
-  toast('Approved — repair started ✓');
-}
-
-function collectRepair(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r) return;
-  var balance=Math.max(0,(r.price||0)-(r.deposit||0));
-  confirmModal(
-    'Mark <strong>'+r.id+'</strong> as collected?'+(balance>0?'<br><span style="font-size:12px;color:var(--d);">Collect remaining balance of $'+balance.toFixed(2)+' now.</span>':''),
-    function(){
-      if(balance>0){ r.payments=r.payments||[]; r.payments.push({date:new Date().toISOString(),amount:balance,note:'Final balance on collection'}); }
-      r.status='collected'; r.deposit=r.price; r.updatedAt=new Date().toISOString();
-      if(r.price>0){
-        var tx={id:'TXN-'+(++txn),timestamp:new Date().toISOString(),
-          items:[{id:0,name:'Repair '+r.id+' — '+r.device,emoji:'🔧',price:r.price,qty:1,line:r.price,cost:0,vatExempt:false}],
-          subtotal:r.price,discount:0,tip:0,tax:0,total:r.price,tendered:r.price,change:0,
-          payMethod:'cash',customerId:r.customerId,vatRate:0,vatLabel:VAT.label,vatMode:VAT.mode,note:'Repair job'};
-        TXS.unshift(tx);
-        savePatch(['repairs','transactions']);renderTx();
-      } else { savePatch(['repairs']); }
-      renderRepairs();
-      toast('Repair collected'+(r.price>0?' & recorded as sale':'')+' ✓');
-    }, 'Confirm', '#2E7D32'
-  );
-}
-
-function takeRepairPayment(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r) return;
-  var balance=+(Math.max(0,(r.price||0)-(r.deposit||0))).toFixed(2);
-  openModal(
-    '<h3>Take Payment — '+r.id+'</h3>'+
-    '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);">'+
-      '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>Repair total:</span><strong>$'+(r.price||0).toFixed(2)+'</strong></div>'+
-      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Paid so far:</span><strong>$'+(r.deposit||0).toFixed(2)+'</strong></div>'+
-      '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Balance due:</span><strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></div>'+
-    '</div>'+
-    '<div class="f" style="margin-bottom:8px;"><label>Payment amount</label><input type="number" id="rpp-amt" value="'+balance+'" min="0.01" max="'+balance+'" step="0.01" inputmode="decimal"></div>'+
-    '<div class="f" style="margin-bottom:10px;"><label>Note (optional)</label><input type="text" id="rpp-note" placeholder="Cash, transfer…"></div>'+
-    '<div class="mbs"><button id="rpp-cancel">Cancel</button><button class="ok" id="rpp-save">Record Payment</button></div>'
-  );
-  document.getElementById('rpp-cancel').addEventListener('click',closeModal);
-  document.getElementById('rpp-save').addEventListener('click',function(){
-    var amt=parseFloat(document.getElementById('rpp-amt').value)||0;
-    if(amt<=0){toast('Enter a valid amount');return;}
-    if(amt>balance){toast('Payment exceeds balance due');return;}
-    r.deposit=+((r.deposit||0)+amt).toFixed(2);
-    r.payments=r.payments||[];
-    r.payments.push({date:new Date().toISOString(),amount:amt,note:document.getElementById('rpp-note').value.trim()||'Payment'});
-    r.updatedAt=new Date().toISOString();
-    savePatch(['repairs']);renderRepairs();closeModal();
-    toast('Payment recorded ✓');
-  });
-}
-
-function openRepairNotes(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r) return;
-  var notes=r.notes||[];
-  openModal(
-    '<h3>Notes — '+r.id+'</h3>'+
-    '<div style="font-size:12px;color:var(--t3);margin-bottom:10px;">'+r.device+' · '+r.customerName+'</div>'+
-    '<div class="f" style="margin-bottom:10px;"><label>Add a note</label><input type="text" id="rpn-text" placeholder="e.g. Ordered replacement screen" maxlength="200"></div>'+
-    '<div style="max-height:220px;overflow-y:auto;margin-bottom:10px;">'+
-    (notes.length?notes.slice().reverse().map(function(n){
-      var nd=new Date(n.date);
-      return'<div style="display:flex;gap:8px;padding:8px 10px;background:'+(n.auto?'#F7F7F5':'var(--al)')+';border-radius:8px;margin-bottom:6px;font-size:12px;">'+
-        '<span>'+(n.auto?'🔄':'📝')+'</span><div style="flex:1;"><div style="'+(n.auto?'color:var(--t2);':'font-weight:600;')+'">'+n.text+'</div>'+
-        '<div style="color:var(--t3);font-size:10px;margin-top:2px;">'+nd.toLocaleDateString()+' '+nd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div></div>';
-    }).join(''):'<div style="text-align:center;color:var(--t3);padding:18px;font-size:12px;">No notes yet</div>')+
-    '</div>'+
-    '<div class="mbs"><button id="rpn-cl">Close</button><button class="ok" id="rpn-add">Add Note</button></div>'
-  );
-  document.getElementById('rpn-cl').addEventListener('click',closeModal);
-  document.getElementById('rpn-add').addEventListener('click',function(){
-    var t=document.getElementById('rpn-text').value.trim();
-    if(!t){toast('Type a note first');return;}
-    r.notes=r.notes||[];
-    r.notes.push({date:new Date().toISOString(),text:t,auto:false});
-    r.updatedAt=new Date().toISOString();
-    savePatch(['repairs']);renderRepairs();closeModal();
-    toast('Note added ✓');
-  });
-}
-
-function cancelRepair(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r) return;
-  confirmModal('Cancel repair <strong>'+r.id+'</strong>?',function(){
-    r.status='cancelled';r.updatedAt=new Date().toISOString();
-    savePatch(['repairs']);renderRepairs();toast('Repair cancelled');
-  });
-}
-
-function deleteRepair(id){
-  confirmModal('Delete this repair ticket permanently?',function(){
-    REPAIRS=REPAIRS.filter(function(x){return x.id!==id;});
-    savePatch(['repairs']);renderRepairs();toast('Ticket deleted');
-  });
-}
-
-function whatsAppRepair(id){
-  var r=REPAIRS.find(function(x){return x.id===id;});
-  if(!r) return;
-  var cust=r.customerId?CUSTS.find(function(c){return c.id===r.customerId;}):null;
-  var st=RP_STATUS[r.status]||RP_STATUS.received;
-  var balance=Math.max(0,(r.price||0)-(r.deposit||0));
-  var DIV='━━━━━━━━━━━━━━━';
-  var L=[];
-  L.push('🔧 *'+BRAND.name+'*');
-  if(BRAND.sub) L.push('_'+BRAND.sub+'_');
-  L.push(DIV);
-  L.push('');
-  L.push('Hi *'+r.customerName+'*! 👋');
-  L.push('');
-  if(r.status==='approval'&&r.price>0){
-    L.push('💬 *REPAIR QUOTE*');
-    L.push('');
-    L.push('We\'ve diagnosed your *'+r.device+'* and the repair will cost:');
-    L.push('💰 *$'+r.price.toFixed(2)+'*');
-    L.push('');
-    L.push('Please reply to approve and we\'ll get started. 🔧');
-  } else if(r.status==='ready'){
-    L.push('🎉 *YOUR REPAIR IS READY!*');
-    L.push('✅ *READY TO COLLECT*');
-    L.push('');
-    L.push('🏬 Come by anytime to pick up your *'+r.device+'*!');
-  } else if(r.status==='collected'){
-    L.push('✅ Thank you for collecting your *'+r.device+'*!');
-  } else {
-    L.push('🔧 Update on your repair:');
-  }
-  L.push('');
-  L.push('📋 *Repair Details*');
-  L.push(DIV);
-  L.push('🔖 Ticket: *'+r.id+'*');
-  L.push('📱 Device: *'+r.device+'*');
-  L.push('🔧 Issue: _'+r.issue+'_');
-  L.push('📌 Status: '+st.emoji+' *'+st.label+'*');
-  if(r.price>0){
-    L.push('');
-    L.push('💵 *Payment*');
-    L.push(DIV);
-    L.push('💰 Total:  *$'+r.price.toFixed(2)+'*');
-    L.push('✅ Paid:   $'+(r.deposit||0).toFixed(2));
-    if(balance>0) L.push('⚠️ *Balance Due:  $'+balance.toFixed(2)+'*');
-    else L.push('💚 *PAID IN FULL*');
-  }
-  if(r.promiseBy){ L.push(''); L.push('📅 Ready by: *'+new Date(r.promiseBy).toLocaleDateString()+'*'); }
-  L.push('');
-  L.push(DIV);
-  if(STORE.address) L.push('📍 '+STORE.address);
-  if(STORE.phone) L.push('📞 '+STORE.phone);
-  L.push('');
-  L.push('Thank you for choosing *'+BRAND.name+'*! 💚');
-  var phone=waPhone((cust&&cust.phone)||r.phone||'');
-  openWA(phone, L.join('\n'));
-}
-
 async function init(){
   try{
   try{var cb=localStorage.getItem('sp_b');if(cb)BRAND=Object.assign({},BRAND,JSON.parse(cb));}catch(e){}
@@ -5605,7 +5220,7 @@ async function init(){
   /* Load cached data immediately so UI isn't empty */
   try{ loadLocal(); }catch(e){}
   applyBrand();
-  populateCatDropdown();renderCats();renderGrid();renderEP();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();renderRepairs();
+  populateCatDropdown();renderCats();renderGrid();renderEP();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();
   tick();
   setInterval(function(){try{tick();}catch(e){}},60000);
   initMobile();
@@ -5655,7 +5270,7 @@ async function init(){
     } else {
       /* Re-render with server data */
       applyBrand();
-      populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();renderRepairs();
+      populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();
     }
   } else {
     setSrv('err','● Offline');
@@ -5705,7 +5320,6 @@ async function init(){
           if(Array.isArray(r.categories))  CATS=[...r.categories];
           if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
           if(Array.isArray(r.parked))      PARKED=[...r.parked];
-          if(Array.isArray(r.repairs))     REPAIRS=[...r.repairs];
           if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
           if(r.vat)VAT=Object.assign({},VAT,r.vat);
           if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
@@ -5833,31 +5447,6 @@ document.addEventListener('click',function(e){
   if(ordCancel){cancelOrder(ordCancel.getAttribute('data-ord-cancel'));return;}
   var ordConvert=e.target.closest('[data-ord-convert]');
   if(ordConvert){convertOrderToSale(ordConvert.getAttribute('data-ord-convert'));return;}
-  /* Repair ticket actions — must run before the data-act guard */
-  var rpNext=e.target.closest('[data-rp-next]');
-  if(rpNext){advanceRepair(rpNext.getAttribute('data-rp-next'));return;}
-  var rpApprove=e.target.closest('[data-rp-approve]');
-  if(rpApprove){approveRepair(rpApprove.getAttribute('data-rp-approve'));return;}
-  var rpPay=e.target.closest('[data-rp-pay]');
-  if(rpPay){takeRepairPayment(rpPay.getAttribute('data-rp-pay'));return;}
-  var rpNote=e.target.closest('[data-rp-note]');
-  if(rpNote){openRepairNotes(rpNote.getAttribute('data-rp-note'));return;}
-  var rpEdit=e.target.closest('[data-rp-edit]');
-  if(rpEdit){openAddRepairModal(rpEdit.getAttribute('data-rp-edit'));return;}
-  var rpWa=e.target.closest('[data-rp-wa]');
-  if(rpWa){whatsAppRepair(rpWa.getAttribute('data-rp-wa'));return;}
-  var rpCollect=e.target.closest('[data-rp-collect]');
-  if(rpCollect){collectRepair(rpCollect.getAttribute('data-rp-collect'));return;}
-  var rpCancel=e.target.closest('[data-rp-cancel]');
-  if(rpCancel){cancelRepair(rpCancel.getAttribute('data-rp-cancel'));return;}
-  var rpDelete=e.target.closest('[data-rp-delete]');
-  if(rpDelete){deleteRepair(rpDelete.getAttribute('data-rp-delete'));return;}
-  var rpFilter=e.target.closest('[data-rp-filter]');
-  if(rpFilter){
-    _rpFilter=rpFilter.getAttribute('data-rp-filter');
-    document.querySelectorAll('[data-rp-filter]').forEach(function(b){b.classList.toggle('on',b===rpFilter);});
-    renderRepairs();return;
-  }
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
