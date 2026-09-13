@@ -15,7 +15,79 @@ const SB_KEY   = process.env.SUPABASE_KEY  || '';
 const IS_LOCAL = !process.env.PORT;
 const POS_HTML = path.join(__dirname, 'pos.html');
 
+// ── PWA: TG app icon (SVG, brand green) ──
+const TG_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22B083"/><stop offset="1" stop-color="#0F6E56"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#g)"/><text x="256" y="308" font-family="Arial,Helvetica,sans-serif" font-size="230" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="-8">TG</text><rect x="96" y="360" width="320" height="20" rx="10" fill="#ffffff" opacity="0.85"/></svg>';
+const TG_ICON_DATA = 'data:image/svg+xml;base64,' + Buffer.from(TG_ICON_SVG).toString('base64');
+
+// ── PWA: web app manifest ──
+const MANIFEST_JSON = JSON.stringify({
+  name: 'SwiftPOS — TechGeek',
+  short_name: 'SwiftPOS',
+  description: 'TechGeek Automotive Paint & Electronic — Point of Sale',
+  start_url: '/',
+  scope: '/',
+  display: 'standalone',
+  orientation: 'any',
+  background_color: '#1D9E75',
+  theme_color: '#1D9E75',
+  icons: [
+    { src: TG_ICON_DATA, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' },
+    { src: TG_ICON_DATA, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' }
+  ]
+});
+
+// ── PWA: service worker ──
+// Strategy: cache the app shell (the HTML) so the app OPENS with no internet.
+// Network-first for the page (fresh when online, cached when offline).
+// API calls (/data/*) are never cached — the app's own localStorage handles
+// offline data, and syncs to the server when back online.
+const SW_JS = `
+const CACHE='swiftpos-v1';
+const SHELL=['/','/pos.html','/manifest.json'];
+self.addEventListener('install',function(e){
+  self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(SHELL).catch(function(){});}));
+});
+self.addEventListener('activate',function(e){
+  e.waitUntil(
+    caches.keys().then(function(keys){
+      return Promise.all(keys.map(function(k){ if(k!==CACHE) return caches.delete(k); }));
+    }).then(function(){ return self.clients.claim(); })
+  );
+});
+self.addEventListener('fetch',function(e){
+  var url=new URL(e.request.url);
+  if(e.request.method!=='GET') return;                 // never cache POSTs (saves)
+  if(url.pathname.indexOf('/data/')===0) return;        // never cache API/sync
+  if(url.pathname==='/ping'||url.pathname==='/debug') return;
+  // App shell: network-first, fall back to cache when offline
+  if(url.pathname==='/'||url.pathname==='/pos.html'||url.pathname==='/manifest.json'||url.pathname==='/sw.js'){
+    e.respondWith(
+      fetch(e.request).then(function(resp){
+        var copy=resp.clone();
+        caches.open(CACHE).then(function(c){ c.put(e.request,copy).catch(function(){}); });
+        return resp;
+      }).catch(function(){
+        return caches.match(e.request).then(function(m){ return m || caches.match('/pos.html'); });
+      })
+    );
+    return;
+  }
+  // Everything else: cache-first with network fallback
+  e.respondWith(
+    caches.match(e.request).then(function(m){
+      return m || fetch(e.request).then(function(resp){
+        var copy=resp.clone();
+        caches.open(CACHE).then(function(c){ c.put(e.request,copy).catch(function(){}); });
+        return resp;
+      }).catch(function(){ return m; });
+    })
+  );
+});
+`;
+
 // ── Supabase ──────────────────────────────────────────────
+
 let sb = null, dbReady = false, dbError = null;
 
 async function connectDB() {
@@ -147,6 +219,18 @@ async function start() {
 
     // Public — no auth needed
     if (url==='/ping') return sendJ(res, 200, {ok:true, db:dbReady});
+
+    // ── PWA: service worker (must be served from same origin, no auth) ──
+    if (url==='/sw.js' && method==='GET') {
+      cors(res);
+      res.writeHead(200,{'Content-Type':'application/javascript; charset=utf-8','Cache-Control':'no-cache','Service-Worker-Allowed':'/'});
+      return res.end(SW_JS);
+    }
+    if (url==='/manifest.json' && method==='GET') {
+      cors(res);
+      res.writeHead(200,{'Content-Type':'application/manifest+json; charset=utf-8'});
+      return res.end(MANIFEST_JSON);
+    }
 
     if (url==='/debug') {
       cors(res); res.writeHead(200,{'Content-Type':'application/json'});

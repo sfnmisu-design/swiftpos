@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="SwiftPOS">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -5550,6 +5551,47 @@ document.addEventListener('click',function(e){
   if(act==='open-scanner'){openCameraScanner();return;}
   if(act==='close-scanner'){closeCameraScanner();return;}
 });
+
+/* ════════ PWA: offline support ════════ */
+/* Register the service worker so the app opens with no internet. */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js').then(function(reg){
+      /* When a new version is deployed, it activates on next load */
+      if(reg&&reg.update){ setTimeout(function(){try{reg.update();}catch(e){}},60000); }
+    }).catch(function(){ /* SW optional — app still works, just not offline-cached */ });
+  });
+}
+
+/* Online / offline banner + auto-sync when connection returns */
+(function(){
+  function showNet(online){
+    var el=document.getElementById('net-banner');
+    if(!el){
+      el=document.createElement('div');
+      el.id='net-banner';
+      el.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9999;text-align:center;font-size:12px;font-weight:700;padding:7px;transition:transform .3s;font-family:inherit;';
+      document.body.appendChild(el);
+    }
+    if(online){
+      el.textContent='✅ Back online — syncing…';
+      el.style.background='#E1F5EE'; el.style.color='#0F6E56';
+      el.style.transform='translateY(0)';
+      /* push any local changes up now that we're online */
+      srvOk=true;
+      try{ saveAll(); }catch(e){}
+      setTimeout(function(){ el.style.transform='translateY(120%)'; },2500);
+    } else {
+      el.textContent='📴 Offline — saving on this device';
+      el.style.background='#FFF3E0'; el.style.color='#8A5A00';
+      el.style.transform='translateY(0)';
+    }
+  }
+  window.addEventListener('online', function(){ showNet(true); });
+  window.addEventListener('offline',function(){ showNet(false); });
+  /* show once on load if already offline */
+  if(!navigator.onLine) setTimeout(function(){showNet(false);},800);
+})();
 
 </script>
 
