@@ -193,19 +193,30 @@ function getBody(req) {
   return new Promise((res,rej) => { let b=''; req.on('data',c=>b+=c); req.on('end',()=>{try{res(b?JSON.parse(b):{});}catch(e){rej(e);}}); req.on('error',rej); });
 }
 
+// Simple token auth that works inside an installed PWA (Basic Auth popups
+// don't appear in iOS standalone mode). The app posts the password to /login,
+// gets a token, and sends it as a header on data requests.
+function makeToken(){ return Buffer.from(PASSWORD+':'+Date.now()).toString('base64').replace(/=/g,''); }
+function validToken(t){
+  if(!t) return false;
+  try{
+    var dec=Buffer.from(t,'base64').toString();
+    return dec.indexOf(PASSWORD+':')===0;
+  }catch(e){ return false; }
+}
 function checkAuth(req, res) {
   if (IS_LOCAL) return true; // no auth locally
+  // Accept either our app token (header/query) or legacy Basic Auth
+  const tok = req.headers['x-pos-token'] || (req.url.split('token=')[1]||'').split('&')[0];
+  if (validToken(tok)) return true;
   const auth = req.headers['authorization'] || '';
-  if (!auth.startsWith('Basic ')) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="SwiftPOS"');
-    res.writeHead(401); res.end('Login required'); return false;
+  if (auth.startsWith('Basic ')) {
+    const pass = Buffer.from(auth.slice(6),'base64').toString().split(':').slice(1).join(':');
+    if (pass === PASSWORD) return true;
   }
-  const pass = Buffer.from(auth.slice(6),'base64').toString().split(':').slice(1).join(':');
-  if (pass !== PASSWORD) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="SwiftPOS"');
-    res.writeHead(401); res.end('Wrong password'); return false;
-  }
-  return true;
+  res.writeHead(401,{'Content-Type':'application/json'});
+  res.end(JSON.stringify({ok:false,error:'auth'}));
+  return false;
 }
 
 // ── Server ────────────────────────────────────────────────
@@ -239,9 +250,20 @@ async function start() {
       return res.end(JSON.stringify(info,null,2));
     }
 
-    // Serve POS app
+    // Login endpoint — returns a token if the password is correct
+    if (url==='/login' && method==='POST') {
+      try{
+        const body=await getBody(req);
+        if(IS_LOCAL || (body && body.password===PASSWORD)){
+          return sendJ(res,200,{ok:true,token:makeToken()});
+        }
+        return sendJ(res,401,{ok:false,error:'wrong password'});
+      }catch(e){ return sendJ(res,400,{ok:false,error:'bad request'}); }
+    }
+
+    // Serve POS app — NO auth here, so it loads (and caches for offline).
+    // The app shows its own login screen; data endpoints stay protected.
     if (method==='GET' && (url==='/'||url==='/pos.html')) {
-      if (!checkAuth(req,res)) return;
       if (!fs.existsSync(POS_HTML)) { res.writeHead(404); return res.end('pos.html not found'); }
       cors(res); res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
       return res.end(fs.readFileSync(POS_HTML));

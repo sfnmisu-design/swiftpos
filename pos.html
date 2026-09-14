@@ -571,6 +571,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </style>
 </head>
 <body>
+<!-- LOGIN GATE (shown until authenticated; works inside installed PWA) -->
+<div id="login-gate" style="display:none;position:fixed;inset:0;z-index:100000;background:linear-gradient(160deg,#0F6E56,#1D9E75);align-items:center;justify-content:center;flex-direction:column;padding:24px;font-family:system-ui,-apple-system,sans-serif;">
+  <div style="width:100%;max-width:340px;background:#fff;border-radius:22px;padding:30px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
+    <div style="width:74px;height:74px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,#22B083,#0F6E56);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;letter-spacing:-1px;">TG</div>
+    <div style="font-size:19px;font-weight:800;color:#1a1a1a;">SwiftPOS</div>
+    <div style="font-size:12px;color:#888;margin-bottom:20px;">TechGeek Automotive Paint &amp; Electronic</div>
+    <input type="password" id="login-pass" placeholder="Enter password" autocomplete="current-password" style="width:100%;font-size:16px;padding:13px 14px;border-radius:12px;border:1.5px solid #ddd;background:#fafafa;text-align:center;margin-bottom:10px;outline:none;">
+    <div id="login-err" style="color:#D64545;font-size:12px;font-weight:600;min-height:16px;margin-bottom:8px;"></div>
+    <button id="login-btn" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#22B083,#0F6E56);color:#fff;font-size:15px;font-weight:700;cursor:pointer;">Log In</button>
+  </div>
+  <div style="color:rgba(255,255,255,.7);font-size:11px;margin-top:18px;">© 2026 SFN</div>
+</div>
+
 <div id="pra"></div>
 <div id="splash">
   <div class="splash-icon" id="splash-icon">TG</div>
@@ -930,6 +943,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="stitle">Backups on disk</div>
         <div id="bklist" class="card" style="font-size:12px;color:var(--t3);padding:10px;">Loading…</div>
         <div class="stitle" style="margin-top:10px;">Danger zone</div>
+        <div class="card"><button class="bbtn" style="width:100%;padding:9px;" onclick="logoutPOS()">🔒 Log out</button></div>
         <div class="card"><button class="bbtn br" style="width:100%;padding:9px;" onclick="factoryReset()">🗑 Factory reset — clear all data</button></div>
       </div>
     </div>
@@ -1123,9 +1137,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 /* SERVER */
 const SRV = location.protocol === 'file:' ? 'http://localhost:3000' : '';
 let srvOk = false;
+var POS_TOKEN = localStorage.getItem('sp_token') || '';
 function api(p, m, d) {
   m = m||'GET';
   var opts = {method:m, headers:{'Content-Type':'application/json'}};
+  if (POS_TOKEN) opts.headers['X-POS-Token'] = POS_TOKEN;
   if (d) opts.body = JSON.stringify(d);
   return fetch(SRV+p, opts).then(function(r){ return r.json(); }).catch(function(e){
     return {ok:false,error:e.message};
@@ -5361,10 +5377,78 @@ function confirmModal(msg, onYes, okLabel, okColor){
 
 
 
-init().catch(function(err){
-  var el=document.getElementById('splash-status');
-  if(el) el.textContent='Load error — please refresh';
-});
+/* ════════ LOGIN GATE ════════ */
+function logoutPOS(){
+  localStorage.removeItem('sp_token');
+  POS_TOKEN='';
+  location.reload();
+}
+function showLogin(){
+  var g=document.getElementById('login-gate');
+  var sp=document.getElementById('splash');
+  if(sp) sp.style.display='none';
+  if(g){ g.style.display='flex'; var pf=document.getElementById('login-pass'); if(pf) setTimeout(function(){pf.focus();},100); }
+}
+function hideLogin(){
+  var g=document.getElementById('login-gate');
+  if(g) g.style.display='none';
+}
+async function doLogin(){
+  var pf=document.getElementById('login-pass');
+  var err=document.getElementById('login-err');
+  var btn=document.getElementById('login-btn');
+  var pass=pf?pf.value:'';
+  if(!pass){ if(err)err.textContent='Enter your password'; return; }
+  if(btn){ btn.disabled=true; btn.textContent='Checking…'; }
+  if(err) err.textContent='';
+  try{
+    var r=await fetch(SRV+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass})});
+    var j=await r.json();
+    if(j&&j.ok&&j.token){
+      POS_TOKEN=j.token;
+      localStorage.setItem('sp_token',POS_TOKEN);
+      hideLogin();
+      startApp();
+    } else {
+      if(err) err.textContent='Wrong password';
+      if(btn){ btn.disabled=false; btn.textContent='Log In'; }
+    }
+  }catch(e){
+    /* Offline: if we have a saved token from before, allow in (data is local) */
+    if(POS_TOKEN){ hideLogin(); startApp(); }
+    else { if(err)err.textContent='No connection — connect once to log in'; if(btn){btn.disabled=false;btn.textContent='Log In';} }
+  }
+}
+var _appStarted=false;
+function startApp(){
+  if(_appStarted) return;
+  _appStarted=true;
+  init().catch(function(err){
+    var el=document.getElementById('splash-status');
+    if(el) el.textContent='Load error — please refresh';
+  });
+}
+
+/* Decide on load: token present → start; offline with token → start; else login */
+(function(){
+  var lb=document.getElementById('login-btn');
+  if(lb) lb.addEventListener('click',doLogin);
+  var lp=document.getElementById('login-pass');
+  if(lp) lp.addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+
+  if(POS_TOKEN){
+    /* We have a token — start the app. If the server later rejects it,
+       the data calls will fail gracefully and localStorage still works. */
+    startApp();
+  } else if(!navigator.onLine){
+    /* First run must be online to get a token */
+    var err=document.getElementById('login-err');
+    showLogin();
+    if(err) err.textContent='Connect to the internet for first login';
+  } else {
+    showLogin();
+  }
+})();
 
 /* ── GLOBAL EVENT DELEGATION ── */
 document.addEventListener('click',function(e){
