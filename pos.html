@@ -5408,8 +5408,8 @@ async function openCashDrawer(silent){
   try{
     if(window._drawerPort && window._drawerPort.writable){
       var w=window._drawerPort.writable.getWriter();
-      /* ESC p 0 25 250 — standard drawer kick on pin 2 */
-      await w.write(new Uint8Array([0x1B,0x70,0x00,0x19,0xFA]));
+      /* ESC p m t1 t2 — LR2000: m=0 → drawer kick pin 2. t1/t2 pulse timing. */
+      await w.write(new Uint8Array([0x1B,0x70,0x00,0x32,0x32]));
       w.releaseLock();
       if(!silent) toast('Drawer opened 💵');
       return true;
