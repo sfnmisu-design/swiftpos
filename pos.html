@@ -913,6 +913,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <div class="fr"><label>Address</label><input type="text" id="st-addr" placeholder="Store address"></div>
           <div class="fr"><label>Phone</label><input type="text" id="st-phone" placeholder="Store phone"></div>
           <div class="fr"><label>WhatsApp country code</label><input type="text" id="st-cc" placeholder="592" inputmode="numeric"></div>
+          <div class="fr"><label>💵 Auto-open cash drawer on cash sales</label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;font-size:13px;">
+              <input type="checkbox" id="st-autodrawer" style="width:18px;height:18px;"> Open the drawer automatically after a cash payment
+            </label>
+          </div>
+          <div class="fr"><label>Cash drawer connection</label>
+            <button type="button" class="bbtn" style="padding:9px 14px;" onclick="connectDrawer()">🔌 Connect drawer (desktop)</button>
+            <div style="font-size:11px;color:var(--t3);margin-top:5px;line-height:1.5;">On desktop Chrome/Edge, connect a serial receipt printer for direct drawer control. On mobile or with USB printers, set your printer to "open drawer on print" and the drawer opens when a receipt prints.</div>
+          </div>
           <div class="fr"><label>Email</label><input type="text" id="st-email" placeholder="Store email"></div>
           <div class="fr"><label>Tax registration number</label><input type="text" id="st-reg" placeholder="e.g. VAT Reg: 123456789"></div>
           <div class="fr"><label>Quote footer</label><textarea id="st-footer" placeholder="Thank you for your business. Quote valid for 30 days."></textarea></div>
@@ -2139,6 +2148,10 @@ async function doPay(total,tip){
   /* Post the individual transaction in the background (concurrency-safe dedupe) */
   if(srvOk){ api('/data/transaction','POST',tx).catch(function(){}); }
   window._ptx=tx;showReceipt(tx);clearCart();
+  /* Auto-open cash drawer for cash or split-with-cash sales, if enabled */
+  if(STORE.autoDrawer && (PAYM==='cash' || (PAYM==='split' && splitInfo && splitInfo.cash>0))){
+    setTimeout(function(){ openCashDrawer(true); },200);
+  }
   renderGrid();renderPtbl();renderLSBanner();
 
   }catch(_e){}
@@ -2319,6 +2332,7 @@ function showReceipt(tx){
       '<button id="rcpt-refund" style="color:var(--d);border-color:var(--d);">↩ Refund</button>'+
       '<button id="rcpt-wa" style="background:#25D366;border-color:#25D366;color:#fff;">💬 WhatsApp</button>'+
       '<button id="rcpt-print">🖨 Print</button>'+
+      '<button id="rcpt-drawer">💵 Drawer</button>'+
     '</div>'
   );
   /* Done = close, transaction already saved */
@@ -2329,6 +2343,8 @@ function showReceipt(tx){
     setTimeout(closeModal, 500);
   });
   document.getElementById('rcpt-wa').addEventListener('click',function(){sendWhatsApp(tx);});
+  var _rd=document.getElementById('rcpt-drawer');
+  if(_rd) _rd.addEventListener('click',function(){openCashDrawer(false);});
   var rfBtn=document.getElementById('rcpt-refund');
   if(rfBtn){
     if(tx.refunded){rfBtn.disabled=true;rfBtn.textContent='Refunded';}
@@ -3283,6 +3299,7 @@ function initStoreInfo(){
   document.getElementById('st-phone').value=STORE.phone||'';document.getElementById('st-email').value=STORE.email||'';
   document.getElementById('st-reg').value=STORE.reg||'';document.getElementById('st-footer').value=STORE.footer||'';
   var _cc=document.getElementById('st-cc');if(_cc)_cc.value=STORE.countryCode||'592';
+  var _ad=document.getElementById('st-autodrawer');if(_ad)_ad.checked=!!STORE.autoDrawer;
 }
 async function saveStoreInfo(){
   try{
@@ -3291,6 +3308,7 @@ async function saveStoreInfo(){
   STORE.phone=document.getElementById('st-phone').value.trim();STORE.email=document.getElementById('st-email').value.trim();
   STORE.reg=document.getElementById('st-reg').value.trim();STORE.footer=document.getElementById('st-footer').value.trim();
   var _ccEl=document.getElementById('st-cc');if(_ccEl)STORE.countryCode=(_ccEl.value.trim()||'592').replace(/\D/g,'');
+  var _adEl=document.getElementById('st-autodrawer');if(_adEl)STORE.autoDrawer=_adEl.checked;
   await saveAll();toast('Store info saved ✓');
 
   }catch(_e){}
@@ -5376,6 +5394,61 @@ function confirmModal(msg, onYes, okLabel, okColor){
 
 
 
+
+/* ════════ CASH DRAWER ════════ */
+/* A cash drawer wired to a receipt printer's RJ11 port opens when the printer
+   receives the ESC/POS "kick" code (ESC p 0). A browser can't send raw bytes
+   to the printer directly, so we open the drawer by sending a print job that
+   contains the kick sequence. Two paths, tried in order:
+   1) If the browser exposes the Web Serial / a configured printer, send raw.
+   2) Otherwise trigger a minimal print — printers set to "open drawer on print"
+      will kick the drawer. */
+async function openCashDrawer(silent){
+  /* Path 1: Web Serial API (Chrome/Edge on desktop, if user granted a port) */
+  try{
+    if(window._drawerPort && window._drawerPort.writable){
+      var w=window._drawerPort.writable.getWriter();
+      /* ESC p 0 25 250 — standard drawer kick on pin 2 */
+      await w.write(new Uint8Array([0x1B,0x70,0x00,0x19,0xFA]));
+      w.releaseLock();
+      if(!silent) toast('Drawer opened 💵');
+      return true;
+    }
+  }catch(e){}
+  /* Path 2: print a tiny job so a printer configured to "open drawer on print"
+     kicks the drawer. We print an (almost) empty page. */
+  try{
+    var pra=document.getElementById('pra');
+    if(pra){
+      var prev=pra.innerHTML;
+      /* The kick char for many ESC/POS drivers; harmless if ignored */
+      pra.innerHTML='<div style="font-family:monospace;font-size:1px;color:#fff;">\x1B\x70\x00\x19\xFA</div>';
+      window.print();
+      setTimeout(function(){ pra.innerHTML=prev; },300);
+      if(!silent) toast('Drawer signal sent 💵');
+      return true;
+    }
+  }catch(e){}
+  if(!silent) toast('Could not open drawer — check printer setup');
+  return false;
+}
+
+/* Let the user connect a serial printer/drawer once (desktop Chrome/Edge) */
+async function connectDrawer(){
+  if(!('serial' in navigator)){
+    toast('Serial connect works on desktop Chrome/Edge. On mobile, set your printer to "open drawer on print".');
+    return;
+  }
+  try{
+    var port=await navigator.serial.requestPort();
+    await port.open({baudRate:9600});
+    window._drawerPort=port;
+    STORE.drawerConnected=true;
+    toast('Cash drawer connected ✓');
+  }catch(e){
+    toast('Drawer connection cancelled');
+  }
+}
 
 /* ════════ LOGIN GATE ════════ */
 function logoutPOS(){
