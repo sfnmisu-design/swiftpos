@@ -671,6 +671,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="t" onclick="openTab('orders')"><span class="t-ic">📦</span> Orders</div>
       <div class="t" onclick="openTab('layaway')"><span class="t-ic">💳</span> Layaway</div>
       <div class="t" onclick="openTab('walkin')"><span class="t-ic">🛠</span> Custom Orders</div>
+      <div class="t" onclick="openTab('dropoffs')"><span class="t-ic">📱</span> Repairs Drop-off</div>
     </div>
 
     <!-- CATALOG -->
@@ -1101,6 +1102,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div id="wk-list"></div>
       </div>
     </div>
+
+    <!-- REPAIRS DROP-OFF -->
+    <div class="panel" id="panel-dropoffs">
+      <div class="sec">
+        <div class="shead">
+          <div class="stitle">📱 Repairs Drop-off</div>
+          <button class="tbtn" style="background:var(--a);color:#fff;border-color:var(--a);" data-act="open-dropoff">+ New drop-off ticket</button>
+        </div>
+        <div class="sgd" id="do-stats" style="margin-bottom:12px;"></div>
+        <input type="text" id="do-search" placeholder="🔍 Search by name, phone, device, or ticket #" style="width:100%;font-size:14px;padding:9px 12px;border-radius:10px;border:1.5px solid var(--b);background:var(--bg);margin-bottom:12px;">
+        <div id="do-list"></div>
+      </div>
+    </div>
   </div>
   <!-- DESKTOP CART (right panel, hidden on mobile) -->
   <div class="right">
@@ -1193,7 +1207,7 @@ function savePatch(keys){
     branding:['sp_b',BRAND], vat:['sp_v',VAT], storeInfo:['sp_si',STORE],
     categories:['sp_cats',CATS], quotations:['sp_q',QUOTES],
     orders:['sp_ord',ORDERS], layaways:['sp_lwy',LAYAWAYS], walkins:['sp_wk',WALKINS],
-    parked:['sp_park',PARKED]
+    parked:['sp_park',PARKED], dropoffs:['sp_do',DROPOFFS]
   };
   var payload={savedAt:_now};
   try{
@@ -1247,10 +1261,11 @@ function saveAll(){
     localStorage.setItem('sp_ord',JSON.stringify(ORDERS));
     localStorage.setItem('sp_lwy',JSON.stringify(LAYAWAYS));
     localStorage.setItem('sp_park',JSON.stringify(PARKED));
+    localStorage.setItem('sp_do',JSON.stringify(DROPOFFS));
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
   /* BACKGROUND: push to server without blocking the caller */
-  var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
+  var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,dropoffs:DROPOFFS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
   return _pushToServer(d,_now);
 }
 
@@ -1309,6 +1324,7 @@ async function loadAll(){
     if(Array.isArray(r.orders)) ORDERS=[...r.orders];
     if(Array.isArray(r.layaways)) LAYAWAYS=[...r.layaways];
     if(Array.isArray(r.walkins)) WALKINS=[...r.walkins];
+    if(Array.isArray(r.dropoffs)) DROPOFFS=[...r.dropoffs];
       if(r.meta&&r.meta.savedAt) _lastSaveTime=typeof r.meta.savedAt==='number'?r.meta.savedAt:new Date(r.meta.savedAt).getTime();
       
       return 'ok';
@@ -1329,6 +1345,7 @@ async function loadAll(){
     const ord=localStorage.getItem('sp_ord');if(ord)ORDERS=JSON.parse(ord);
     const lwy=localStorage.getItem('sp_lwy');if(lwy)LAYAWAYS=JSON.parse(lwy);
     const pk=localStorage.getItem('sp_park');if(pk)PARKED=JSON.parse(pk);
+    const dof=localStorage.getItem('sp_do');if(dof)DROPOFFS=JSON.parse(dof);
   }catch(e){}
 
   }catch(_e){return;}
@@ -1377,6 +1394,7 @@ let ITEM_DISC={};
 let ORDERS=[];
 let LAYAWAYS=[];
 let WALKINS=[];
+let DROPOFFS=[];   /* repair drop-off tickets */
 let _lastSaveTime=0; /* ms timestamp of our last save to Supabase */
 let _saving=false;   /* true while a local save is in progress */
 let HRS=Array.from({length:9},(_,i)=>({h:8+i,v:Math.floor(Math.random()*160+40)}));
@@ -1697,7 +1715,7 @@ function closeCameraScanner(){
 
 /* Add to delegation */
 function renderGrid(){
-  /* tombstoned products are excluded via livePRODS below */renderLSBanner();
+  /* tombstoned products are excluded via livePRODS below */renderLSBanner();renderDropoffs();
   const g=document.getElementById('pgrid');
   const f=PRODS.filter(p=>!p.deleted&&(ACAT==='All'||p.cat===ACAT)&&(!SQ||p.name.toLowerCase().includes(SQ)||p.cat.toLowerCase().includes(SQ)||(p.sku&&p.sku.toLowerCase().includes(SQ))));
   if(!f.length){g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--t3);padding:36px;font-size:13px;">'+(PRODS.length===0&&!srvOk?'<div style="margin-bottom:8px;font-size:20px;">🔄</div>Connecting to server…':'No products found')+'</div>';return;}
@@ -2152,7 +2170,7 @@ async function doPay(total,tip){
   if(STORE.autoDrawer && (PAYM==='cash' || (PAYM==='split' && splitInfo && splitInfo.cash>0))){
     setTimeout(function(){ openCashDrawer(true); },200);
   }
-  renderGrid();renderPtbl();renderLSBanner();
+  renderGrid();renderPtbl();renderLSBanner();renderDropoffs();
 
   }catch(_e){}
 }
@@ -2388,7 +2406,7 @@ function doRefund(tx){
         if(cu){cu.spent=Math.max(0,cu.spent-tx.total);cu.visits=Math.max(0,cu.visits-1);}
       }
       saveAll();
-      renderGrid();renderPtbl();renderTx();renderLSBanner();
+      renderGrid();renderPtbl();renderTx();renderLSBanner();renderDropoffs();
       closeModal();
       toast('Refund of $'+tx.total.toFixed(2)+' processed ✓');
     }
@@ -3218,7 +3236,7 @@ function importProductsCSV(text){
       }
     }
     populateCatDropdown();renderCatMgmt();renderCats();
-    saveAll();renderPtbl();renderGrid();renderLSBanner();
+    saveAll();renderPtbl();renderGrid();renderLSBanner();renderDropoffs();
     toast('Imported: '+added+' new, '+updated+' updated'+(skipped?', '+skipped+' skipped':'')+' ✓');
   }catch(e){
     toast('Could not read that CSV');
@@ -3391,8 +3409,8 @@ async function factoryReset(){
   try{
 
   /* confirm for wipe — handled inline */;
-  TXS=[];QUOTES=[];ORDERS=[];LAYAWAYS=[];WALKINS=[];PARKED=[];
-  ['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv','sp_wk','sp_ord','sp_lwy','sp_park','sp_lst'].forEach(k=>localStorage.removeItem(k));
+  TXS=[];QUOTES=[];ORDERS=[];LAYAWAYS=[];WALKINS=[];DROPOFFS=[];PARKED=[];
+  ['sp_p','sp_t','sp_c','sp_b','sp_v','sp_si','sp_cats','sp_q','sp_m','sp_ti','sp_sv','sp_wk','sp_ord','sp_lwy','sp_park','sp_do','sp_lst'].forEach(k=>localStorage.removeItem(k));
   renderReports();renderBkInfo();toast('All data cleared');
 
   }catch(_e){return;}
@@ -3457,7 +3475,7 @@ function toast(msg, type){
 }
 function tick(){var c=document.getElementById('clk');if(c)c.textContent=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}
 
-const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway','walkin'];
+const PANELS=['catalog','addprod','customers','quotes','sales','reports','daily','settings','backup','branding','discounts','orders','layaway','walkin','dropoffs'];
 const MOB_NAV_ITEMS=['catalog','sales','cart','customers','more'];
 function openTab(name){
   PANELS.forEach(p=>{const el=document.getElementById('panel-'+p);if(el)el.className='panel'+(p===name?' on':'');});
@@ -3475,6 +3493,7 @@ function openTab(name){
   if(name==='orders')renderOrders();
   if(name==='layaway')renderLayaway();
   if(name==='walkin')renderWalkin();
+  if(name==='dropoffs')renderDropoffs();
   if(name==='daily')renderDailyReport();
   if(name==='quotes')renderQuotes();
   if(name==='settings'){initVATForm();renderCatMgmt();initStoreInfo();initLST();}
@@ -3719,7 +3738,7 @@ function openEditProd(id){
     p.size=parseFloat(document.getElementById('ep-sz').value)||null;
     p.unit=document.getElementById('ep-unit').value||null;
     closeModal();
-    renderPtbl();renderGrid();renderCats();renderLSBanner();
+    renderPtbl();renderGrid();renderCats();renderLSBanner();renderDropoffs();
     await saveAll();
     toast(n+' updated ✓');
   });
@@ -3879,6 +3898,7 @@ function openMobMore(){
     ['📋 Quotes','quotes'],
     ['📦 Orders','orders'],
     ['💳 Layaway','layaway'],['🛠 Custom Orders','walkin'],
+    ['📱 Repairs Drop-off','dropoffs'],
     ['🏷 Discounts','discounts'],
     ['📅 Daily','daily'],
     ['📊 Reports','reports'],
@@ -4791,6 +4811,238 @@ const WK_STATUS={
 
 function genWkId(){ return 'CO-'+Date.now().toString(36).toUpperCase().slice(-5); }
 
+/* ════════ REPAIRS DROP-OFF ════════ */
+function genDoId(){ return 'RPR-'+Date.now().toString(36).toUpperCase().slice(-5); }
+var _doSearch='';
+
+function renderDropoffs(){
+  var stats=document.getElementById('do-stats');
+  if(stats){
+    var open=DROPOFFS.filter(function(d){return !d.collected;}).length;
+    var deposits=DROPOFFS.filter(function(d){return !d.collected;}).reduce(function(s,d){return s+(d.deposit||0);},0);
+    var today=new Date(); today.setHours(0,0,0,0);
+    var todayN=DROPOFFS.filter(function(d){var dd=new Date(d.date);dd.setHours(0,0,0,0);return dd.getTime()===today.getTime();}).length;
+    stats.innerHTML=
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Open repairs</div><div class="sv" style="color:#E65100;">'+open+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Dropped today</div><div class="sv" style="color:#1565C0;">'+todayN+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Deposits held</div><div class="sv" style="color:var(--a);">$'+deposits.toFixed(2)+'</div></div>'+
+      '<div class="sc" style="padding:10px 8px;"><div class="sl2">Total tickets</div><div class="sv">'+DROPOFFS.length+'</div></div>';
+  }
+  var list=document.getElementById('do-list');
+  if(!list) return;
+  var q=_doSearch.toLowerCase().trim();
+  var items=DROPOFFS.filter(function(d){
+    if(!q) return true;
+    return (d.customerName||'').toLowerCase().indexOf(q)>=0 ||
+           (d.phone||'').toLowerCase().indexOf(q)>=0 ||
+           (d.device||'').toLowerCase().indexOf(q)>=0 ||
+           (d.id||'').toLowerCase().indexOf(q)>=0;
+  });
+  items=items.slice().sort(function(a,b){
+    if(!!a.collected!==!!b.collected) return a.collected?1:-1;  /* open first */
+    return new Date(b.date)-new Date(a.date);
+  });
+  if(!items.length){
+    list.innerHTML='<div style="text-align:center;color:var(--t3);padding:30px;font-size:13px;">'+(DROPOFFS.length?'No tickets match':'No drop-off tickets yet. Tap "+ New drop-off ticket" to create one.')+'</div>';
+    return;
+  }
+  list.innerHTML=items.map(function(d){
+    var dt=new Date(d.date);
+    var bal=Math.max(0,(d.estCost||0)-(d.deposit||0));
+    return '<div class="card" style="margin-bottom:10px;padding:13px 14px;border-left:4px solid '+(d.collected?'#9E9E9E':'#E65100')+';'+(d.collected?'opacity:.7;':'')+'">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
+        '<div>'+
+          '<div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--t3);">'+d.id+'</div>'+
+          '<div style="font-size:15px;font-weight:700;">'+d.customerName+'</div>'+
+          (d.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+d.phone+'</div>':'')+
+        '</div>'+
+        '<div style="text-align:right;">'+
+          (d.collected?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#E8F5E9;color:#2E7D32;">✅ Collected</span>':'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#FFF3E0;color:#E65100;">🔧 In shop</span>')+
+          '<div style="font-size:11px;color:var(--t3);margin-top:4px;">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:13px;margin-bottom:4px;"><strong>📱 '+d.device+'</strong></div>'+
+      '<div style="font-size:12px;color:var(--t2);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+d.problem+'</div>'+
+      '<div style="display:flex;gap:12px;font-size:11px;color:var(--t3);margin-bottom:8px;flex-wrap:wrap;">'+
+        '<span>💰 Deposit: <strong>$'+(d.deposit||0).toFixed(2)+'</strong></span>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
+        '<button class="ord-btn" data-do-print="'+d.id+'">🖨 Reprint ticket</button>'+
+        (d.phone?'<button class="ord-btn" data-do-wa="'+d.id+'">💬 WhatsApp</button>':'')+
+        (!d.collected?'<button class="ord-btn" style="background:#2E7D32;color:#fff;border-color:#2E7D32;" data-do-collect="'+d.id+'">✅ Mark Collected</button>':'')+
+        '<button class="ord-btn" style="color:var(--d);border-color:var(--d);" data-do-delete="'+d.id+'">🗑 Delete</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function openDropoffModal(){
+  var custOpts='<option value="">— New / walk-in customer —</option>'+
+    CUSTS.map(function(c){return '<option value="'+c.id+'">'+c.name+(c.phone?' ('+c.phone+')':'')+'</option>';}).join('');
+  openModal(
+    '<h3>📱 New Repair Drop-off</h3>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Existing customer (optional)</label>'+
+      '<select id="do-cust">'+custOpts+'</select></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Customer name *</label><input type="text" id="do-name" placeholder="Full name"></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Phone *</label><input type="tel" id="do-phone" placeholder="e.g. 627-1084" inputmode="tel"></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Device / item *</label><input type="text" id="do-device" placeholder="e.g. iPhone 12, Samsung A14, HP laptop"></div>'+
+    '<div class="f" style="margin-bottom:8px;"><label>Problem reported *</label>'+
+      '<textarea id="do-problem" rows="3" placeholder="e.g. Cracked screen, won\'t charge, no display" style="width:100%;font-size:16px;padding:11px;border-radius:12px;border:1.5px solid var(--b);background:var(--bg);font-family:inherit;resize:vertical;"></textarea></div>'+
+    '<div class="f" style="margin-bottom:12px;"><label>Deposit taken</label>'+
+      '<div class="cwrap"><em>$</em><input type="number" id="do-deposit" placeholder="0.00" min="0" step="0.01" inputmode="decimal" value="0"></div></div>'+
+    '<div class="mbs"><button id="do-cancel">Cancel</button><button class="ok" id="do-save">💾 Save &amp; Print Ticket</button></div>'
+  );
+  document.getElementById('do-cust').addEventListener('change',function(){
+    var val=this.value;
+    var c=CUSTS.find(function(x){return x.id===val;});
+    if(c){document.getElementById('do-name').value=c.name;if(c.phone)document.getElementById('do-phone').value=c.phone;}
+  });
+  document.getElementById('do-cancel').addEventListener('click',closeModal);
+  document.getElementById('do-save').addEventListener('click',function(){
+    var name=document.getElementById('do-name').value.trim();
+    var phone=document.getElementById('do-phone').value.trim();
+    var device=document.getElementById('do-device').value.trim();
+    var problem=document.getElementById('do-problem').value.trim();
+    var deposit=parseFloat(document.getElementById('do-deposit').value)||0;
+    if(!name){toast('Enter the customer name');return;}
+    if(!phone){toast('Enter a phone number');return;}
+    if(!device){toast('Enter the device/item');return;}
+    if(!problem){toast('Describe the problem');return;}
+    var custId=document.getElementById('do-cust').value||null;
+    var ticket={
+      id:genDoId(),
+      customerId:custId,
+      customerName:name,
+      phone:phone,
+      device:device,
+      problem:problem,
+      deposit:deposit,
+      collected:false,
+      date:new Date().toISOString(),
+      updatedAt:new Date().toISOString()
+    };
+    DROPOFFS.unshift(ticket);
+    savePatch(['dropoffs']);
+    renderDropoffs();
+    closeModal();
+    toast('Drop-off saved ✓');
+    printDropoffTicket(ticket.id);
+  });
+  setTimeout(function(){var f=document.getElementById('do-name');if(f)f.focus();},100);
+}
+
+function dropoffTicketHTML(d, copyLabel){
+  var dt=new Date(d.date);
+  var W=32;
+  function ctr(s){ s=String(s); var pad=Math.max(0,Math.floor((W-s.length)/2)); return ' '.repeat(pad)+s; }
+  function line(ch){ return (ch||'=').repeat(W); }
+  function wrap(label,text){
+    text=String(text||'');
+    var out=label+text;
+    if(out.length<=W) return [out];
+    /* wrap continuation indented */
+    var rows=[]; var cur=label;
+    text.split(/\s+/).forEach(function(w){
+      if((cur+w).length>W){ rows.push(cur); cur='  '+w+' '; }
+      else cur+=w+' ';
+    });
+    if(cur.trim()) rows.push(cur.replace(/\s+$/,''));
+    return rows;
+  }
+  var L=[];
+  L.push(ctr((BRAND.name||'TechGeek').toUpperCase()));
+  if(BRAND.sub) L.push(ctr(BRAND.sub));
+  if(STORE.phone) L.push(ctr('Tel: '+STORE.phone));
+  L.push(line('='));
+  L.push(ctr('REPAIR DROP-OFF TICKET'));
+  L.push(ctr('['+copyLabel+']'));
+  L.push(line('='));
+  L.push('Ticket#: '+d.id);
+  L.push('Date:    '+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+  L.push(line('-'));
+  wrap('Customer: ',d.customerName).forEach(function(r){L.push(r);});
+  L.push('Phone:    '+d.phone);
+  wrap('Device:   ',d.device).forEach(function(r){L.push(r);});
+  L.push(line('-'));
+  L.push('PROBLEM REPORTED:');
+  wrap('  ',d.problem).forEach(function(r){L.push(r);});
+  L.push(line('-'));
+  L.push('Deposit paid:  $'+(d.deposit||0).toFixed(2));
+  L.push(line('='));
+  L.push(ctr('Keep this ticket safe.'));
+  L.push(ctr('Required for collection.'));
+  L.push('');
+  L.push('Items not collected within 90');
+  L.push('days may be sold to recover');
+  L.push('costs. Not responsible for data');
+  L.push('loss. Goods left at owner\'s risk.');
+  L.push('');
+  L.push('Received by: __________________');
+  L.push('');
+  L.push('Signature:   __________________');
+  return L.join('\n');
+}
+
+function printDropoffTicket(id){
+  var d=DROPOFFS.find(function(x){return x.id===id;});
+  if(!d) return;
+  var shop=dropoffTicketHTML(d,'SHOP COPY');
+  var cust=dropoffTicketHTML(d,'CUSTOMER COPY');
+  var full=shop+'\n\n\n'+'.'.repeat(0)+'- - - - - - - - - - - - - - - -\n     ✂  cut here\n- - - - - - - - - - - - - - - -\n\n\n'+cust+'\n\n\n';
+  var pra=document.getElementById('pra');
+  if(pra){
+    pra.innerHTML='<pre style="font-family:\'Courier New\',monospace;font-size:12px;font-weight:700;color:#000;line-height:1.35;white-space:pre-wrap;margin:0;">'+
+      full.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';
+    setTimeout(function(){window.print();},80);
+  }
+}
+
+function whatsAppDropoff(id){
+  var d=DROPOFFS.find(function(x){return x.id===id;});
+  if(!d) return;
+  var DIV='━━━━━━━━━━━━━━━';
+  var L=[];
+  L.push('🔧 *'+BRAND.name+'*');
+  if(BRAND.sub) L.push('_'+BRAND.sub+'_');
+  L.push(DIV);
+  L.push('');
+  L.push('Hi *'+d.customerName+'*! 👋');
+  L.push('');
+  L.push('📱 We have received your item for repair.');
+  L.push('');
+  L.push('🔖 Ticket No: *'+d.id+'*');
+  L.push('📱 Device: *'+d.device+'*');
+  L.push('🛠 Issue: '+d.problem);
+  if(d.deposit>0) L.push('💰 Deposit paid: $'+d.deposit.toFixed(2));
+  L.push('');
+  L.push('We\'ll contact you with an update soon.');
+  L.push('Please keep your ticket number safe.');
+  L.push('');
+  if(STORE.phone) L.push('📞 '+STORE.phone);
+  L.push('Thank you for choosing *'+BRAND.name+'*! 💚');
+  openWA(waPhone(d.phone||''), L.join('\n'));
+}
+
+function collectDropoff(id){
+  var d=DROPOFFS.find(function(x){return x.id===id;});
+  if(!d) return;
+  confirmModal('Mark <strong>'+d.id+'</strong> ('+d.device+') as collected by the customer?',function(){
+    d.collected=true; d.updatedAt=new Date().toISOString();
+    savePatch(['dropoffs']);renderDropoffs();
+    toast('Marked collected ✓');
+  },'✅ Mark Collected','#2E7D32');
+}
+
+function deleteDropoff(id){
+  var d=DROPOFFS.find(function(x){return x.id===id;});
+  if(!d) return;
+  confirmModal('Delete ticket <strong>'+d.id+'</strong>? This cannot be undone.',function(){
+    DROPOFFS=DROPOFFS.filter(function(x){return x.id!==id;});
+    savePatch(['dropoffs']);renderDropoffs();
+    toast('Ticket deleted');
+  });
+}
+
 function renderWalkin(){
   var _t0=new Date(); _t0.setHours(0,0,0,0);
   var _t3=new Date(_t0); _t3.setDate(_t3.getDate()+3);
@@ -5262,7 +5514,7 @@ async function init(){
   /* Load cached data immediately so UI isn't empty */
   try{ loadLocal(); }catch(e){}
   applyBrand();
-  populateCatDropdown();renderCats();renderGrid();renderEP();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();
+  populateCatDropdown();renderCats();renderGrid();renderEP();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();renderDropoffs();
   tick();
   setInterval(function(){try{tick();}catch(e){}},60000);
   initMobile();
@@ -5275,6 +5527,8 @@ async function init(){
     if(so) so.addEventListener('change',function(){PT_SORT=this.value;renderPtbl();});
     var sf=document.getElementById('pt-stockf');
     if(sf) sf.addEventListener('change',function(){PT_STOCKF=this.value;renderPtbl();});
+    var dos=document.getElementById('do-search');
+    if(dos) dos.addEventListener('input',function(){_doSearch=this.value;renderDropoffs();});
     var fi=document.getElementById('pt-file');
     if(fi) fi.addEventListener('change',function(){
       var f=this.files&&this.files[0];
@@ -5312,7 +5566,7 @@ async function init(){
     } else {
       /* Re-render with server data */
       applyBrand();
-      populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();
+      populateCatDropdown();renderCats();renderGrid();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();renderDropoffs();
     }
   } else {
     setSrv('err','● Offline');
@@ -5362,6 +5616,7 @@ async function init(){
           if(Array.isArray(r.categories))  CATS=[...r.categories];
           if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
           if(Array.isArray(r.parked))      PARKED=[...r.parked];
+          if(Array.isArray(r.dropoffs))    DROPOFFS=[...r.dropoffs];
           if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
           if(r.vat)VAT=Object.assign({},VAT,r.vat);
           if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
@@ -5612,6 +5867,15 @@ document.addEventListener('click',function(e){
   if(ordCancel){cancelOrder(ordCancel.getAttribute('data-ord-cancel'));return;}
   var ordConvert=e.target.closest('[data-ord-convert]');
   if(ordConvert){convertOrderToSale(ordConvert.getAttribute('data-ord-convert'));return;}
+  /* Repair drop-off ticket actions */
+  var doPrint=e.target.closest('[data-do-print]');
+  if(doPrint){printDropoffTicket(doPrint.getAttribute('data-do-print'));return;}
+  var doWa=e.target.closest('[data-do-wa]');
+  if(doWa){whatsAppDropoff(doWa.getAttribute('data-do-wa'));return;}
+  var doCollect=e.target.closest('[data-do-collect]');
+  if(doCollect){collectDropoff(doCollect.getAttribute('data-do-collect'));return;}
+  var doDel=e.target.closest('[data-do-delete]');
+  if(doDel){deleteDropoff(doDel.getAttribute('data-do-delete'));return;}
   var btn=e.target.closest('[data-act]');
   if(!btn)return;
   var act=btn.getAttribute('data-act');
@@ -5688,6 +5952,7 @@ document.addEventListener('click',function(e){
   if(act==='open-add-order'){openAddOrderModal();return;}
   if(act==='open-add-layaway'){openAddLayawayModal();return;}
   if(act==='open-add-walkin'){openAddWalkinModal();return;}
+  if(act==='open-dropoff'){openDropoffModal();return;}
   if(act==='apply-disc-code'){
     var inp=document.getElementById('disc-apply-inp');
     var code=inp?inp.value.trim().toUpperCase():'';

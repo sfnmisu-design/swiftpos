@@ -132,7 +132,7 @@ async function dbSetAll(obj) {
     // Collections merged by union of ids (concurrency-safe).
     // 'products' and 'categories' use soft deletes (deleted:true tombstones)
     // so a delete on one device isn't undone by a stale copy from another.
-    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations','products'];
+    const mergeKeys = ['transactions','orders','layaways','walkins','customers','quotations','products','dropoffs'];
     const current = await dbGetAll();
     mergeKeys.forEach(k => {
       if (Array.isArray(obj[k]) && Array.isArray(current[k])) {
