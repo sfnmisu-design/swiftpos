@@ -184,26 +184,83 @@ async function dbSet(key, value) {
 
 // ── HTTP helpers ──────────────────────────────────────────
 function cors(res) {
+  // The app is same-origin with the API, so '*' isn't needed. Allowing the
+  // token header but NOT credentials keeps other sites from acting as the user.
   res.setHeader('Access-Control-Allow-Origin',  '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-POS-Token');
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'no-referrer');
 }
 function sendJ(res, code, obj) { cors(res); res.writeHead(code,{'Content-Type':'application/json'}); res.end(JSON.stringify(obj)); }
 function getBody(req) {
-  return new Promise((res,rej) => { let b=''; req.on('data',c=>b+=c); req.on('end',()=>{try{res(b?JSON.parse(b):{});}catch(e){rej(e);}}); req.on('error',rej); });
+  const MAX = 12 * 1024 * 1024; // 12 MB cap — generous for the full dataset, blocks abuse
+  return new Promise((res,rej) => {
+    let b=''; let size=0; let aborted=false;
+    req.on('data',c=>{
+      if(aborted) return;
+      size += c.length;
+      if(size > MAX){ aborted=true; try{req.destroy();}catch(e){} return rej(new Error('payload too large')); }
+      b+=c;
+    });
+    req.on('end',()=>{ if(aborted) return; try{res(b?JSON.parse(b):{});}catch(e){rej(e);} });
+    req.on('error',rej);
+  });
 }
 
 // Simple token auth that works inside an installed PWA (Basic Auth popups
 // don't appear in iOS standalone mode). The app posts the password to /login,
 // gets a token, and sends it as a header on data requests.
-function makeToken(){ return Buffer.from(PASSWORD+':'+Date.now()).toString('base64').replace(/=/g,''); }
+const crypto = require('crypto');
+// Secret for signing tokens — derived from the password + a server secret.
+// Set TOKEN_SECRET in env for best security; falls back to password-derived.
+const TOKEN_SECRET = process.env.TOKEN_SECRET || crypto.createHash('sha256').update('swiftpos::'+PASSWORD).digest('hex');
+const TOKEN_TTL_MS = 30*24*60*60*1000; // 30 days
+
+function makeToken(){
+  // payload = expiry timestamp; signature = HMAC so it can't be forged
+  const exp = Date.now() + TOKEN_TTL_MS;
+  const payload = String(exp);
+  const sig = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
+  return Buffer.from(payload).toString('base64url') + '.' + sig;
+}
 function validToken(t){
-  if(!t) return false;
+  if(!t || typeof t!=='string' || t.length>400) return false;
+  const parts = t.split('.');
+  if(parts.length!==2) return false;
   try{
-    var dec=Buffer.from(t,'base64').toString();
-    return dec.indexOf(PASSWORD+':')===0;
+    const payload = Buffer.from(parts[0],'base64url').toString();
+    const expected = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
+    // constant-time compare to avoid timing attacks
+    const a = Buffer.from(parts[1]); const b = Buffer.from(expected);
+    if(a.length!==b.length || !crypto.timingSafeEqual(a,b)) return false;
+    const exp = parseInt(payload,10);
+    return Number.isFinite(exp) && Date.now() < exp;   // reject expired
   }catch(e){ return false; }
 }
+
+// ── Brute-force protection on /login ──
+const loginAttempts = {};  // ip -> {count, first}
+function loginLimited(ip){
+  const now = Date.now();
+  const rec = loginAttempts[ip] || {count:0, first:now};
+  // reset the window every 15 min
+  if(now - rec.first > 15*60*1000){ rec.count=0; rec.first=now; }
+  loginAttempts[ip] = rec;
+  return rec.count >= 10;   // max 10 tries / 15 min
+}
+function loginFailed(ip){
+  const rec = loginAttempts[ip] || {count:0, first:Date.now()};
+  rec.count++; loginAttempts[ip]=rec;
+}
+// Occasionally clean old entries so the map doesn't grow forever
+const _cleanup = setInterval(function(){
+  const now=Date.now();
+  for(const ip in loginAttempts){ if(now-loginAttempts[ip].first > 60*60*1000) delete loginAttempts[ip]; }
+}, 30*60*1000);
+if(_cleanup.unref) _cleanup.unref();
 function checkAuth(req, res) {
   if (IS_LOCAL) return true; // no auth locally
   // Accept either our app token (header/query) or legacy Basic Auth
@@ -244,19 +301,33 @@ async function start() {
     }
 
     if (url==='/debug') {
+      // Requires auth now — this used to leak Supabase URL & data counts publicly.
+      if (!checkAuth(req,res)) return;
       cors(res); res.writeHead(200,{'Content-Type':'application/json'});
-      const info = {server:'SwiftPOS',port:PORT,env:IS_LOCAL?'local':'cloud',node_version:process.version,db_connected:dbReady,db_error:dbError||'none',supabase_url_set:!!SB_URL,supabase_key_set:!!SB_KEY,supabase_url_preview:SB_URL?SB_URL.slice(0,40)+'...':'NOT SET',uptime_seconds:Math.floor(process.uptime()),time:new Date().toISOString()};
-      if (dbReady) { try { const all=await dbGetAll(); info.db_rows=Object.keys(all).length; info.db_products_count=Array.isArray(all.products)?all.products.length:0; info.db_transactions_count=Array.isArray(all.transactions)?all.transactions.length:0; info.db_keys=Object.keys(all); } catch(e){} }
+      const info = {server:'SwiftPOS',env:IS_LOCAL?'local':'cloud',node_version:process.version,db_connected:dbReady,db_error:dbError?'yes':'none',supabase_configured:!!(SB_URL&&SB_KEY),uptime_seconds:Math.floor(process.uptime()),time:new Date().toISOString()};
+      if (dbReady) { try { const all=await dbGetAll(); info.db_products_count=Array.isArray(all.products)?all.products.length:0; info.db_transactions_count=Array.isArray(all.transactions)?all.transactions.length:0; } catch(e){} }
       return res.end(JSON.stringify(info,null,2));
     }
 
     // Login endpoint — returns a token if the password is correct
     if (url==='/login' && method==='POST') {
       try{
+        const ip = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+        if(loginLimited(ip)){
+          return sendJ(res,429,{ok:false,error:'Too many attempts. Wait 15 minutes.'});
+        }
         const body=await getBody(req);
-        if(IS_LOCAL || (body && body.password===PASSWORD)){
+        const pass = (body && typeof body.password==='string') ? body.password : '';
+        // constant-time password compare
+        let ok = IS_LOCAL;
+        if(!ok){
+          const a=Buffer.from(pass), b=Buffer.from(PASSWORD);
+          ok = a.length===b.length && crypto.timingSafeEqual(a,b);
+        }
+        if(ok){
           return sendJ(res,200,{ok:true,token:makeToken()});
         }
+        loginFailed(ip);
         return sendJ(res,401,{ok:false,error:'wrong password'});
       }catch(e){ return sendJ(res,400,{ok:false,error:'bad request'}); }
     }

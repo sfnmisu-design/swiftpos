@@ -1157,6 +1157,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div class="toast" id="toast"></div>
 
 <script>
+/* HTML-escape helper — use H(userText) whenever user-entered data goes into innerHTML.
+   Prevents XSS from names/notes/descriptions containing < > & " etc. */
+function H(v){
+  if(v===null||v===undefined) return '';
+  return String(v)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
 /* SERVER */
 const SRV = location.protocol === 'file:' ? 'http://localhost:3000' : '';
 let srvOk = false;
@@ -1556,7 +1568,7 @@ function saveEditCat(i){
 function deleteCat(i){
   var c=CATS[i]; if(!c) return;
   var cnt=PRODS.filter(function(p){return p.cat===c.name;}).length;
-  var msg='Remove category <strong>'+c.name+'</strong>?'+(cnt?' <br><span style="color:var(--d);font-size:12px;">'+cnt+' product(s) will become uncategorised</span>':'');
+  var msg='Remove category <strong>'+H(c.name)+'</strong>?'+(cnt?' <br><span style="color:var(--d);font-size:12px;">'+cnt+' product(s) will become uncategorised</span>':'');
   confirmModal(msg, function(){
     CATS.splice(i,1);
     populateCatDropdown();renderCatMgmt();renderCats();renderGrid();renderPtbl();
@@ -1786,7 +1798,7 @@ function openItemDisc(id){
   const lineGross=p.price*CART[id];
   const ex=ITEM_DISC[id]||{type:'pct',val:0};
   openModal(
-    '<h3>Discount — '+p.emoji+' '+p.name+'</h3>'+
+    '<h3>Discount — '+p.emoji+' '+H(p.name)+'</h3>'+
     '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Line total: <strong>$'+lineGross.toFixed(2)+'</strong> ('+CART[id]+' × $'+p.price.toFixed(2)+')</div>'+
     '<div class="pms" style="margin-bottom:10px;">'+
       '<div class="pm'+(ex.type==='pct'?' on':'')+'" id="id-pct">% Percent</div>'+
@@ -2269,7 +2281,7 @@ function rcptHTML(tx, forPrint){
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;">'+
         '<div style="flex:1;padding-right:8px;">'+
           '<span style="font-size:14px;margin-right:4px;">'+i.emoji+'</span>'+
-          '<span style="font-size:13px;font-weight:600;">'+i.name+'</span>'+
+          '<span style="font-size:13px;font-weight:600;">'+H(i.name)+'</span>'+
           (i.size&&i.unit?'<span style="font-size:10px;color:#999;margin-left:4px;">('+i.size+i.unit+')</span>':'')+
           (i.vatExempt?'<span style="font-size:9px;color:#E65100;margin-left:4px;background:#FFF3E0;padding:1px 4px;border-radius:4px;">Exempt</span>':'')+
           '<div style="font-size:11px;color:#999;margin-top:1px;">'+i.qty+' × $'+i.price.toFixed(2)+
@@ -2311,7 +2323,7 @@ function rcptHTML(tx, forPrint){
       '<div style="color:#666;text-align:right;font-size:11px;"><div style="font-weight:600;">'+ds+'</div><div>'+ts+'</div></div>'+
     '</div>'+
     /* Customer */
-    (cust?'<div style="padding:9px 14px;background:#FAFAFA;font-size:12px;color:#444;border-bottom:1px solid #f0f0f0;">👤 <strong>'+cust.name+'</strong>'+(cust.phone?' · '+cust.phone:'')+'</div>':'')+
+    (cust?'<div style="padding:9px 14px;background:#FAFAFA;font-size:12px;color:#444;border-bottom:1px solid #f0f0f0;">👤 <strong>'+H(cust.name)+'</strong>'+(cust.phone?' · '+H(cust.phone):'')+'</div>':'')+
     /* Items header */
     '<div style="padding:10px 14px 2px;display:flex;justify-content:space-between;font-size:9px;color:#aaa;text-transform:uppercase;letter-spacing:.6px;font-weight:600;"><span>Item</span><span>Amount</span></div>'+
     /* Items */
@@ -2530,7 +2542,7 @@ function renderTx(){
     const wasRefunded=!!tx.refunded;
     const dt=new Date(tx.timestamp);
     const cust=tx.customerId?CUSTS.find(c=>c.id===tx.customerId):null;
-    const its=tx.items.map(i=>i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'')).slice(0,3).join(', ')+(tx.items.length>3?'…':'');
+    const its=H(tx.items.map(i=>i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'')).slice(0,3).join(', '))+(tx.items.length>3?'…':'');
     return`<div class="txr" data-txid="${tx.id}">
       <div class="txt"><span class="txid">${tx.id}</span><span class="txam">$${tx.total.toFixed(2)}</span></div>
       <div class="txm">${dt.toLocaleDateString()} ${dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}<span class="pmb" style="${isRefund?'background:#FCEBEB;color:#A32D2D':wasRefunded?'background:#F1EFE8;color:#5F5E5A':''}">${isRefund?'↩ REFUND':tx.payMethod}</span>${wasRefunded?'<span class="pmb" style="background:#F1EFE8;color:#888">refunded</span>':''}${cust?`<span class="pmb" style="background:#EEF5FF;color:#2468B0;">👤 ${cust.name}</span>`:''}</div>
@@ -2562,7 +2574,7 @@ function renderQuotes(){
   el.innerHTML=QUOTES.map(q=>{
     const dt=new Date(q.timestamp);
     const cust=q.customerId?CUSTS.find(c=>c.id===q.customerId):null;
-    const its=q.items.map(i=>i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'')).slice(0,3).join(', ')+(q.items.length>3?'…':'');
+    const its=H(q.items.map(i=>i.emoji+' '+i.name+(i.qty>1?' ×'+i.qty:'')).slice(0,3).join(', '))+(q.items.length>3?'…':'');
     const stCls=q.status==='open'?'qs-open':q.status==='converted'?'qs-conv':'qs-exp';
     const stLbl=q.status==='open'?'Open':q.status==='converted'?'Converted':'Expired';
     return`<div class="qrow">
@@ -2587,7 +2599,7 @@ function openQuoteModal(q){
     <tr>
       <td style="padding:8px 6px;">
         <span style="font-size:16px;">${i.emoji}</span>
-        <strong style="font-size:13px;">${i.name}</strong>
+        <strong style="font-size:13px;">${H(i.name)}</strong>
         ${(i.size&&i.unit)?`<span style="font-size:10px;color:#999;"> (${i.size}${i.unit})</span>`:''}
         ${i.vatExempt?`<span style="font-size:9px;color:#E65100;background:#FFF3E0;padding:1px 4px;border-radius:4px;margin-left:4px;">Exempt</span>`:''}
       </td>
@@ -2722,8 +2734,8 @@ function renderCusts(){
   var _cc=document.getElementById('cust-count');if(_cc)_cc.textContent=CUSTS.length+' customers';
   if(!CUSTS.length){el.innerHTML='<div style="text-align:center;color:var(--t3);padding:28px;font-size:13px;">No customers yet</div>';return;}
   el.innerHTML=CUSTS.map(c=>{
-    const i=c.name.split(' ').map(x=>x[0]).join('');
-    return`<div class="ccard"><div class="av">${i}</div><div class="ci"><div class="cn">${c.name}${c.company?` <span style="font-size:11px;color:var(--t3);">· ${c.company}</span>`:''}</div><div class="cm">${[c.phone,c.email].filter(Boolean).join(' · ')}</div><div class="cm">${c.visits} visits · $${c.spent.toFixed(2)}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><span style="font-size:13px;font-weight:600;color:var(--a);">$${c.spent.toFixed(2)}</span><div style="display:flex;gap:3px;"><button class="icon-btn edit" data-cid="${c.id}" data-act="edit-cust">✏️</button><button class="icon-btn del" data-cid="${c.id}" data-act="del-cust">🗑</button></div></div></div>`;
+    const i=H(c.name.split(' ').map(x=>x[0]).join(''));
+    return`<div class="ccard"><div class="av">${i}</div><div class="ci"><div class="cn">${H(c.name)}${c.company?` <span style="font-size:11px;color:var(--t3);">· ${H(c.company)}</span>`:''}</div><div class="cm">${H([c.phone,c.email].filter(Boolean).join(' · '))}</div><div class="cm">${c.visits} visits · $${c.spent.toFixed(2)}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><span style="font-size:13px;font-weight:600;color:var(--a);">$${c.spent.toFixed(2)}</span><div style="display:flex;gap:3px;"><button class="icon-btn edit" data-cid="${c.id}" data-act="edit-cust">✏️</button><button class="icon-btn del" data-cid="${c.id}" data-act="del-cust">🗑</button></div></div></div>`;
   }).join('');
   updCustDropdown();
 }
@@ -2741,8 +2753,8 @@ async function addCust(){
 function openEditCustModal(id){
   const c=CUSTS.find(x=>x.id===id);if(!c)return;
   openModal(`<h3>Edit customer</h3>
-    <div class="fg"><div class="fr"><label>Name *</label><input type="text" id="ec-n" value="${c.name}"></div><div class="fr"><label>Company</label><input type="text" id="ec-co" value="${c.company||''}"></div><div class="fr"><label>Phone</label><input type="text" id="ec-p" value="${c.phone||''}"></div><div class="fr"><label>Email</label><input type="text" id="ec-e" value="${c.email||''}"></div></div>
-    <div class="fr" style="margin-top:8px;"><label>Address</label><input type="text" id="ec-a" value="${c.address||''}"></div>
+    <div class="fg"><div class="fr"><label>Name *</label><input type="text" id="ec-n" value="${H(c.name)}"></div><div class="fr"><label>Company</label><input type="text" id="ec-co" value="${H(c.company||'')}"></div><div class="fr"><label>Phone</label><input type="text" id="ec-p" value="${H(c.phone||'')}"></div><div class="fr"><label>Email</label><input type="text" id="ec-e" value="${H(c.email||'')}"></div></div>
+    <div class="fr" style="margin-top:8px;"><label>Address</label><input type="text" id="ec-a" value="${H(c.address||'')}"></div>
     <div class="mbs"><button id="mc3">Cancel</button><button class="ok" data-actid="${id}" data-act="save-ec">Save</button></div>`);
 }
 async function saveEditCust(id){
@@ -2875,9 +2887,9 @@ function renderPtbl(){
     return '<tr'+(PT_SEL[p.id]?' style="background:var(--al);"':'')+'>'+
       '<td><input type="checkbox" class="pt-cb" data-cbid="'+p.id+'"'+(PT_SEL[p.id]?' checked':'')+' style="width:16px;height:16px;cursor:pointer;"></td>'+
       '<td style="font-size:17px;">'+p.emoji+'</td>'+
-      '<td style="font-weight:500;">'+p.name+
+      '<td style="font-weight:500;">'+H(p.name)+
         ((p.size&&p.unit)?'<span style="font-size:10px;color:var(--a);background:var(--al);padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:600;">'+p.size+p.unit+'</span>':'')+
-        (p.sku?'<br><span style="font-size:10px;color:var(--t3)">SKU:'+p.sku+'</span>':'')+
+        (p.sku?'<br><span style="font-size:10px;color:var(--t3)">SKU:'+H(p.sku)+'</span>':'')+
       '</td>'+
       '<td style="color:var(--t2);">'+(p.cat||'')+'</td>'+
       '<td style="color:var(--t3);font-size:12px;">'+(p.cost?'$'+p.cost.toFixed(2):'—')+'</td>'+
@@ -2916,7 +2928,7 @@ function parkSale(){
       '<strong>$'+tots.grand.toFixed(2)+'</strong>'+
     '</div>'+
     '<div class="f" style="margin-bottom:10px;"><label>Label (so you can find it)</label>'+
-      '<input type="text" id="pk-label" placeholder="e.g. Blue shirt customer" value="'+(cust?cust.name.replace(/"/g,'&quot;'):'')+'" maxlength="40"></div>'+
+      '<input type="text" id="pk-label" placeholder="e.g. Blue shirt customer" value="'+(cust?H(cust.name):'')+'" maxlength="40"></div>'+
     '<div class="mbs"><button id="pk-cancel">Cancel</button><button class="ok" id="pk-save">🅿️ Hold Sale</button></div>'
   );
   document.getElementById('pk-cancel').addEventListener('click',closeModal);
@@ -3025,7 +3037,7 @@ function openStockAdjust(id){
   var p=PRODS.find(function(x){return x.id==id;});
   if(!p) return;
   openModal(
-    '<h3>Adjust stock — '+p.emoji+' '+p.name+'</h3>'+
+    '<h3>Adjust stock — '+p.emoji+' '+H(p.name)+'</h3>'+
     '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);display:flex;justify-content:space-between;font-size:13px;">'+
       '<span>Current stock:</span><strong style="font-size:16px;">'+(p.stock||0)+'</strong>'+
     '</div>'+
@@ -3295,7 +3307,7 @@ function renderReports(){
     pl.innerHTML=profList.map(function(p){
       var pct=Math.round((Math.abs(p.profit)/maxP)*100);
       var col=p.profit>=0?'var(--a)':'var(--d)';
-      return'<div class="ti"><span class="tn">'+p.emoji+' '+p.name+' <span style="color:var(--t3);font-size:10px;">('+p.qty+' sold)</span></span><div class="tw"><div class="tb2" style="width:'+pct+'%;background:'+col+';"></div></div><span class="ts" style="color:'+col+';">$'+p.profit.toFixed(0)+'</span></div>';
+      return'<div class="ti"><span class="tn">'+p.emoji+' '+H(p.name)+' <span style="color:var(--t3);font-size:10px;">('+p.qty+' sold)</span></span><div class="tw"><div class="tb2" style="width:'+pct+'%;background:'+col+';"></div></div><span class="ts" style="color:'+col+';">$'+p.profit.toFixed(0)+'</span></div>';
     }).join('');
   })();
 
@@ -3824,7 +3836,7 @@ function renderDailyReport(){
         topToday.map(function(p,i){
           return'<div style="display:flex;align-items:center;gap:8px;padding:5px 0;'+(i<topToday.length-1?'border-bottom:1px solid var(--b)':'')+'" >'+
             '<span style="font-size:16px;">'+p.emoji+'</span>'+
-            '<div style="flex:1"><div style="font-size:13px;font-weight:500;">'+p.name+'</div><div style="font-size:11px;color:var(--t3);">'+p.qty+' sold</div></div>'+
+            '<div style="flex:1"><div style="font-size:13px;font-weight:500;">'+H(p.name)+'</div><div style="font-size:11px;color:var(--t3);">'+p.qty+' sold</div></div>'+
             '<div style="font-weight:700;color:var(--a);">$'+p.rev.toFixed(2)+'</div>'+
           '</div>';
         }).join('')+
@@ -3865,7 +3877,7 @@ function renderMobCart(){
   if(!ids.length){el.innerHTML='<div class="empty-cart" style="text-align:center;color:var(--t3);padding:30px;"><div style="font-size:28px;margin-bottom:8px;">??</div>No items yet</div>';
   }else{
     el.innerHTML=ids.map(function(id){var p=PRODS.find(function(x){return x.id==id;});
-      return'<div class="cit"><span class="cie">'+p.emoji+'</span><div class="cin">'+p.name+'</div>'+
+      return'<div class="cit"><span class="cie">'+p.emoji+'</span><div class="cin">'+H(p.name)+'</div>'+
         '<div class="qc"><button class="qb" data-pid="'+id+'" data-act="mqty-">-</button>'+
         '<span class="qn">'+CART[id]+'</span>'+
         '<button class="qb" data-pid="'+id+'" data-act="mqty+">+</button></div>'+
@@ -4151,7 +4163,7 @@ function renderOrders(){
       '<div class="ord-hd">'+
         '<div>'+
           '<div class="ord-id">'+o.id+'</div>'+
-          '<div class="ord-name">'+o.customerName+'</div>'+
+          '<div class="ord-name">'+H(o.customerName)+'</div>'+
         '</div>'+
         '<div style="text-align:right;">'+
           '<div class="ord-total">$'+o.total.toFixed(2)+'</div>'+
@@ -4159,7 +4171,7 @@ function renderOrders(){
         '</div>'+
       '</div>'+
       '<div class="ord-meta">'+
-        (o.phone?'📞 '+o.phone:'')+(o.phone&&(o.deliveryType||o.address)?' · ':'')+
+        (o.phone?'📞 '+H(o.phone):'')+(o.phone&&(o.deliveryType||o.address)?' · ':'')+
         (o.deliveryType==='delivery'?'🚚 Delivery':'🏪 Pickup')+
         (o.address?' · '+o.address:'')+
       '</div>'+
@@ -4185,7 +4197,7 @@ function openAddOrderModal(editId){
   if(!ex) return;
 
   var prodOpts=livePRODS().map(function(p){
-    return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';
+    return'<option value="'+p.id+'">'+p.emoji+' '+H(p.name)+' — $'+p.price.toFixed(2)+'</option>';
   }).join('');
 
   openModal(
@@ -4227,7 +4239,7 @@ function openAddOrderModal(editId){
     if(!items.length){w.innerHTML='<div style="color:var(--t3);font-size:12px;padding:8px 0;">No items yet</div>';updateTotal();return;}
     w.innerHTML=items.map(function(it,i){
       return'<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b);">'+
-        '<span style="flex:1;font-size:13px;">'+it.emoji+' '+it.name+'</span>'+
+        '<span style="flex:1;font-size:13px;">'+it.emoji+' '+H(it.name)+'</span>'+
         '<div style="display:flex;align-items:center;gap:4px;">'+
           '<button data-ii="'+i+'" data-iact="minus" style="width:24px;height:24px;border:1px solid var(--b);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;">-</button>'+
           '<span style="min-width:20px;text-align:center;font-size:13px;font-weight:600;">'+it.qty+'</span>'+
@@ -4267,7 +4279,7 @@ function openAddOrderModal(editId){
       });
       var sel=document.getElementById('oo-prod');
       sel.innerHTML=matches.length
-        ? matches.map(function(p){return'<option value="'+p.id+'">'+p.emoji+' '+p.name+' — $'+p.price.toFixed(2)+'</option>';}).join('')
+        ? matches.map(function(p){return'<option value="'+p.id+'">'+p.emoji+' '+H(p.name)+' — $'+p.price.toFixed(2)+'</option>';}).join('')
         : '<option value="">No products found</option>';
     });
   }
@@ -4470,7 +4482,7 @@ function renderLayaway(){
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
           '<div>'+
             '<div style="font-size:12px;font-weight:700;font-family:monospace;color:var(--t3);">'+l.id+'</div>'+
-            '<div style="font-size:15px;font-weight:700;margin-top:1px;">'+(l.customerName||'No customer')+'</div>'+
+            '<div style="font-size:15px;font-weight:700;margin-top:1px;">'+H(l.customerName||'No customer')+'</div>'+
             (cust&&cust.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+cust.phone+'</div>':'')+
           '</div>'+
           '<div style="text-align:right;">'+
@@ -4670,7 +4682,7 @@ function openAddPaymentModal(id){
     '<h3>Add Payment — '+l.id+'</h3>'+
     '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);">'+
       '<div style="display:flex;justify-content:space-between;font-size:13px;">'+
-        '<span>Customer:</span><strong>'+l.customerName+'</strong>'+
+        '<span>Customer:</span><strong>'+H(l.customerName)+'</strong>'+
       '</div>'+
       '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;">'+
         '<span>Balance due:</span><strong style="color:var(--d);">$'+remaining.toFixed(2)+'</strong>'+
@@ -4712,7 +4724,7 @@ function openPaymentHistory(id){
   var payments=l.payments||[];
   openModal(
     '<h3>Payment History — '+l.id+'</h3>'+
-    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Customer: <strong>'+l.customerName+'</strong></div>'+
+    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Customer: <strong>'+H(l.customerName)+'</strong></div>'+
     (payments.length?
       '<div class="card np" style="margin-bottom:10px;">'+
         payments.map(function(p,i){
@@ -4853,16 +4865,16 @@ function renderDropoffs(){
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
         '<div>'+
           '<div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--t3);">'+d.id+'</div>'+
-          '<div style="font-size:15px;font-weight:700;">'+d.customerName+'</div>'+
-          (d.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+d.phone+'</div>':'')+
+          '<div style="font-size:15px;font-weight:700;">'+H(d.customerName)+'</div>'+
+          (d.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+H(d.phone)+'</div>':'')+
         '</div>'+
         '<div style="text-align:right;">'+
           (d.collected?'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#E8F5E9;color:#2E7D32;">✅ Collected</span>':'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:#FFF3E0;color:#E65100;">🔧 In shop</span>')+
           '<div style="font-size:11px;color:var(--t3);margin-top:4px;">'+dt.toLocaleDateString()+' '+dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div>'+
         '</div>'+
       '</div>'+
-      '<div style="font-size:13px;margin-bottom:4px;"><strong>📱 '+d.device+'</strong></div>'+
-      '<div style="font-size:12px;color:var(--t2);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+d.problem+'</div>'+
+      '<div style="font-size:13px;margin-bottom:4px;"><strong>📱 '+H(d.device)+'</strong></div>'+
+      '<div style="font-size:12px;color:var(--t2);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+H(d.problem)+'</div>'+
       '<div style="display:flex;gap:12px;font-size:11px;color:var(--t3);margin-bottom:8px;flex-wrap:wrap;">'+
         '<span>💰 Deposit: <strong>$'+(d.deposit||0).toFixed(2)+'</strong></span>'+
       '</div>'+
@@ -5026,7 +5038,7 @@ function whatsAppDropoff(id){
 function collectDropoff(id){
   var d=DROPOFFS.find(function(x){return x.id===id;});
   if(!d) return;
-  confirmModal('Mark <strong>'+d.id+'</strong> ('+d.device+') as collected by the customer?',function(){
+  confirmModal('Mark <strong>'+d.id+'</strong> ('+H(d.device)+') as collected by the customer?',function(){
     d.collected=true; d.updatedAt=new Date().toISOString();
     savePatch(['dropoffs']);renderDropoffs();
     toast('Marked collected ✓');
@@ -5111,15 +5123,15 @@ function renderWalkin(){
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px;">'+
         '<div>'+
           '<div style="font-size:11px;font-weight:700;font-family:monospace;color:var(--t3);">'+w.id+'</div>'+
-          '<div style="font-size:15px;font-weight:700;">'+w.customerName+'</div>'+
-          (w.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+w.phone+'</div>':'')+
+          '<div style="font-size:15px;font-weight:700;">'+H(w.customerName)+'</div>'+
+          (w.phone?'<div style="font-size:11px;color:var(--t3);">📞 '+H(w.phone)+'</div>':'')+
         '</div>'+
         '<div style="text-align:right;">'+
           '<div style="font-size:17px;font-weight:800;color:var(--a);">$'+w.price.toFixed(2)+'</div>'+
           '<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+st.bg+';color:'+st.color+';">'+st.emoji+' '+st.label+'</span>'+
         '</div>'+
       '</div>'+
-      '<div style="font-size:13px;color:var(--t);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+w.description+'</div>'+
+      '<div style="font-size:13px;color:var(--t);background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.4;">'+H(w.description)+'</div>'+
       ((w.items&&w.items.length)?'<div style="margin-bottom:8px;">'+w.items.map(function(it){
         return'<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 10px;color:var(--t2);"><span>• '+it.desc+'</span><span style="font-weight:600;">$'+it.price.toFixed(2)+'</span></div>';
       }).join('')+'</div>':'')+
@@ -5128,7 +5140,7 @@ function renderWalkin(){
         '<span>💰 Deposit: <strong>$'+w.deposit.toFixed(2)+'</strong></span>'+
         (balance>0?'<span>Balance: <strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></span>':'<span style="color:#2E7D32;font-weight:700;">PAID IN FULL</span>')+
       '</div>'+
-      (noteCount?'<div style="font-size:11px;color:var(--t2);background:#F7F7F5;border-radius:8px;padding:6px 9px;margin-bottom:8px;border-left:3px solid var(--b);">📝 <strong>'+w.notes[w.notes.length-1].text+'</strong><span style="color:var(--t3);"> — '+new Date(w.notes[w.notes.length-1].date).toLocaleDateString()+(noteCount>1?' · '+noteCount+' notes':'')+'</span></div>':'')+
+      (noteCount?'<div style="font-size:11px;color:var(--t2);background:#F7F7F5;border-radius:8px;padding:6px 9px;margin-bottom:8px;border-left:3px solid var(--b);">📝 <strong>'+H(w.notes[w.notes.length-1].text)+'</strong><span style="color:var(--t3);"> — '+new Date(w.notes[w.notes.length-1].date).toLocaleDateString()+(noteCount>1?' · '+noteCount+' notes':'')+'</span></div>':'')+
       '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--b);">'+
         (nextSt?'<button class="ord-btn" style="background:var(--a);color:#fff;border-color:var(--a);" data-wk-next="'+w.id+'">'+nextSt.emoji+' Mark '+nextSt.label+'</button>':'')+
         (w.status!=='collected'&&w.status!=='cancelled'&&balance>0?'<button class="ord-btn" style="background:var(--ad);color:#fff;border-color:var(--ad);" data-wk-pay="'+w.id+'">💰 Take Payment</button>':'')+
@@ -5278,7 +5290,7 @@ function advanceWalkin(id){
         '<div style="text-align:center;">'+
           '<div style="font-size:34px;margin-bottom:6px;">🎉</div>'+
           '<div style="font-size:15px;font-weight:700;margin-bottom:4px;">'+w.id+' is ready!</div>'+
-          '<div style="font-size:13px;color:var(--t2);">Notify <strong>'+w.customerName+'</strong> on WhatsApp now?</div>'+
+          '<div style="font-size:13px;color:var(--t2);">Notify <strong>'+H(w.customerName)+'</strong> on WhatsApp now?</div>'+
         '</div>',
         function(){ whatsAppWalkin(id); },
         '💬 Send WhatsApp',
@@ -5294,7 +5306,7 @@ function openWalkinNotes(id){
   var notes=w.notes||[];
   openModal(
     '<h3>Notes — '+w.id+'</h3>'+
-    '<div style="font-size:12px;color:var(--t3);margin-bottom:10px;">'+w.customerName+'</div>'+
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:10px;">'+H(w.customerName)+'</div>'+
     '<div class="f" style="margin-bottom:10px;">'+
       '<label>Add a note</label>'+
       '<input type="text" id="wkn-text" placeholder="e.g. Called customer, no answer" maxlength="200">'+
@@ -5305,7 +5317,7 @@ function openWalkinNotes(id){
         var nd=new Date(n.date);
         return'<div style="display:flex;gap:8px;padding:8px 10px;background:'+(n.auto?'#F7F7F5':'var(--al)')+';border-radius:8px;margin-bottom:6px;font-size:12px;">'+
           '<span style="font-size:13px;">'+(n.auto?'🔄':'📝')+'</span>'+
-          '<div style="flex:1;"><div style="'+(n.auto?'color:var(--t2);':'font-weight:600;')+'">'+n.text+'</div>'+
+          '<div style="flex:1;"><div style="'+(n.auto?'color:var(--t2);':'font-weight:600;')+'">'+H(n.text)+'</div>'+
           '<div style="color:var(--t3);font-size:10px;margin-top:2px;">'+nd.toLocaleDateString()+' '+nd.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</div></div>'+
         '</div>';
       }).join('')
@@ -5360,7 +5372,7 @@ function takeWalkinPayment(id){
   openModal(
     '<h3>Take Payment — '+w.id+'</h3>'+
     '<div style="margin-bottom:12px;padding:10px 12px;background:var(--al);border-radius:var(--r);">'+
-      '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>Customer:</span><strong>'+w.customerName+'</strong></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:13px;"><span>Customer:</span><strong>'+H(w.customerName)+'</strong></div>'+
       '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Order total:</span><strong>$'+w.price.toFixed(2)+'</strong></div>'+
       '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Paid so far:</span><strong>$'+w.deposit.toFixed(2)+'</strong></div>'+
       '<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Balance due:</span><strong style="color:var(--d);">$'+balance.toFixed(2)+'</strong></div>'+
@@ -5399,7 +5411,7 @@ function walkinPaymentHistory(id){
   var payments=w.payments||[];
   openModal(
     '<h3>Payments — '+w.id+'</h3>'+
-    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Customer: <strong>'+w.customerName+'</strong></div>'+
+    '<div style="margin-bottom:10px;font-size:13px;color:var(--t2);">Customer: <strong>'+H(w.customerName)+'</strong></div>'+
     (payments.length?
       '<div class="card np" style="margin-bottom:10px;">'+
         payments.map(function(p,i){
