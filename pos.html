@@ -572,7 +572,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 <!-- LOGIN GATE (shown until authenticated; works inside installed PWA) -->
-<div id="login-gate" style="display:none;position:fixed;inset:0;z-index:100000;background:linear-gradient(160deg,#0F6E56,#1D9E75);align-items:center;justify-content:center;flex-direction:column;padding:24px;font-family:system-ui,-apple-system,sans-serif;">
+<div id="login-gate" style="display:flex;position:fixed;inset:0;z-index:100000;background:linear-gradient(160deg,#0F6E56,#1D9E75);align-items:center;justify-content:center;flex-direction:column;padding:24px;font-family:system-ui,-apple-system,sans-serif;">
   <div style="width:100%;max-width:340px;background:#fff;border-radius:22px;padding:30px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
     <div style="width:74px;height:74px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,#22B083,#0F6E56);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;letter-spacing:-1px;">TG</div>
     <div style="font-size:19px;font-weight:800;color:#1a1a1a;">SwiftPOS</div>
@@ -1228,7 +1228,7 @@ function savePatch(keys){
     });
     localStorage.setItem('sp_m',JSON.stringify({nid,txn,qn}));
     localStorage.setItem('sp_sv',new Date().toISOString());
-    payload.meta={nid,txn,qn};
+    payload.meta={nid,txn,qn,savedAt:_now};
   }catch(e){}
   return _pushPatch(payload,_now);
 }
@@ -1277,7 +1277,7 @@ function saveAll(){
     localStorage.setItem('sp_sv',new Date().toISOString());
   }catch(e){}
   /* BACKGROUND: push to server without blocking the caller */
-  var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,dropoffs:DROPOFFS,parked:PARKED,meta:{nid,txn,qn},savedAt:_now};
+  var d={products:PRODS,transactions:TXS,customers:CUSTS,branding:BRAND,vat:VAT,storeInfo:STORE,categories:CATS,quotations:QUOTES,coupons:COUPONS,orders:ORDERS,layaways:LAYAWAYS,walkins:WALKINS,dropoffs:DROPOFFS,parked:PARKED,meta:{nid,txn,qn,savedAt:_now},savedAt:_now};
   return _pushToServer(d,_now);
 }
 
@@ -5627,6 +5627,9 @@ async function init(){
           if(Array.isArray(r.customers))   CUSTS=[...r.customers];
           if(Array.isArray(r.categories))  CATS=[...r.categories];
           if(Array.isArray(r.quotations))  QUOTES=[...r.quotations];
+          if(Array.isArray(r.orders))      ORDERS=[...r.orders];
+          if(Array.isArray(r.layaways))    LAYAWAYS=[...r.layaways];
+          if(Array.isArray(r.walkins))     WALKINS=[...r.walkins];
           if(Array.isArray(r.parked))      PARKED=[...r.parked];
           if(Array.isArray(r.dropoffs))    DROPOFFS=[...r.dropoffs];
           if(r.branding)BRAND=Object.assign({},BRAND,r.branding);
@@ -5634,6 +5637,15 @@ async function init(){
           if(r.meta){nid=r.meta.nid||nid;txn=r.meta.txn||txn;qn=r.meta.qn||qn;}
           _lastSaveTime=serverTime; /* update so we don't re-apply same data */
           applyBrand();renderGrid();renderPtbl();populateCatDropdown();renderCats();updParkBadge();
+          /* refresh the other tabs so synced data shows without a manual reload */
+          try{renderTx&&renderTx();}catch(e){}
+          try{renderCusts&&renderCusts();}catch(e){}
+          try{renderQuotes&&renderQuotes();}catch(e){}
+          try{renderOrders&&renderOrders();}catch(e){}
+          try{renderLayaway&&renderLayaway();}catch(e){}
+          try{renderWalkin&&renderWalkin();}catch(e){}
+          try{renderDropoffs&&renderDropoffs();}catch(e){}
+          try{renderReports&&renderReports();}catch(e){}
           setSrv('ok','● Synced');
           
         }
@@ -5747,6 +5759,7 @@ async function doLogin(){
     if(j&&j.ok&&j.token){
       POS_TOKEN=j.token;
       localStorage.setItem('sp_token',POS_TOKEN);
+      touchActivity();
       hideLogin();
       startApp();
     } else {
@@ -5755,7 +5768,7 @@ async function doLogin(){
     }
   }catch(e){
     /* Offline: if we have a saved token from before, allow in (data is local) */
-    if(POS_TOKEN){ hideLogin(); startApp(); }
+    if(POS_TOKEN){ touchActivity(); hideLogin(); startApp(); }
     else { if(err)err.textContent='No connection — connect once to log in'; if(btn){btn.disabled=false;btn.textContent='Log In';} }
   }
 }
@@ -5763,23 +5776,58 @@ var _appStarted=false;
 function startApp(){
   if(_appStarted) return;
   _appStarted=true;
+  hideLogin();
   init().catch(function(err){
     var el=document.getElementById('splash-status');
     if(el) el.textContent='Load error — please refresh';
   });
 }
 
-/* Decide on load: token present → start; offline with token → start; else login */
+/* ── Idle-timeout session: require login after 30 min of inactivity ── */
+var IDLE_LIMIT_MS = 30*60*1000;  /* 30 minutes */
+function touchActivity(){
+  try{ localStorage.setItem('sp_lastactive', String(Date.now())); }catch(e){}
+}
+function sessionExpired(){
+  try{
+    var la = parseInt(localStorage.getItem('sp_lastactive')||'0',10);
+    if(!la) return true;                       /* never recorded → require login */
+    return (Date.now()-la) > IDLE_LIMIT_MS;     /* idle too long → require login */
+  }catch(e){ return true; }
+}
+/* Keep the session fresh while the app is actually being used */
+['click','keydown','touchstart','mousemove'].forEach(function(ev){
+  document.addEventListener(ev, function(){ if(_appStarted) touchActivity(); }, {passive:true, capture:true});
+});
+/* When the app is reopened/brought to foreground, re-check idle */
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='visible' && _appStarted && sessionExpired()){
+    location.reload();   /* forces the login gate on next load */
+  }
+});
+/* Refresh the timestamp periodically while open */
+setInterval(function(){ if(_appStarted && document.visibilityState==='visible') touchActivity(); }, 60000);
+
+/* Decide on load:
+   - valid token AND session not expired → start the app
+   - token but idle too long → show login (must re-enter password)
+   - offline with a token and fresh session → start (data is local)
+   - else → show login */
 (function(){
   var lb=document.getElementById('login-btn');
   if(lb) lb.addEventListener('click',doLogin);
   var lp=document.getElementById('login-pass');
   if(lp) lp.addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
 
-  if(POS_TOKEN){
-    /* We have a token — start the app. If the server later rejects it,
-       the data calls will fail gracefully and localStorage still works. */
+  var expired = sessionExpired();
+
+  if(POS_TOKEN && !expired){
+    /* Fresh session — go straight in */
+    touchActivity();
     startApp();
+  } else if(POS_TOKEN && expired){
+    /* Have a token but idle too long — must log in again */
+    showLogin();
   } else if(!navigator.onLine){
     /* First run must be online to get a token */
     var err=document.getElementById('login-err');

@@ -365,6 +365,11 @@ async function start() {
         if(!keys.length) return sendJ(res,200,{ok:true});
         const partial={};
         keys.forEach(k=>{ partial[k]=body[k]; });
+        // Stamp meta.savedAt so OTHER devices' sync loop sees this change.
+        // Without this, patch saves are invisible to other devices.
+        const stamp = (body.savedAt && typeof body.savedAt==='number') ? body.savedAt : Date.now();
+        const incomingMeta = (partial.meta && typeof partial.meta==='object') ? partial.meta : {};
+        partial.meta = Object.assign({}, incomingMeta, {savedAt: stamp});
         const ok=await dbSetAll(partial);   // dbSetAll already merges list collections by id
         return sendJ(res,200,{ok:ok!==false});
       } catch(e) { return sendJ(res,400,{ok:false,error:e.message}); }
