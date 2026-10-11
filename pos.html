@@ -930,7 +930,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           </div>
           <div class="fr"><label>Email</label><input type="text" id="st-email" placeholder="Store email"></div>
           <div class="fr"><label>Tax registration number</label><input type="text" id="st-reg" placeholder="e.g. VAT Reg: 123456789"></div>
-          <div class="fr"><label>Quote footer</label><textarea id="st-footer" placeholder="Thank you for your business. Quote valid for 30 days."></textarea></div>
+          <div class="fr"><label>Receipt footer</label><textarea id="st-footer" placeholder="Thank you for your business. All quotations valid for 30 days."></textarea></div>
+          <div class="fr"><label>Return policy (prints on receipt)</label><textarea id="st-returnpolicy" placeholder="Returns accepted within 3 days of purchase with receipt and original packaging."></textarea></div>
           <button class="sbtn" onclick="saveStoreInfo()">Save store info</button>
         </div>
       </div>
@@ -1403,7 +1404,7 @@ let CUSTS=[
 ];
 let TXS=[],QUOTES=[];
 let VAT={rate:15,label:'VAT',mode:'exclusive'};
-let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. Quote valid for 30 days.'};
+let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. All quotations valid for 30 days.',returnPolicy:'Returns accepted within 3 days of purchase with receipt and original packaging.'};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='📦',PAYM='cash';
 let PARKED=[];   /* held/parked sales */
@@ -2210,74 +2211,114 @@ function rcptHTML(tx, forPrint){
     var pdt=dt.toLocaleDateString('en-US',{year:'numeric',month:'2-digit',day:'2-digit'});
     var pcount=tx.items.reduce(function(s,i){return s+i.qty;},0);
     var totalItemDisc=tx.items.reduce(function(s,i){return s+(i.itemDisc||0);},0);
-    var L=[];
-    var body='';
-    // Big bold store name (separate larger line, outside the pre)
-    var head='<div style="text-align:center;font-family:\'Arial Black\',\'Helvetica\',sans-serif;font-weight:900;color:#000;margin-bottom:2px;">'+
-      '<div style="font-size:24px;letter-spacing:.5px;line-height:1.15;">'+BRAND.name.toUpperCase()+'</div>'+
-      (BRAND.sub?'<div style="font-size:13px;font-weight:700;margin-top:3px;">'+BRAND.sub+'</div>':'')+
-      (STORE.address?'<div style="font-size:13px;font-weight:700;margin-top:4px;">'+STORE.address+'</div>':'')+
-      (STORE.phone?'<div style="font-size:13px;font-weight:700;">Tel: '+STORE.phone+'</div>':'')+
-      (STORE.reg?'<div style="font-size:12px;font-weight:700;">Reg# '+STORE.reg+'</div>':'')+
+    /* helper: wrap a long string to W columns, each line as its own array entry */
+    function wrapTo(str,width){
+      var words=String(str).split(' '),out=[],line='';
+      words.forEach(function(w){
+        if((line+(line?' ':'')+w).length>width){ if(line)out.push(line); line=w; }
+        else line+=(line?' ':'')+w;
+      });
+      if(line) out.push(line);
+      return out;
+    }
+    var savedAmt=totalItemDisc+(tx.discount||0);
+
+    /* ── HEADER: store identity ── */
+    var head='<div style="text-align:center;font-family:\'Arial Black\',\'Helvetica\',sans-serif;color:#000;margin-bottom:4px;">'+
+      '<div style="font-size:23px;font-weight:900;letter-spacing:.3px;line-height:1.12;">'+H(BRAND.name.toUpperCase())+'</div>'+
+      (BRAND.sub?'<div style="font-size:12px;font-weight:700;margin-top:2px;">'+H(BRAND.sub)+'</div>':'')+
+      '<div style="font-size:12px;font-weight:700;margin-top:4px;line-height:1.35;">'+
+        (STORE.address?H(STORE.address)+'<br>':'')+
+        (STORE.phone?'Tel: '+H(STORE.phone):'')+
+        (STORE.reg?(STORE.phone?'  ·  ':'')+'Reg# '+H(STORE.reg):'')+
+      '</div>'+
     '</div>';
-    // Meta
-    body+=rep('=',W)+'\n';
-    body+=lr('Receipt:',tx.id)+'\n';
-    body+=lr('Date:',pdt+' '+ts)+'\n';
-    if(cust) body+=lr('Customer:',cust.name)+'\n';
-    if(isRefund) body+=ctr('*** REFUND ***')+'\n';
+
+    /* ── SECTION 1: receipt meta (boxed) ── */
+    var meta='';
+    meta+=rep('=',W)+'\n';
+    if(isRefund) meta+=ctr('* * *  R E F U N D  * * *')+'\n'+rep('-',W)+'\n';
+    else         meta+=ctr('S A L E   R E C E I P T')+'\n'+rep('-',W)+'\n';
+    meta+=lr('Receipt #',tx.id)+'\n';
+    meta+=lr('Date',pdt)+'\n';
+    meta+=lr('Time',ts)+'\n';
+    if(cust){
+      meta+=lr('Customer',cust.name.length>W-10?cust.name.slice(0,W-10):cust.name)+'\n';
+      if(cust.phone) meta+=lr('Phone',cust.phone)+'\n';
+    }
+    meta+=rep('=',W)+'\n';
+
+    /* ── SECTION 2: items ── */
+    var body='';
+    body+=' QTY  ITEM'+rep(' ',Math.max(1,W-10-6))+'AMOUNT'+'\n';
     body+=rep('-',W)+'\n';
-    body+=lr('ITEM','AMOUNT')+'\n';
-    body+=rep('-',W)+'\n';
-    // Items
     tx.items.forEach(function(i){
-      var nm=i.name.length>W?i.name.slice(0,W):i.name;
-      body+=nm+'\n';
-      var qline='  '+i.qty+' x $'+i.price.toFixed(2);
-      if(i.itemDisc&&i.itemDisc>0) qline+=' ('+(i.itemDiscType==='pct'?i.itemDiscVal+'%':'-$'+i.itemDisc.toFixed(2))+')';
-      body+=lr(qline,'$'+i.line.toFixed(2))+'\n';
+      /* line 1: qty + name (name wraps under if long) */
+      var qty=(i.qty+'x').padEnd(4,' ');
+      var nameLines=wrapTo(i.name, W-6);
+      body+=' '+qty+' '+nameLines[0]+'\n';
+      for(var k=1;k<nameLines.length;k++){ body+=rep(' ',6)+nameLines[k]+'\n'; }
+      /* line 2: unit price left, line total right */
+      body+=lr('      @ $'+i.price.toFixed(2),'$'+i.line.toFixed(2))+'\n';
+      /* discount, if any, on its own indented line so nothing overflows */
+      if(i.itemDisc&&i.itemDisc>0){
+        body+='        discount '+(i.itemDiscType==='pct'?i.itemDiscVal+'% off':'-$'+i.itemDisc.toFixed(2))+'\n';
+      }
     });
     body+=rep('-',W)+'\n';
-    // Totals
-    body+=lr('Subtotal ('+pcount+'):','$'+(tx.subtotal+totalItemDisc).toFixed(2))+'\n';
-    if(totalItemDisc>0) body+=lr('Item discounts:','-$'+totalItemDisc.toFixed(2))+'\n';
-    if(tx.discount>0) body+=lr((tx.coupon||'Discount')+':','-$'+tx.discount.toFixed(2))+'\n';
-    if(tx.tip>0) body+=lr('Tip:','+$'+tx.tip.toFixed(2))+'\n';
-    body+=lr((tx.vatLabel||'VAT')+' ('+(tx.vatRate||VAT.rate)+'%):','$'+tx.tax.toFixed(2))+'\n';
-    // Big total line (rendered larger below the pre block)
-    var totalLine='<div style="font-family:\'Arial Black\',sans-serif;font-weight:900;color:#000;font-size:22px;display:flex;justify-content:space-between;border-top:3px solid #000;border-bottom:3px solid #000;padding:5px 0;margin:3px 0;"><span>TOTAL</span><span>$'+tx.total.toFixed(2)+'</span></div>';
+
+    /* ── SECTION 3: totals ── */
+    body+=lr('Items in order:',''+pcount)+'\n';
+    body+=lr('Subtotal','$'+(tx.subtotal+totalItemDisc).toFixed(2))+'\n';
+    if(totalItemDisc>0) body+=lr('Item discounts','-$'+totalItemDisc.toFixed(2))+'\n';
+    if(tx.discount>0)   body+=lr((tx.coupon||'Discount'),'-$'+tx.discount.toFixed(2))+'\n';
+    if(tx.tip>0)        body+=lr('Tip','+$'+tx.tip.toFixed(2))+'\n';
+    body+=lr((tx.vatLabel||'VAT')+' ('+(tx.vatRate||VAT.rate)+'%)','$'+tx.tax.toFixed(2))+'\n';
+
+    /* ── TOTAL (large, boxed — rendered outside the pre) ── */
+    var totalLine='<div style="font-family:\'Arial Black\',sans-serif;font-weight:900;color:#000;font-size:21px;display:flex;justify-content:space-between;align-items:center;border-top:3px solid #000;border-bottom:3px solid #000;padding:6px 2px;margin:4px 0;"><span>TOTAL</span><span>$'+tx.total.toFixed(2)+'</span></div>';
+
+    /* ── SECTION 4: payment + savings ── */
     var body2='';
-    if(totalItemDisc+tx.discount>0) body2+=ctr('*** You saved $'+(totalItemDisc+tx.discount).toFixed(2)+'! ***')+'\n';
-    body2+=lr('Payment:',tx.payMethod.toUpperCase())+'\n';
+    var payName={cash:'CASH',card:'CARD',mobile:'MOBILE MONEY',split:'SPLIT',refund:'REFUND'}[tx.payMethod]||tx.payMethod.toUpperCase();
+    body2+=lr('Payment method',payName)+'\n';
     if(tx.split){
-      if(tx.split.cash>0)   body2+=lr('  Cash:','$'+tx.split.cash.toFixed(2))+'\n';
-      if(tx.split.card>0)   body2+=lr('  Card:','$'+tx.split.card.toFixed(2))+'\n';
-      if(tx.split.mobile>0) body2+=lr('  Mobile:','$'+tx.split.mobile.toFixed(2))+'\n';
+      if(tx.split.cash>0)   body2+=lr('  Cash','$'+tx.split.cash.toFixed(2))+'\n';
+      if(tx.split.card>0)   body2+=lr('  Card','$'+tx.split.card.toFixed(2))+'\n';
+      if(tx.split.mobile>0) body2+=lr('  Mobile','$'+tx.split.mobile.toFixed(2))+'\n';
     }
     if(tx.payMethod==='cash'){
-      body2+=lr('Tendered:','$'+tx.tendered.toFixed(2))+'\n';
-      body2+=lr('Change:','$'+tx.change.toFixed(2))+'\n';
+      body2+=lr('Cash tendered','$'+tx.tendered.toFixed(2))+'\n';
+      body2+=lr('Change due','$'+tx.change.toFixed(2))+'\n';
     }
-    body2+=rep('-',W)+'\n';
-    body2+=ctr((STORE.footer||'Thank you for your business!'))+'\n';
+    if(savedAmt>0){
+      body2+=rep('-',W)+'\n';
+      body2+=ctr('YOU SAVED $'+savedAmt.toFixed(2)+' TODAY!')+'\n';
+    }
+
+    /* ── SECTION 5: footer ── */
+    var foot='';
+    foot+=rep('=',W)+'\n';
+    wrapTo(STORE.footer||'Thank you for your business!',W).forEach(function(l){ foot+=ctr(l)+'\n'; });
     if(STORE.returnPolicy){
-      var words=STORE.returnPolicy.split(' '),line='';
-      body2+='\n';
-      words.forEach(function(w){
-        if((line+w).length>W){body2+=ctr(line.trim())+'\n';line=w+' ';}
-        else line+=w+' ';
-      });
-      if(line.trim()) body2+=ctr(line.trim())+'\n';
+      foot+='\n';
+      wrapTo(STORE.returnPolicy,W).forEach(function(l){ foot+=ctr(l)+'\n'; });
     }
-    body2+='\n'+ctr(tx.id)+'\n';
-    /* Blank feed lines so the printer advances the paper and the last
-       lines (footer, return policy, thank-you) clear the tear bar/cutter. */
-    body2+='\n\n\n\n\n\n';
+    foot+='\n';
+    foot+=ctr('Keep this receipt')+'\n';
+    foot+=ctr(tx.id)+'\n';
+    foot+=ctr(pdt+'  '+ts)+'\n';
+    /* feed space so the last lines clear the printer's tear bar/cutter */
+    foot+='\n\n\n\n\n\n';
+
+    var preStyle='font-family:\'Courier New\',monospace;font-size:15px;font-weight:900;color:#000;line-height:1.55;white-space:pre;margin:0;';
     return '<div style="max-width:340px;margin:0 auto;color:#000;">'+
       head+
-      '<pre style="font-family:\'Courier New\',monospace;font-size:16px;font-weight:900;color:#000;line-height:1.65;white-space:pre;margin:0;">'+body+'</pre>'+
+      '<pre style="'+preStyle+'">'+meta+'</pre>'+
+      '<pre style="'+preStyle+'">'+body+'</pre>'+
       totalLine+
-      '<pre style="font-family:\'Courier New\',monospace;font-size:16px;font-weight:900;color:#000;line-height:1.65;white-space:pre;margin:0;">'+body2+'</pre>'+
+      '<pre style="'+preStyle+'">'+body2+'</pre>'+
+      '<pre style="'+preStyle+'">'+foot+'</pre>'+
     '</div>';
   }
 
@@ -3336,6 +3377,7 @@ function initStoreInfo(){
   document.getElementById('st-name').value=STORE.name||'';document.getElementById('st-addr').value=STORE.address||'';
   document.getElementById('st-phone').value=STORE.phone||'';document.getElementById('st-email').value=STORE.email||'';
   document.getElementById('st-reg').value=STORE.reg||'';document.getElementById('st-footer').value=STORE.footer||'';
+  var _rp=document.getElementById('st-returnpolicy');if(_rp)_rp.value=STORE.returnPolicy||'';
   var _cc=document.getElementById('st-cc');if(_cc)_cc.value=STORE.countryCode||'592';
   var _ad=document.getElementById('st-autodrawer');if(_ad)_ad.checked=!!STORE.autoDrawer;
 }
@@ -3345,6 +3387,7 @@ async function saveStoreInfo(){
   STORE.name=document.getElementById('st-name').value.trim();STORE.address=document.getElementById('st-addr').value.trim();
   STORE.phone=document.getElementById('st-phone').value.trim();STORE.email=document.getElementById('st-email').value.trim();
   STORE.reg=document.getElementById('st-reg').value.trim();STORE.footer=document.getElementById('st-footer').value.trim();
+  var _rpEl=document.getElementById('st-returnpolicy');if(_rpEl)STORE.returnPolicy=_rpEl.value.trim();
   var _ccEl=document.getElementById('st-cc');if(_ccEl)STORE.countryCode=(_ccEl.value.trim()||'592').replace(/\D/g,'');
   var _adEl=document.getElementById('st-autodrawer');if(_adEl)STORE.autoDrawer=_adEl.checked;
   await saveAll();toast('Store info saved ✓');
