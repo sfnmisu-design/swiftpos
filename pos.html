@@ -537,10 +537,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 }
 
 @media print{
-  @page{margin:6mm;}
-  body{height:auto;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff;}
-  .root,.ov,.toast,.mob-nav,.cart-drawer{display:none!important;}
-  #pra{display:block!important;}
+  @page{margin:4mm 4mm 0 4mm;}   /* no bottom margin — we add feed space in content */
+  html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff;}
+  /* Hide EVERYTHING except the print area so nothing overlays or clips it */
+  body>*{display:none!important;}
+  #pra{display:block!important;position:static!important;height:auto!important;max-height:none!important;overflow:visible!important;}
+  #login-gate,.root,.ov,.toast,.mob-nav,.cart-drawer,#splash,#net-banner{display:none!important;}
   /* Force everything heavy & solid black for crisp, dark printing */
   #pra,#pra *{
     color:#000!important;
@@ -548,9 +550,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     -webkit-print-color-adjust:exact!important;
     print-color-adjust:exact!important;
     text-rendering:geometricPrecision;
+    overflow:visible!important;
   }
-  /* Faux-bold thickening: tiny text-shadow makes thin printer output darker */
-  #pra pre{ text-shadow:0 0 .4px #000, .3px 0 .4px #000 !important; }
+  /* Don't let any element break across pages mid-receipt */
+  #pra pre{ text-shadow:0 0 .4px #000, .3px 0 .4px #000 !important; page-break-inside:avoid; break-inside:avoid; white-space:pre-wrap!important; }
+  /* Blank feed space at the very end so the last lines clear the cutter */
+  #pra::after{content:"\A\A\A\A\A\A";white-space:pre;display:block;}
 }
 #pra{display:none;padding:8px 12px;max-width:360px;margin:0 auto;font-family:'Courier New',monospace;font-size:16px;font-weight:900;color:#000;}
 
@@ -2265,6 +2270,9 @@ function rcptHTML(tx, forPrint){
       if(line.trim()) body2+=ctr(line.trim())+'\n';
     }
     body2+='\n'+ctr(tx.id)+'\n';
+    /* Blank feed lines so the printer advances the paper and the last
+       lines (footer, return policy, thank-you) clear the tear bar/cutter. */
+    body2+='\n\n\n\n\n\n';
     return '<div style="max-width:340px;margin:0 auto;color:#000;">'+
       head+
       '<pre style="font-family:\'Courier New\',monospace;font-size:16px;font-weight:900;color:#000;line-height:1.65;white-space:pre;margin:0;">'+body+'</pre>'+
