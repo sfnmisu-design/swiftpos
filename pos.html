@@ -1404,7 +1404,7 @@ let CUSTS=[
 ];
 let TXS=[],QUOTES=[];
 let VAT={rate:15,label:'VAT',mode:'exclusive'};
-let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. All quotations valid for 30 days.',returnPolicy:'Returns accepted within 3 days of purchase with receipt and original packaging.'};
+let STORE={name:'SwiftPOS',address:'',phone:'',email:'',reg:'',footer:'Thank you for your business. All quotations valid for 30 days.',returnPolicy:''};
 let BRAND={name:'SwiftPOS',letter:'S',sub:'Retail Edition',color:'#1D9E75',radius:8,size:30};
 let CART={},ACAT='All',SQ='',COUPON=null,ESEL='📦',PAYM='cash';
 let PARKED=[];   /* held/parked sales */
@@ -5574,6 +5574,13 @@ async function init(){
   try{var lst=localStorage.getItem('sp_lst');if(lst!==null)LOW_STOCK_THRESHOLD=parseInt(lst)||10;}catch(e){}
   /* Load cached data immediately so UI isn't empty */
   try{ loadLocal(); }catch(e){}
+  /* One-time cleanup: remove the old default return-policy line from the receipt */
+  try{
+    if(STORE.returnPolicy && /Returns accepted within 3 days of purchase/i.test(STORE.returnPolicy)){
+      STORE.returnPolicy='';
+      try{ savePatch(['storeInfo']); }catch(e){}
+    }
+  }catch(e){}
   applyBrand();
   populateCatDropdown();renderCats();renderGrid();renderEP();renderPtbl();updCustDropdown();updVATDisplay();renderReports();renderQuotes();renderLSBanner();renderDropoffs();
   tick();
