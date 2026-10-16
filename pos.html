@@ -88,6 +88,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 }
 @keyframes tabPop{0%{transform:scale(.9)}55%{transform:scale(1.07)}100%{transform:scale(1)}}
 @keyframes tabUnderline{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+/* ===== Login screen animations ===== */
+.lg-bg{position:absolute;inset:0;background:radial-gradient(circle at 50% 44%,#1DB88A,#0F6E56 70%,#0A4A3A 100%);}
+/* pulsing rings radiating from the centre */
+.lg-ring{position:absolute;top:44%;left:50%;width:140px;height:140px;border:2px solid rgba(255,255,255,.35);border-radius:50%;transform:translate(-50%,-50%);animation:lgPulse 3s ease-out infinite;pointer-events:none;}
+.lg-ring:nth-of-type(2){animation-delay:1s;}
+.lg-ring:nth-of-type(3){animation-delay:2s;}
+@keyframes lgPulse{0%{width:140px;height:140px;opacity:.7}100%{width:620px;height:620px;opacity:0}}
+.lg-card{animation:lgCardIn .7s cubic-bezier(.2,.9,.3,1.3) both;}
+@keyframes lgCardIn{0%{opacity:0;transform:translateY(40px) scale(.92)}100%{opacity:1;transform:translateY(0) scale(1)}}
+.lg-logo{animation:lgLogoIn .8s cubic-bezier(.34,1.56,.64,1) .15s both;box-shadow:0 8px 24px rgba(15,110,86,.4);}
+@keyframes lgLogoIn{0%{opacity:0;transform:scale(.3) rotate(-20deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+.lg-logo .lg-shine{position:absolute;top:0;left:-120%;width:60%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-20deg);animation:lgShine 3.2s ease-in-out 1s infinite;}
+@keyframes lgShine{0%{left:-120%}35%,100%{left:160%}}
+.lg-fade{opacity:0;animation:lgFadeUp .55s ease forwards;}
+.lg-d1{animation-delay:.35s}.lg-d2{animation-delay:.45s}.lg-d3{animation-delay:.55s}.lg-d4{animation-delay:.65s}.lg-d5{animation-delay:.8s}
+@keyframes lgFadeUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+.lg-input{transition:border-color .25s,box-shadow .25s,background .25s;}
+.lg-input:focus{border-color:#22B083!important;background:#fff!important;box-shadow:0 0 0 4px rgba(34,176,131,.18);}
+.lg-btn{transition:transform .12s,box-shadow .25s,filter .2s;box-shadow:0 6px 18px rgba(15,110,86,.35);background-size:160% 100%!important;}
+.lg-btn:hover{filter:brightness(1.07);box-shadow:0 8px 24px rgba(15,110,86,.45);}
+.lg-btn:active{transform:scale(.96);}
+@media (prefers-reduced-motion: reduce){
+  .lg-bg,.lg-ring,.lg-card,.lg-logo,.lg-shine,.lg-fade{animation:none!important;}
+  .lg-ring{display:none!important;}
+  .lg-fade{opacity:1!important;}
+}
 .t .t-ic{display:inline-block;margin-right:3px;transition:transform .2s;-webkit-text-fill-color:initial;}
 .t.on .t-ic{animation:tabIcon .6s ease, icBob 2.5s ease-in-out .6s infinite;-webkit-text-fill-color:initial;}
 @keyframes tabIcon{0%{transform:scale(1) rotate(0)}25%{transform:scale(1.35) rotate(-10deg)}55%{transform:scale(1.15) rotate(7deg)}100%{transform:scale(1) rotate(0)}}
@@ -577,16 +603,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </head>
 <body>
 <!-- LOGIN GATE (shown until authenticated; works inside installed PWA) -->
-<div id="login-gate" style="display:flex;position:fixed;inset:0;z-index:100000;background:linear-gradient(160deg,#0F6E56,#1D9E75);align-items:center;justify-content:center;flex-direction:column;padding:24px;font-family:system-ui,-apple-system,sans-serif;">
-  <div style="width:100%;max-width:340px;background:#fff;border-radius:22px;padding:30px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
-    <div style="width:74px;height:74px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,#22B083,#0F6E56);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;letter-spacing:-1px;">TG</div>
-    <div style="font-size:19px;font-weight:800;color:#1a1a1a;">SwiftPOS</div>
-    <div style="font-size:12px;color:#888;margin-bottom:20px;">TechGeek Automotive Paint &amp; Electronic</div>
-    <input type="password" id="login-pass" placeholder="Enter password" autocomplete="current-password" style="width:100%;font-size:16px;padding:13px 14px;border-radius:12px;border:1.5px solid #ddd;background:#fafafa;text-align:center;margin-bottom:10px;outline:none;">
+<div id="login-gate" style="display:flex;position:fixed;inset:0;z-index:100000;align-items:center;justify-content:center;flex-direction:column;padding:24px;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;">
+  <!-- animated backdrop: radial glow + pulsing rings -->
+  <div class="lg-bg"></div>
+  <div class="lg-ring"></div>
+  <div class="lg-ring"></div>
+  <div class="lg-ring"></div>
+  <div class="lg-card" style="position:relative;width:100%;max-width:340px;background:#fff;border-radius:22px;padding:30px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
+    <div class="lg-logo" style="position:relative;width:74px;height:74px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,#22B083,#0F6E56);display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;color:#fff;letter-spacing:-1px;overflow:hidden;">TG<span class="lg-shine"></span></div>
+    <div class="lg-fade lg-d1" style="font-size:19px;font-weight:800;color:#1a1a1a;">SwiftPOS</div>
+    <div class="lg-fade lg-d2" style="font-size:12px;color:#888;margin-bottom:20px;">TechGeek Automotive Paint &amp; Electronic</div>
+    <input class="lg-fade lg-d3 lg-input" type="password" id="login-pass" placeholder="Enter password" autocomplete="current-password" style="width:100%;font-size:16px;padding:13px 14px;border-radius:12px;border:1.5px solid #ddd;background:#fafafa;text-align:center;margin-bottom:10px;outline:none;">
     <div id="login-err" style="color:#D64545;font-size:12px;font-weight:600;min-height:16px;margin-bottom:8px;"></div>
-    <button id="login-btn" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#22B083,#0F6E56);color:#fff;font-size:15px;font-weight:700;cursor:pointer;">Log In</button>
+    <button class="lg-fade lg-d4 lg-btn" id="login-btn" style="width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(135deg,#22B083,#0F6E56);color:#fff;font-size:15px;font-weight:700;cursor:pointer;">Log In</button>
   </div>
-  <div style="color:rgba(255,255,255,.7);font-size:11px;margin-top:18px;">© 2026 SFN</div>
+  <div class="lg-fade lg-d5" style="position:relative;color:rgba(255,255,255,.75);font-size:11px;margin-top:18px;">© 2026 SFN</div>
 </div>
 
 <div id="pra"></div>
