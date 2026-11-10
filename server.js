@@ -24,15 +24,24 @@ const MANIFEST_JSON = JSON.stringify({
   name: 'SwiftPOS — TechGeek',
   short_name: 'SwiftPOS',
   description: 'TechGeek Automotive Paint & Electronic — Point of Sale',
-  start_url: '/',
+  start_url: '/?src=pwa',
   scope: '/',
   display: 'standalone',
+  display_override: ['standalone', 'fullscreen', 'minimal-ui'],
   orientation: 'any',
-  background_color: '#1D9E75',
+  background_color: '#0F6E56',
   theme_color: '#1D9E75',
+  categories: ['business', 'productivity', 'shopping'],
+  lang: 'en',
+  dir: 'ltr',
   icons: [
-    { src: TG_ICON_DATA, sizes: '512x512', type: 'image/svg+xml', purpose: 'any maskable' },
-    { src: TG_ICON_DATA, sizes: '192x192', type: 'image/svg+xml', purpose: 'any maskable' }
+    { src: TG_ICON_DATA, sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+    { src: TG_ICON_DATA, sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
+    { src: TG_ICON_DATA, sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' }
+  ],
+  shortcuts: [
+    { name: 'New Sale', short_name: 'Sell', url: '/?tab=catalog', description: 'Start a new sale' },
+    { name: 'Repairs Drop-off', short_name: 'Repairs', url: '/?tab=dropoffs', description: 'New repair ticket' }
   ]
 });
 
